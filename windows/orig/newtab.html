@@ -1,0 +1,2027 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>New tab</title>
+<!-- Served from the same origin as the chrome, so it reads the real history and
+     settings straight out of localStorage instead of asking the shell for them.
+     Private windows cannot see that storage; their few settings arrive in the
+     address instead (?theme=...&search=...&private=1). -->
+<style>
+:root{
+  --bg:#16131a; --bg2:#1e1a24; --bg3:#272230; --line:#322c3c;
+  --fg:#f3eff1; --dim:#9a91a3; --dim2:#6f6779; --accent:#e8342a; --soft:rgba(232,52,42,.14);
+}
+:root[data-theme="light"]{
+  --bg:#efebe3; --bg2:#f9f6ef; --bg3:#e6e0d6; --line:#d9d2c6;
+  --fg:#1d1a20; --dim:#6b6560; --dim2:#928b83;
+}
+:root.private{ --accent:#a66bff; --soft:rgba(166,107,255,.18) }
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);overflow:hidden;
+  font:14px/1.5 "Segoe UI Variable Text","Segoe UI",system-ui,sans-serif}
+/* The background is its own layer at full resolution: fit, dim and the soft
+   fill around a "Fit" picture never touch the picture itself. */
+#bgl{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden;background:var(--bg);--dim:0;--dimc:0,0,0}
+:root[data-theme="light"] #bgl{--dimc:255,255,255}
+#bgl .fill{position:absolute;inset:-60px;background:center/cover no-repeat;filter:blur(40px) saturate(1.15);opacity:.7;display:none}
+#bgl[data-fit="contain"] .fill,#bgl[data-fit="center"] .fill{display:block}
+#bgl .pic,#bgl video{position:absolute;inset:0;width:100%;height:100%;background:center/cover no-repeat;object-fit:cover}
+#bgl[data-fit="contain"] .pic{background-size:contain}
+#bgl[data-fit="contain"] video{object-fit:contain}
+#bgl[data-fit="stretch"] .pic{background-size:100% 100%}
+#bgl[data-fit="stretch"] video{object-fit:fill}
+#bgl[data-fit="center"] .pic{background-size:auto}
+#bgl[data-fit="center"] video{object-fit:none}
+#bgl .dim{position:absolute;inset:0;background:rgba(var(--dimc),var(--dim))}
+#bgl .foot{position:absolute;left:0;right:0;bottom:0;height:90px;background:linear-gradient(180deg,transparent,rgba(var(--dimc),.22))}
+body.pic #clock,body.pic h1,body.pic .tag,body.pic .lbl,body.pic footer,body.pic #shield{text-shadow:0 1px 3px rgba(0,0,0,.5),0 0 18px rgba(0,0,0,.35)}
+:root[data-theme="light"] body.pic #clock,:root[data-theme="light"] body.pic h1,:root[data-theme="light"] body.pic .tag,
+:root[data-theme="light"] body.pic .lbl,:root[data-theme="light"] body.pic footer,:root[data-theme="light"] body.pic #shield{text-shadow:0 1px 3px rgba(255,255,255,.6),0 0 18px rgba(255,255,255,.4)}
+body.pic .card,body.pic .site,body.pic .vid,body.pic input{backdrop-filter:blur(14px);background:color-mix(in srgb,var(--bg2) 78%,transparent)}
+/* The same steep diagonal as the logo's cut, carried across the page. */
+#seam{position:fixed;inset:0;pointer-events:none;overflow:hidden}
+body.pic #seam{display:none}
+#seam i{position:absolute;top:-25%;bottom:-25%;left:82%;width:1px;
+  background:linear-gradient(180deg,transparent 8%,rgba(232,52,42,.30) 50%,transparent 92%);
+  transform:rotate(10deg)}
+.private #seam i{background:linear-gradient(180deg,transparent 8%,rgba(166,107,255,.34) 50%,transparent 92%)}
+#seam u{position:absolute;top:-25%;bottom:-25%;left:82%;width:60vw;
+  background:rgba(255,255,255,.014);transform:rotate(10deg)}
+:root[data-theme="light"] #seam u{background:rgba(60,40,30,.035)}
+main{position:relative;height:100%;display:flex;flex-direction:column;
+  align-items:center;justify-content:safe center;padding:40px 24px 70px;overflow:auto}
+.mark{width:60px;height:60px;margin-bottom:14px}
+/* widgets and habits */
+.wgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px}
+.wg{background:var(--bg2);border-radius:14px;padding:12px 14px;min-height:110px;animation:up .5s cubic-bezier(.2,.8,.2,1) both;position:relative;overflow:hidden}
+body.pic .wg{backdrop-filter:blur(14px);background:color-mix(in srgb,var(--bg2) 78%,transparent)}
+.wg h3{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim2);font-weight:600;margin-bottom:8px}
+.wg.q p{font-size:14px;line-height:1.45;font-style:italic}.wg.q span{display:block;color:var(--dim);font-size:12px;margin-top:6px}
+.wg textarea{width:100%;height:78px;border:0;background:none;color:var(--fg);resize:none;font:13px/1.45 inherit;font-family:inherit;outline:0;padding:0}
+.wg .sw{font:300 30px "Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;font-variant-numeric:tabular-nums}
+.wg .btns{display:flex;gap:6px;margin-top:6px}
+.wg .btns button{height:28px;padding:0 10px;border-radius:7px;border:1px solid var(--line);background:var(--bg3);color:var(--fg);cursor:pointer;font:12px inherit;font-family:inherit}
+.wg .bat{height:10px;border-radius:5px;background:var(--bg3);overflow:hidden;margin:8px 0 4px}.wg .bat i{display:block;height:100%;background:#3fb971;transition:width .6s}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;font-size:11px;text-align:center}
+.cal b{color:var(--dim2);font-weight:600}
+.cal span{padding:3px 0;border-radius:6px;cursor:pointer;position:relative}
+.cal span:hover{background:var(--bg3)}
+.cal span.now{background:var(--accent);color:#fff}
+.cal span.ev::after{content:"";position:absolute;left:50%;bottom:1px;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:var(--accent)}
+.cal span.now.ev::after{background:#fff}
+.cal span.out{opacity:.3}
+.evs{margin-top:6px;font-size:12px;color:var(--dim)}
+.hrow{display:grid;grid-template-columns:1fr repeat(7,22px) 44px 18px;gap:6px;align-items:center;padding:6px 12px}
+.hrow + .hrow{border-top:1px solid var(--line)}
+.hrow .n{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:13px}
+.hrow i{width:20px;height:20px;border-radius:6px;background:var(--bg3);cursor:pointer;transition:transform .15s,background .15s}
+.hrow i:hover{transform:scale(1.1)}
+.hrow i.on{background:var(--accent);box-shadow:0 0 8px color-mix(in srgb,var(--accent) 50%,transparent)}
+.hrow i.today{outline:2px solid color-mix(in srgb,var(--accent) 45%,transparent);outline-offset:1px}
+.hrow em{font-style:normal;font-size:12px;color:var(--dim);text-align:right}
+.hrow button{border:0;background:none;color:var(--dim2);cursor:pointer;opacity:0}.hrow:hover button{opacity:1}
+.hsub{margin-left:auto;display:grid;grid-template-columns:repeat(7,22px);gap:6px;margin-right:74px;text-transform:none;letter-spacing:0}
+#habitSec .card:empty{display:none}
+#live{position:fixed;inset:0;width:100%;height:100%;z-index:-1;pointer-events:none}
+#egg{position:fixed;z-index:30;pointer-events:none}
+/* clock styles */
+#clock.big{font-size:104px;font-weight:200;letter-spacing:-.04em}
+#clock.flip{display:flex;gap:6px;font-size:50px;font-weight:600;letter-spacing:0}
+#clock.flip span{position:relative;min-width:.66em;padding:6px 8px;border-radius:10px;background:var(--bg2);text-align:center;box-shadow:0 6px 18px rgba(0,0,0,.25);perspective:300px}
+#clock.flip span::after{content:"";position:absolute;left:0;right:0;top:50%;height:1px;background:rgba(0,0,0,.35)}
+#clock.flip span.sep{background:none;box-shadow:none;min-width:0;padding:6px 0}
+#clock.flip span.sep::after,#clock.flip span.ap::after{display:none}
+#clock.flip span.ap{font-size:18px;align-self:flex-end;background:none;box-shadow:none;min-width:0}
+#clock.flip span.go{animation:flip .45s cubic-bezier(.3,.7,.3,1)}
+@keyframes flip{0%{transform:rotateX(0)}50%{transform:rotateX(-90deg)}100%{transform:rotateX(0)}}
+#clock.analog{font-size:0}
+#clock.analog svg{width:150px;height:150px;filter:drop-shadow(0 8px 20px rgba(0,0,0,.3))}
+#clock.analog .face{fill:var(--bg2);stroke:var(--line);stroke-width:2}
+#clock.analog .tick{stroke:var(--dim2);stroke-width:2;stroke-linecap:round}
+#clock.analog .tick.q{stroke:var(--fg);stroke-width:3}
+#clock.analog .h{stroke:var(--fg);stroke-width:5;stroke-linecap:round}
+#clock.analog .m{stroke:var(--fg);stroke-width:3.5;stroke-linecap:round}
+#clock.analog .s{stroke:var(--accent);stroke-width:1.8;stroke-linecap:round;transition:transform .25s cubic-bezier(.4,2.2,.6,1)}
+#clock.analog .h,#clock.analog .m,#clock.analog .s{transform-origin:75px 75px}
+#clock{font-size:54px;font-weight:300;letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums;margin-bottom:6px}
+h1{font-size:22px;font-weight:500;letter-spacing:-.01em;margin-bottom:4px;text-align:center}
+h1 b{color:var(--accent);font-weight:400}
+.tag{color:var(--dim);font-size:13px;margin-bottom:26px;text-align:center;max-width:520px}
+form{width:min(640px,92vw);position:relative;z-index:5}   /* the engine menu stays above the sections (their entrance animation gives each its own layer) */
+input{width:100%;height:52px;padding:0 54px 0 20px;border-radius:26px;
+  background:var(--bg2);border:1px solid var(--line);color:var(--fg);
+  font:15px/1 "Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;outline:0;transition:border-color .15s,box-shadow .15s}
+input:focus{border-color:var(--accent);box-shadow:0 0 0 4px var(--soft)}
+input::placeholder{color:var(--dim2)}
+form button{position:absolute;right:7px;top:7px;width:38px;height:38px;
+  border:0;border-radius:19px;background:var(--accent);cursor:pointer;
+  display:grid;place-items:center}
+form button svg{width:18px;height:18px;stroke:#fff;stroke-width:2;fill:none;
+  stroke-linecap:round;stroke-linejoin:round}
+section{width:min(820px,94vw);margin-top:34px}
+.lbl{display:flex;align-items:center;gap:10px;color:var(--dim2);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;
+  margin-bottom:11px;padding-left:2px}
+.lbl a{margin-left:auto;text-transform:none;letter-spacing:0;font-size:12px;color:var(--dim);cursor:pointer}
+.lbl a:hover{color:var(--accent)}
+#grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:9px}
+.site{position:relative;display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 6px;
+  border-radius:11px;background:var(--bg2);border:1px solid transparent;
+  cursor:pointer;text-decoration:none;color:inherit;transition:border-color .12s,background .12s}
+.site:hover{background:var(--bg3);border-color:var(--line)}
+.site img,.site .ph{width:28px;height:28px;border-radius:7px}
+.site .ph{background:var(--bg3);display:grid;place-items:center;color:var(--dim);
+  font-size:13px;font-weight:600}
+.site.add .ph{font-size:20px;font-weight:300;color:var(--dim)}
+.site span{font-size:11.5px;color:var(--dim);max-width:100%;overflow:hidden;
+  white-space:nowrap;text-overflow:ellipsis}
+.site:hover span{color:var(--fg)}
+.site .pin{position:absolute;top:6px;left:7px;width:6px;height:6px;border-radius:3px;background:var(--accent)}
+.rm{position:absolute;top:4px;right:4px;width:20px;height:20px;border-radius:10px;border:0;
+  background:none;color:var(--dim);font-size:14px;line-height:1;cursor:pointer;opacity:0}
+.site:hover .rm,.vid:hover .rm,.row:hover .rm{opacity:1}
+.rm:hover{background:var(--bg);color:var(--accent)}
+#empty{color:var(--dim2);font-size:12.5px;padding:10px 2px}
+#vids{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px}
+.vid{position:relative;border-radius:11px;background:var(--bg2);overflow:hidden;cursor:pointer;border:1px solid transparent}
+.vid:hover{border-color:var(--line)}
+.vid .th{height:104px;background:var(--bg3) center/cover;display:grid;place-items:center;color:var(--dim2);font-size:12px}
+.vid .bar{height:3px;background:var(--bg3)}
+.vid .bar i{display:block;height:100%;background:var(--accent)}
+.vid .t{padding:8px 10px 2px;font-size:12.5px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.vid .s{padding:0 10px 9px;font-size:11px;color:var(--dim)}
+.vid .rm{background:rgba(0,0,0,.55);color:#fff}
+.card{background:var(--bg2);border-radius:11px;overflow:hidden}
+.row{position:relative;display:flex;align-items:center;gap:10px;padding:9px 12px;cursor:pointer}
+.row + .row{border-top:1px solid var(--line)}
+.row:hover{background:var(--bg3)}
+.row img,.row .ph{width:16px;height:16px;border-radius:3px;flex:none}
+.row .ph{background:var(--bg3)}
+.row .t{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:13px}
+.row .d{color:var(--dim2);font-size:11px;margin-right:24px}
+.row .rm{top:8px}
+#shield{margin-top:26px;display:flex;align-items:center;gap:9px;color:var(--dim);font-size:12.5px}
+#shield svg{width:16px;height:16px;stroke:var(--accent);stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round}
+#shield b{color:var(--fg);font-weight:600;font-variant-numeric:tabular-nums}
+/* ---- motion: the page settles in, tiles lift under the pointer (Settings → Animations) */
+@keyframes up{from{opacity:0;transform:translateY(14px)}}
+@keyframes fadeIn{from{opacity:0}}
+@keyframes popIn{from{opacity:0;transform:translate(-50%,10px) scale(.97)}}
+#clock,#logo,h1,.tag,#countdown,form,main>section,#shield,#tip{animation:up .6s cubic-bezier(.2,.8,.2,1) both}
+#logo,#clock{animation-delay:.02s}h1{animation-delay:.07s}.tag,#countdown{animation-delay:.11s}form{animation-delay:.15s}
+main>section:nth-of-type(1){animation-delay:.2s}main>section:nth-of-type(2){animation-delay:.25s}main>section:nth-of-type(3){animation-delay:.3s}
+main>section:nth-of-type(4){animation-delay:.35s}#shield{animation-delay:.4s}#tip{animation-delay:.45s}
+#wx{animation:fadeIn .8s .3s both}
+#bgl .pic,#bgl video{animation:fadeIn .7s ease-out both}
+.site{transition:transform .2s cubic-bezier(.2,.8,.2,1),box-shadow .2s,border-color .12s,background .12s}
+.site:hover{transform:translateY(-3px);box-shadow:0 12px 26px rgba(0,0,0,.28)}
+.site img,.site .ph{transition:transform .25s cubic-bezier(.2,.8,.2,1)}
+.site:hover img,.site:hover .ph{transform:scale(1.1)}
+.vid{transition:transform .22s cubic-bezier(.2,.8,.2,1),box-shadow .22s,border-color .12s}
+.vid:hover{transform:translateY(-3px);box-shadow:0 14px 30px rgba(0,0,0,.3)}
+.vid .th{transition:transform .5s cubic-bezier(.2,.8,.2,1)}
+.vid:hover .th{transform:scale(1.05)}
+form button{transition:transform .15s,filter .15s}
+form button:hover{transform:scale(1.07);filter:brightness(1.1)}
+form button:active{transform:scale(.94)}
+#bgbox:not(.hide),#custbox:not(.hide),#mubox:not(.hide){animation:popIn .25s cubic-bezier(.2,.8,.2,1)}
+#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
+:root[data-motion="reduced"] *{animation-name:fadeIn!important;animation-duration:.2s!important;animation-delay:0s!important}
+:root[data-motion="reduced"] .site:hover,:root[data-motion="reduced"] .vid:hover{transform:none}
+:root[data-motion="off"] *,:root[data-motion="off"] *::before,:root[data-motion="off"] *::after{animation:none!important;transition:none!important}
+@media (prefers-reduced-motion:reduce){*{animation-name:fadeIn!important;animation-duration:.2s!important;animation-delay:0s!important}.site:hover,.vid:hover{transform:none}}
+#tip{margin-top:12px;display:flex;align-items:baseline;gap:8px;color:var(--dim);font-size:12.5px;max-width:560px;text-align:left}
+#tip .tl{flex:none;font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+#tip span#tipT{flex:1}
+#tip a{flex:none;cursor:pointer;color:var(--dim2)}
+#tip a:hover{color:var(--accent)}
+body.pic #tip{text-shadow:0 1px 3px rgba(0,0,0,.5),0 0 18px rgba(0,0,0,.35)}
+.hide{display:none!important}
+footer{position:fixed;bottom:0;left:0;right:0;display:flex;justify-content:center;flex-wrap:wrap;
+  gap:22px;padding:14px;color:var(--dim2);font-size:11.5px;pointer-events:none;
+  background:linear-gradient(to top,color-mix(in srgb,var(--bg) 88%,transparent) 40%,transparent)}
+body.pic footer{background:linear-gradient(to top,rgba(0,0,0,.45) 40%,transparent)}
+footer a,footer span{pointer-events:auto}
+footer a{color:var(--dim2);text-decoration:none;cursor:pointer}
+footer a:hover{color:var(--accent)}
+body.pic footer,body.pic footer a{color:var(--dim)}
+body.pic .lbl{color:var(--dim)}
+kbd{background:var(--bg3);border:1px solid var(--line);border-radius:4px;
+  padding:1px 5px;font:inherit;font-size:10.5px;color:var(--dim)}
+#bgbox,#mubox{position:fixed;left:50%;bottom:52px;transform:translateX(-50%);z-index:6;width:min(380px,92vw);
+  background:var(--bg2);border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:0 12px 40px rgba(0,0,0,.45)}
+#bgbox .r,#mubox .r{display:flex;gap:8px;align-items:center}
+#bgbox .k,#mubox .k{color:var(--dim);font-size:11.5px;margin:12px 0 6px}
+#bgbox button,#mubox button{height:32px;padding:0 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg3);color:var(--fg);cursor:pointer;
+  font:12.5px "Segoe UI Variable Text","Segoe UI",system-ui,sans-serif}
+#bgbox button.m,#mubox button.m{background:var(--accent);border-color:var(--accent);color:#fff;flex:1}
+#bgbox button:disabled,#mubox button:disabled{opacity:.45;cursor:default}
+#bgbox .seg,#mubox .seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+#bgbox .seg button,#mubox .seg button{flex:1;border:0;border-radius:0;background:none;color:var(--dim)}
+#bgbox .seg button + button,#mubox .seg button + button{border-left:1px solid var(--line)}
+#bgbox .seg button.on,#mubox .seg button.on{background:var(--soft);color:var(--fg)}
+#bgbox input[type=range],#mubox input[type=range]{flex:1;height:auto;padding:0;border:0;background:none;box-shadow:none;accent-color:var(--accent);backdrop-filter:none}
+#bgbox .note,#mubox .note{margin-top:12px;padding:9px 10px;border-radius:8px;background:var(--bg3);color:var(--dim);font-size:11.5px;line-height:1.45}
+#slList{display:flex;flex-wrap:wrap;gap:6px;max-height:132px;overflow:auto}
+#slList .sl{position:relative;width:62px;height:40px;border-radius:6px;overflow:hidden;background:var(--bg3);border:1px solid var(--line);cursor:pointer}
+#slList .sl.on{outline:2px solid var(--accent);outline-offset:1px}
+#slList .sl img,#slList .sl video{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
+#slList .sl button{position:absolute;right:2px;top:2px;width:18px;height:18px;padding:0;border-radius:9px;border:0;background:rgba(0,0,0,.6);color:#fff;font-size:12px;line-height:18px;display:none}
+#slList .sl:hover button,#slList .sl button:focus{display:block}
+#slEmpty{color:var(--dim2);font-size:11.5px}
+#bgbox .v,#mubox .v{width:38px;text-align:right;color:var(--dim);font-size:12px;font-variant-numeric:tabular-nums}
+/* background music: the list in the Music box and the button in the corner */
+#bgbox{max-height:calc(100vh - 80px);overflow:auto}
+#bgbox .lives{display:grid;grid-template-columns:repeat(5,1fr);border:0;gap:4px;overflow:visible}
+#bgbox .lives button{border:1px solid var(--line)!important;border-radius:7px!important;height:30px;padding:0 2px;font-size:11.5px}
+.vnote{color:var(--dim2);font-size:10.5px;margin-left:4px}
+.vibes{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.vibes button{height:auto!important;padding:9px 2px 7px!important;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10.5px!important;position:relative;overflow:hidden;
+  background:linear-gradient(160deg,color-mix(in srgb,var(--vc) 32%,var(--bg3)),var(--bg3))!important;transition:transform .2s cubic-bezier(.3,1.5,.5,1),box-shadow .2s}
+.vibes button b{font-size:20px;font-weight:400;transition:transform .35s cubic-bezier(.3,1.6,.5,1)}
+.vibes button:hover{transform:translateY(-3px) scale(1.03);box-shadow:0 8px 20px color-mix(in srgb,var(--vc) 35%,transparent)}
+.vibes button:hover b{transform:scale(1.25) rotate(-8deg)}
+.vibes button.on{outline:2px solid var(--vc);outline-offset:1px}
+.vibes button.on::after{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent 30%,rgba(255,255,255,.18) 50%,transparent 70%);animation:vShine 2.4s ease-in-out infinite}
+@keyframes vShine{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
+html.vibing body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:40;background:radial-gradient(circle at 50% 60%,color-mix(in srgb,var(--accent) 45%,transparent),transparent 70%);animation:vWash .9s ease-out forwards}
+@keyframes vWash{from{opacity:0;transform:scale(.6)}40%{opacity:1}to{opacity:0;transform:scale(1.4)}}
+#mubox{max-height:calc(100vh - 80px);overflow:auto;width:min(400px,92vw)}
+#mubox .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+#mubox .chips button{height:28px;padding:0 11px;border-radius:14px;font-size:12px;color:var(--dim)}
+#mubox .chips button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+#mubox .chips button.add{border-style:dashed}
+#mubox input[type=search],#mubox select{width:100%;height:34px;border-radius:8px;border:1px solid var(--line);background:var(--bg3);color:var(--fg);padding:0 10px;font:12.5px "Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;margin-top:10px}
+#mubox select{margin-top:0}
+#muList .mr.pick i{color:var(--accent)}
+.stl{display:flex;flex-direction:column;gap:2px;max-height:210px;overflow:auto;margin-top:8px}
+.stl .mr{display:flex;align-items:center;gap:8px;min-height:38px;padding:3px 4px 3px 8px;border-radius:8px;cursor:pointer;font-size:12.5px}
+.stl .mr:hover{background:var(--bg3)}
+.stl .mr.on{background:var(--soft)}
+.stl .mr i{font-style:normal;width:18px;text-align:center;flex:none}
+.stl .mr .tt{flex:1;min-width:0}
+.stl .mr .tt span,.stl .mr .tt small{display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.stl .mr .tt small{color:var(--dim2);font-size:11px}
+.stl .mr button{width:26px;height:26px;padding:0;border:0;border-radius:6px;background:none;color:var(--dim);font-size:15px}
+.stl .mr button:hover{background:var(--bg2);color:var(--accent)}
+.muEmpty{color:var(--dim2);font-size:11.5px;line-height:1.45}
+.ambg{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:10px}
+.ambg button{height:auto!important;padding:8px 2px!important;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10.5px!important;color:var(--dim)!important;transition:transform .18s,background .18s,box-shadow .18s}
+.ambg button b{font-size:20px;font-weight:400;transition:transform .3s cubic-bezier(.3,1.6,.5,1)}
+.ambg button:hover{transform:translateY(-2px)}
+.ambg button:hover b{transform:scale(1.2) rotate(-6deg)}
+.ambg button.on{background:var(--soft)!important;border-color:var(--accent)!important;color:var(--fg)!important;box-shadow:0 0 0 1px var(--accent),0 6px 18px color-mix(in srgb,var(--accent) 30%,transparent)}
+.ambg button.on b{animation:ambBob 1.6s ease-in-out infinite}
+@keyframes ambBob{50%{transform:translateY(-3px) scale(1.1)}}
+#mubox .tog{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12.5px;color:var(--fg);cursor:pointer}
+#mubox .tog input{accent-color:var(--accent);width:16px;height:16px}
+#muList{display:flex;flex-direction:column;gap:2px;max-height:190px;overflow:auto;margin-top:10px}
+#muList .mr{display:flex;align-items:center;gap:8px;height:32px;padding:0 4px 0 8px;border-radius:8px;cursor:pointer;color:var(--fg);font-size:12.5px}
+#muList .mr:hover{background:var(--bg3)}
+#muList .mr.on{background:var(--soft)}
+#muList .mr i{width:14px;flex:none;color:var(--dim2);font-style:normal;text-align:center}
+#muList .mr.on i{color:var(--accent)}
+#muList .mr span{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#muList .mr button{width:24px;height:24px;padding:0;border:0;border-radius:6px;background:none;color:var(--dim2);font-size:15px;line-height:24px;visibility:hidden}
+#muList .mr:hover button,#muList .mr button:focus{visibility:visible}
+#muList .mr button:hover{color:var(--fg);background:var(--bg2)}
+#muEmpty{color:var(--dim2);font-size:11.5px;line-height:1.45}
+#mubar{position:fixed;left:16px;bottom:12px;z-index:7;display:flex;align-items:center;height:40px;padding:0 4px;border-radius:20px;max-width:calc(100vw - 32px);
+  background:color-mix(in srgb,var(--bg2) 80%,transparent);border:1px solid var(--line);backdrop-filter:blur(12px);box-shadow:0 6px 20px rgba(0,0,0,.25);animation:fadeIn .5s}
+#mubar button{flex:none;width:32px;height:32px;padding:0;border:0;border-radius:16px;background:none;color:var(--fg);cursor:pointer;display:grid;place-items:center}
+#mubar button:hover{background:var(--soft);color:var(--accent)}
+#mubar svg{width:18px;height:18px}
+#mubar .x,#mubar .pl{display:none}
+#mubar.off .x{display:inline}
+#mubar.off .w{display:none}
+#mubar.blocked:not(.off) .pl{display:inline}
+#mubar.blocked:not(.off) .spk{display:none}
+#mubar.blocked:not(.off) #mute{animation:muPulse 1.6s ease-in-out infinite}
+@keyframes muPulse{50%{box-shadow:0 0 0 6px var(--soft)}}
+.eq{display:flex;align-items:flex-end;gap:2px;width:13px;height:13px;margin:0 8px 0 3px;flex:none}
+.eq b{flex:1;height:25%;border-radius:1px;background:var(--dim2)}
+#mubar.playing .eq b{background:var(--accent);animation:eq .8s ease-in-out infinite alternate}
+#mubar.playing .eq b:nth-child(2){animation-delay:-.35s}
+#mubar.playing .eq b:nth-child(3){animation-delay:-.6s}
+@keyframes eq{from{height:20%}to{height:100%}}
+#muName{max-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:var(--dim);font-size:12px;transition:max-width .3s,margin .3s}
+#mubar #muNext{width:0;opacity:0;transition:width .3s,opacity .3s}
+#mubar:hover #muName,#mubar:focus-within #muName{max-width:200px;margin:0 6px 0 2px}
+#mubar:hover #muNext,#mubar:focus-within #muNext{width:32px;opacity:1}
+body.hasmusic footer{padding-left:90px;padding-right:90px}
+/* engine picker inside the search box */
+#eng{position:absolute;left:8px;top:8px;width:36px;height:36px;border-radius:18px;border:0;background:var(--bg3);color:var(--dim);
+  font:600 13px "Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;cursor:pointer;display:grid;place-items:center}
+#eng:hover{color:var(--fg)}
+#f input#q{padding-left:54px}
+#engMenu{position:absolute;left:0;top:58px;z-index:7;min-width:220px;background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:5px;
+  box-shadow:0 12px 40px rgba(0,0,0,.4)}
+#engMenu button{position:static;right:auto;top:auto;display:flex;align-items:center;gap:10px;width:100%;height:34px;padding:0 10px;border:0;border-radius:8px;background:none;color:var(--fg);
+  font:13px "Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;cursor:pointer;text-align:left}
+#engMenu button:hover,#engMenu button.on{background:var(--bg3)}
+#engMenu b{width:22px;height:22px;border-radius:11px;background:var(--bg3);display:grid;place-items:center;font-size:11px;color:var(--dim)}
+/* countdown */
+.cd{margin:-18px 0 22px;color:var(--dim);font-size:13px}
+.cd b{color:var(--fg);font-weight:600;font-variant-numeric:tabular-nums}
+/* weather */
+#wx{position:fixed;top:16px;right:20px;z-index:3;display:flex;align-items:center;gap:10px;padding:8px 14px 8px 10px;border-radius:14px;
+  background:color-mix(in srgb,var(--bg2) 82%,transparent);color:var(--fg);text-decoration:none;cursor:pointer;backdrop-filter:blur(12px)}
+#wx:hover{background:var(--bg3)}
+#wx svg{width:30px;height:30px;flex:none}
+#wx .tt{font-size:22px;font-weight:300;font-variant-numeric:tabular-nums}
+#wx .ww{display:flex;flex-direction:column;font-size:11.5px;color:var(--dim);line-height:1.3}
+#wx.chip{font-size:12px;color:var(--dim);padding:7px 12px}
+/* to-do */
+#todos:empty{display:none}
+.todo{display:flex;align-items:center;gap:10px;padding:8px 12px;position:relative}
+.todo + .todo{border-top:1px solid var(--line)}
+.todo .box{width:18px;height:18px;border-radius:5px;border:1.5px solid var(--dim2);flex:none;cursor:pointer;display:grid;place-items:center}
+.todo .box svg{width:12px;height:12px;stroke:#fff;stroke-width:3;fill:none;display:none}
+.todo.done .box{background:var(--accent);border-color:var(--accent)}
+.todo.done .box svg{display:block}
+.todo .tx{flex:1;min-width:0;font-size:13px;overflow-wrap:anywhere}
+.todo.done .tx{color:var(--dim2);text-decoration:line-through}
+.todo .rm{position:static;opacity:0}
+.todo:hover .rm{opacity:1}
+input.small{height:36px;border-radius:10px;padding:0 12px;font-size:13px;margin-top:8px}
+#todos:empty + input.small{margin-top:0}
+/* customize panel (shares the background panel's look) */
+#custbox{position:fixed;left:50%;bottom:52px;transform:translateX(-50%);z-index:6;width:min(420px,92vw);max-height:calc(100vh - 80px);overflow:auto;
+  background:var(--bg2);border:1px solid var(--line);border-radius:14px;padding:4px 14px 14px;box-shadow:0 12px 40px rgba(0,0,0,.45)}
+#custbox .k{color:var(--dim);font-size:11.5px;margin:12px 0 6px}
+#custbox .r{display:flex;gap:8px;align-items:center}
+#custbox input[type=text],#custbox input[type=date]{height:32px;border-radius:8px;padding:0 10px;font-size:12.5px;flex:1;min-width:0;width:auto;
+  background:var(--bg3);border:1px solid var(--line);color:var(--fg);box-shadow:none;backdrop-filter:none;color-scheme:dark}
+:root[data-theme="light"] #custbox input{color-scheme:light}
+#custbox .seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;flex:none}
+#custbox .seg button{height:32px;padding:0 11px;border:0;background:none;color:var(--dim);cursor:pointer;font:12.5px "Segoe UI Variable Text","Segoe UI",system-ui,sans-serif}
+#custbox .seg button + button{border-left:1px solid var(--line)}
+#custbox .seg button.on{background:var(--soft);color:var(--fg)}
+#custbox .chk{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--dim);cursor:pointer;white-space:nowrap}
+#custbox .chk input{width:auto;height:auto;margin:0;accent-color:var(--accent)}
+#custbox .checks{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px}
+/* sections hidden from Customize */
+body.h-weather #wx,body.h-todo #todoSec,body.h-watch #watchSec,body.h-shortcuts #top,body.h-reading #readSec,body.h-habits #habitSec,body.h-feeds #feedSec,body.h-shield #shield,body.h-tip #tip,
+body.h-greet #h1,body.h-greet #tag,body.h-greet #countdown,body.h-clock #clock{display:none!important}
+/* shortcut editing */
+.site.drag{opacity:.4}
+.site.over{border-color:var(--accent)!important}
+#tilemenu{position:fixed;z-index:8;background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:4px;min-width:170px;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+#tilemenu button{display:block;width:100%;text-align:left;height:32px;padding:0 10px;border:0;border-radius:7px;background:none;color:var(--fg);cursor:pointer;
+  font:12.5px "Segoe UI Variable Text","Segoe UI",system-ui,sans-serif}
+#tilemenu button:hover{background:var(--bg3)}
+#addbox{position:fixed;inset:0;background:rgba(0,0,0,.45);display:grid;place-items:center;z-index:5}
+#addbox div{background:var(--bg2);border:1px solid var(--line);border-radius:14px;padding:18px;width:min(420px,92vw)}
+#addbox h3{font-size:15px;font-weight:600;margin-bottom:12px}
+#addbox input{height:38px;border-radius:9px;padding:0 12px;font-size:13.5px;margin-bottom:8px}
+#addbox .b{display:flex;justify-content:flex-end;gap:8px;margin-top:6px}
+#addbox button{height:34px;padding:0 16px;border-radius:8px;border:1px solid var(--line);background:var(--bg3);color:var(--fg);cursor:pointer;font:13px "Segoe UI Variable Text","Segoe UI",system-ui,sans-serif}
+#addbox button.m{background:var(--accent);border-color:var(--accent);color:#fff}
+</style>
+
+<div id="seam"><u></u><i></i></div>
+<main>
+  <svg class="mark" id="logo" viewBox="0 0 256 256" aria-label="Webs Browser">
+    <circle cx="128" cy="128" r="128" fill="#e8342a" id="disc"/>
+    <defs>
+      <clipPath id="L"><polygon points="139.5,28.5 104.7,225.4 -190.7,173.3 -155.9,-23.6"/></clipPath>
+      <clipPath id="R"><polygon points="151.3,30.6 116.5,227.5 411.9,279.6 446.7,82.7"/></clipPath>
+    </defs>
+    <g transform="translate(-2.6,14.8)"><g clip-path="url(#L)">
+      <rect x="50" y="76" width="156" height="104" rx="17" fill="#f7f3ea"/></g></g>
+    <g transform="translate(2.6,-14.8)"><g clip-path="url(#R)">
+      <rect x="50" y="76" width="156" height="104" rx="17" fill="#f7f3ea"/></g></g>
+  </svg>
+  <div id="clock" class="hide"></div>
+
+  <h1 id="h1">Webs <b>Browser</b></h1>
+  <div class="tag" id="tag">Fast, private, and yours.</div>
+  <div class="cd hide" id="countdown"></div>
+
+  <form id="f" autocomplete="off">
+    <button type="button" id="eng" title="Search with…" aria-haspopup="menu"></button>
+    <input id="q" placeholder="Search the web, or type a URL" spellcheck="false" autofocus>
+    <div id="engMenu" class="hide" role="menu"></div>
+    <button type="submit" aria-label="Go">
+      <svg viewBox="0 0 24 24"><path d="M5 12h13M13 7l5 5-5 5"/></svg>
+    </button>
+  </form>
+
+  <section id="watchSec" class="hide">
+    <div class="lbl">Continue watching<a id="watchClear">Clear</a></div>
+    <div id="vids"></div>
+  </section>
+
+  <section id="feedSec" class="hide">
+    <div class="lbl"><span>From sites you follow</span><a id="feedHide">Hide</a></div>
+    <div class="card" id="feeds"></div>
+  </section>
+
+  <section id="top">
+    <div class="lbl"><span>Shortcuts</span><a id="toggleFreq"></a></div>
+    <div id="grid"></div>
+    <div id="empty" class="hide">Sites you visit will collect here.</div>
+  </section>
+
+  <section id="todoSec">
+    <div class="lbl"><span>To-do</span><a id="todoClear" class="hide">Clear done</a></div>
+    <div class="card" id="todos"></div>
+    <input id="todoNew" class="small" placeholder="Add a to-do and press Enter" spellcheck="true" maxlength="200">
+  </section>
+
+  <section id="habitSec">
+    <div class="lbl"><span>Habits</span><span class="hsub" id="hDays"></span></div>
+    <div class="card" id="habitList"></div>
+    <input id="habitNew" class="small" placeholder="Add a habit, like “Read 20 minutes”, and press Enter" maxlength="60">
+  </section>
+
+  <section id="wSec"><div class="wgrid" id="wgrid"></div></section>
+
+  <section id="readSec" class="hide">
+    <div class="lbl">Reading list<a id="readAll">Open the sidebar</a></div>
+    <div class="card" id="reads"></div>
+  </section>
+
+  <div id="shield" class="hide"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4.2-2.9 7.9-7 9-4.1-1.1-7-4.8-7-9V6zM9 12l2 2 4-4"/></svg>
+    <span><b id="nblk">0</b> ads, trackers and popups blocked so far</span></div>
+  <div id="tip" class="hide"><span class="tl">Tip</span><span id="tipT"></span><a id="tipNext" title="Another tip">Next</a><a id="tipX" title="Hide tips (Customize brings them back)">&times;</a></div>
+</main>
+
+<a id="wx" class="hide" title="Weather"></a>
+
+<div id="custbox" class="hide" role="dialog" aria-label="Customize">
+  <div class="k">Your name, for the greeting</div>
+  <input type="text" id="cName" maxlength="30" placeholder="Optional">
+  <div class="k">Clock</div>
+  <div class="r"><div class="seg" id="cClock"><button data-v="12">12-hour</button><button data-v="24">24-hour</button></div>
+    <label class="chk"><input type="checkbox" id="cSec"> Seconds</label></div>
+  <div class="seg" id="cStyle" style="margin-top:8px"><button data-v="">Classic</button><button data-v="big">Big</button><button data-v="flip">Flip</button><button data-v="analog">Analog</button></div>
+  <div class="k">Weather</div>
+  <div class="r"><input type="text" id="cCity" maxlength="60" placeholder="Your city, e.g. Chicago">
+    <div class="seg" id="cUnit"><button data-v="c">°C</button><button data-v="f">°F</button></div></div>
+  <div class="k">Countdown</div>
+  <div class="r"><input type="text" id="cCdLabel" maxlength="40" placeholder="e.g. Summer break"><input type="date" id="cCdDate"></div>
+  <div class="k">Show on this page</div>
+  <div class="checks" id="cShow"></div>
+</div>
+
+<div id="bgbox" class="hide" role="dialog" aria-label="Background">
+  <div class="k" style="margin-top:0">Vibe <span class="vnote">a look, a moving background and a sound, in one click</span></div>
+  <div class="vibes" id="vibes"></div>
+  <div class="r"><button class="m" id="bgChoose">Choose picture, GIF or video</button><button id="bgRemove">Remove</button></div>
+  <div class="k">Fit</div>
+  <div class="seg" id="bgFitSeg"><button data-v="cover" title="Cover the page, cropping the edges">Fill</button><button data-v="contain" title="Show the whole picture">Fit</button><button data-v="stretch">Stretch</button><button data-v="center" title="Actual size">Center</button></div>
+  <div class="k">Dim</div>
+  <div class="r"><input type="range" id="bgDimR" min="0" max="60" step="5"><span class="v" id="bgDimV"></span></div>
+  <div class="k">Slideshow <span id="slN"></span></div>
+  <div id="slList"></div>
+  <div class="r" style="margin-top:8px"><button id="slAdd" style="flex:1">Add pictures or videos</button><button id="slNext" title="Show the next one now">Next</button><button id="slClear">Clear</button></div>
+  <div class="k">Change the slide</div>
+  <div class="seg" id="slEvery"><button data-v="tab">Every new tab</button><button data-v="hour">Every hour</button><button data-v="day">Every day</button></div>
+  <div class="k">Live wallpaper</div>
+  <div class="seg lives" id="liveSeg"><button data-v="">None</button><button data-v="gradient">Gradient</button><button data-v="stars">Stars</button><button data-v="aurora">Aurora</button><button data-v="rain">Rain</button>
+    <button data-v="snow">Snow</button><button data-v="embers">Embers</button><button data-v="fireflies">Fireflies</button><button data-v="waves">Sunset sea</button><button data-v="music" title="Moves with your music">Music</button></div>
+  <div class="note hide" id="bgRes"></div>
+</div>
+<div id="mubox" class="hide" role="dialog" aria-label="Music">
+  <div class="seg" id="muTabs"><button data-v="songs">Songs</button><button data-v="radio">Radio</button><button data-v="amb">Ambient</button></div>
+  <div id="muSongs">
+    <div class="chips" id="muPls"></div>
+    <div class="r hide" id="muPlBar" style="margin-top:6px"><button id="muPlEdit" style="flex:1">Choose songs</button><button id="muPlDel">Delete playlist</button></div>
+    <div id="muList"></div>
+    <div class="r" style="margin-top:8px"><button class="m" id="muAdd">Add music</button><button id="muClear">Clear</button></div>
+    <div class="k">Order</div>
+    <div class="seg" id="muOrder"><button data-v="">In order</button><button data-v="1">Shuffle</button></div>
+  </div>
+  <div id="muRadio" class="hide">
+    <input type="search" id="muQ" maxlength="60" placeholder="Search stations, e.g. lofi or BBC, then Enter" aria-label="Search radio stations">
+    <div class="chips" id="muGenres"></div>
+    <div class="r hide" id="muStop" style="margin-top:6px"><button style="flex:1">Stop the radio and go back to your songs</button></div>
+    <div id="muRes" class="stl"></div>
+    <div class="k">Saved stations</div>
+    <div id="muSaved" class="stl"></div>
+  </div>
+  <div id="muAmb" class="hide">
+    <div class="ambg" id="muAmbs"></div>
+    <div class="k">Ambient volume</div>
+    <div class="r"><input type="range" id="ambVolR" min="0" max="100" step="5" aria-label="Ambient volume"><span class="v" id="ambVolV"></span></div>
+    <div class="k">Play during focus sessions</div>
+    <select id="focusAmb" aria-label="Ambient sound during focus sessions"></select>
+  </div>
+  <div class="k">Music volume</div>
+  <div class="r"><input type="range" id="muVolR" min="0" max="100" step="5" aria-label="Music volume"><span class="v" id="muVolV"></span></div>
+  <label class="tog"><input type="checkbox" id="muEv"> Keep playing while you browse</label>
+  <div class="note">Plays while a new tab is open and carries on where it left off. The button in the bottom-left corner (or Alt+M) stops or starts everything.</div>
+</div>
+<div id="mubar" class="hide">
+  <button id="mute" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="spk" d="M11 5 6 9H3v6h3l5 4z" fill="currentColor"/><path class="spk w" d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/><path class="x" d="m16 9 6 6m0-6-6 6"/><path class="pl" d="M7 5v14l12-7z" fill="currentColor"/></svg></button>
+  <i class="eq" aria-hidden="true"><b></b><b></b><b></b></i><span id="muName"></span>
+  <button id="muNext" type="button" title="Next song" aria-label="Next song"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5v14l10-7z" fill="currentColor"/><path d="M19 5v14"/></svg></button>
+</div>
+<footer id="foot">
+  <a data-go="history.html">History</a>
+  <a data-go="history.html#bookmarks">Bookmarks</a>
+  <a data-go="history.html#downloads">Downloads</a>
+  <a data-go="settings.html">Settings</a>
+  <a id="custBtn">Customize</a>
+  <a id="bgBtn">Background</a>
+  <a id="muBtn">Music</a>
+  <a data-go="whatsnew.html">What's new</a>
+  <span>Press <kbd>Ctrl</kbd>+<kbd>/</kbd> for every shortcut</span>
+</footer>
+
+<script>
+"use strict";
+/* Color themes (Settings → Appearance), for the dark theme. */
+(function () {
+  const P = { midnight:["#0e1220","#151a2c","#1d2338","#262d46","#28304a","#e8ecf6","#98a2bd","#6b7593"], forest:["#0f1612","#151f19","#1c2a21","#24352a","#26372c","#e6f0e8","#93a898","#6a7f6f"],
+    ocean:["#0b1519","#102026","#152a31","#1b353e","#1d3942","#e3f1f4","#8fb0b8","#658891"], rose:["#1a1216","#22181d","#2d2027","#382830","#3a2931","#f6ecf0","#b5979f","#85707a"],
+    mono:["#141414","#1c1c1c","#252525","#2e2e2e","#303030","#efefef","#a0a0a0","#707070"], coffee:["#17120e","#201913","#2a2119","#34291f","#372b21","#f3ebe3","#aa9886","#7d6d5e"],
+    amoled:["#000000","#0b0b0d","#151518","#1e1e22","#222226","#f2f2f2","#9a9aa2","#6a6a72"] };
+  const K = ["bg", "bg2", "bg3", "bg4", "line", "fg", "dim", "dim2"];
+  function apply() {
+    let s = {}; try { s = JSON.parse(localStorage.getItem("wsb.settings") || "{}"); } catch (e) {}
+    const light = s.theme === "light" || document.documentElement.dataset.theme === "light";
+    const pk = !light && (s.pack === "custom" && Array.isArray(s.customTheme) && s.customTheme.length === 8 && s.customTheme.every(c => /^#[0-9a-f]{6}$/i.test(c)) ? s.customTheme : P[s.pack]), r = document.documentElement.style;
+    K.forEach((k, i) => { if (pk) r.setProperty("--" + k, pk[i]); else r.removeProperty("--" + k); });
+  }
+  apply();
+  addEventListener("storage", e => { if (e.key === "wsb.settings") setTimeout(apply, 0); });
+  document.addEventListener("wsb-pack", apply);
+})();
+
+const S = "\u0001";
+const wv = window.chrome && window.chrome.webview;
+const send = (...a) => { if (wv) wv.postMessage(a.map(x => x == null ? "" : String(x)).join(S)); };
+const get = (k, d) => { try { const v = localStorage.getItem("wsb." + k);
+  return v ? JSON.parse(v) : d; } catch (e) { return d; } };
+const put = (k, v) => { try { localStorage.setItem("wsb." + k, JSON.stringify(v)); } catch (e) {} };
+const $ = s => document.getElementById(s);
+const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch (e) { return ""; } };
+
+const qs = new URLSearchParams(location.search);
+const PRIVATE = qs.get("private") === "1";
+let cfg = {};
+function readCfg() {
+  cfg = Object.assign({ search:qs.get("search") || "ddg", theme:qs.get("theme") || "dark", accent:qs.get("accent") || "",
+                        clock:true, freq:true, bg:"" }, get("settings", {}));
+  const r = document.documentElement;
+  r.dataset.theme = cfg.theme;
+  r.dataset.motion = cfg.motion || "";
+  if (!PRIVATE && /^#[0-9a-f]{6}$/i.test(cfg.accent || "")) {
+    r.style.setProperty("--accent", cfg.accent);
+    const n = parseInt(cfg.accent.slice(1), 16);
+    r.style.setProperty("--soft", "rgba(" + (n >> 16) + "," + ((n >> 8) & 255) + "," + (n & 255) + ",.16)");
+    $("disc").setAttribute("fill", cfg.accent);
+  }
+  paintBackground();
+  $("clock").classList.toggle("hide", PRIVATE || cfg.clock === false);
+  $("logo").classList.toggle("hide", !PRIVATE && cfg.clock !== false);
+}
+/* Slideshow: several pictures or videos (copied to user/slides by the
+   browser) take turns as the background - on every new tab, hourly or daily. */
+const SLIDE_RE = /^user\/slides\/s\d+\.[a-z0-9]+$/;
+function slideList() { return (Array.isArray(cfg.slides) ? cfg.slides : []).filter(x => typeof x === "string" && SLIDE_RE.test(x)); }
+let slideTab = null, slideSkip = 0, bgNow = "";
+function currentSlide() {
+  const L = slideList();
+  if (!L.length) return "";
+  let i;
+  if (cfg.slideEvery === "hour") i = Math.floor(Date.now() / 36e5);
+  else if (cfg.slideEvery === "day") { const d = new Date(); i = Math.floor((d.getTime() - d.getTimezoneOffset() * 6e4) / 864e5); }
+  else {
+    // one step per new tab page, not per repaint
+    if (slideTab === null) { slideTab = Math.max(0, Math.floor(+get("slideIdx", 0) || 0)); put("slideIdx", (slideTab + 1) % 1e6); }
+    i = slideTab;
+  }
+  i += slideSkip;
+  return L[((i % L.length) + L.length) % L.length];
+}
+function paintBackground() {
+  // Only a picture or video this browser copied next to its own pages can be a background.
+  const bg = PRIVATE ? "" : currentSlide() || (/^user\/ntp-bg\.[a-z0-9]+(\?v=\d+)?$/.test(cfg.bg || "") ? cfg.bg : "");
+  const isVid = /\.(mp4|webm|m4v)(\?|$)/.test(bg);
+  bgNow = bg;
+  document.body.classList.toggle("pic", !!bg);
+  let l = $("bgl");
+  if (!bg) { if (l) l.remove(); return; }
+  if (!l) {
+    l = Object.assign(document.createElement("div"), { id:"bgl" });
+    l.setAttribute("aria-hidden", "true");
+    l.innerHTML = '<div class="fill"></div><div class="pic"></div><div class="dim"></div><div class="foot"></div>';
+    document.body.prepend(l);
+  }
+  l.dataset.fit = ["cover", "contain", "stretch", "center"].indexOf(cfg.bgFit) >= 0 ? cfg.bgFit : "cover";
+  const dim = Math.max(0, Math.min(80, +cfg.bgDim || 0));
+  l.style.setProperty("--dim", String(dim / 100));
+  if (l.dataset.src === bg) { if (!isVid) enhanceBg(); return; }
+  l.dataset.src = bg;
+  const old = $("bgv"); if (old) old.remove();
+  const pic = l.querySelector(".pic"), fill = l.querySelector(".fill");
+  if (isVid) {
+    pic.style.backgroundImage = fill.style.backgroundImage = "";
+    const v = Object.assign(document.createElement("video"), { id:"bgv", src:bg, muted:true, loop:true, autoplay:true, playsInline:true });
+    // Behind a video the fill is a still of its first frame.
+    v.addEventListener("loadeddata", () => {
+      try {
+        const c = document.createElement("canvas"); c.width = 160; c.height = Math.max(1, Math.round(160 * v.videoHeight / v.videoWidth));
+        c.getContext("2d").drawImage(v, 0, 0, c.width, c.height);
+        fill.style.backgroundImage = 'url("' + c.toDataURL("image/jpeg", .8) + '")';
+      } catch (e) {}
+    }, { once:true });
+    pic.after(v);
+    v.play().catch(() => {});
+  } else {
+    pic.style.backgroundImage = fill.style.backgroundImage = 'url("' + bg + '")';
+    enhanceBg();
+  }
+}
+
+/* A picture smaller than the screen gets enlarged. The page's own scaling is
+   quick and soft, so here it is enlarged once with a high-quality filter and a
+   light sharpen, sized for this window, and kept for next time (IndexedDB). */
+let bgGen = 0, bgUrl = "", bgInfo = null;
+const imgCache = {};
+function loadImg(src) {
+  return imgCache[src] || (imgCache[src] = new Promise((res, rej) => {
+    const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src;
+  }));
+}
+function bgTarget(iw, ih, fit) {
+  const dpr = window.devicePixelRatio || 1, vw = innerWidth * dpr, vh = innerHeight * dpr;
+  if (fit === "stretch") return [vw, vh];
+  const s = fit === "contain" ? Math.min(vw / iw, vh / ih) : Math.max(vw / iw, vh / ih);
+  return [iw * s, ih * s];
+}
+// Pictures saved from the web are usually compressed JPEGs. Enlarged as they
+// are, the faint 8x8 compression blocks become visible steps, so first they are
+// smoothed away at the picture's own size with an edge-preserving filter
+// (a bilateral filter: flat areas are averaged, real edges are left alone).
+function deblocked(img) {
+  const w = img.naturalWidth, h = img.naturalHeight;
+  const c = document.createElement("canvas"); c.width = w; c.height = h;
+  const x = c.getContext("2d", { willReadFrequently:true });
+  x.drawImage(img, 0, 0);
+  if (w * h > 3e6) return c;
+  const d = x.getImageData(0, 0, w, h), o = d.data, src = new Uint8ClampedArray(o);
+  const R = 2, ws = [], wr = new Float32Array(256);
+  for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) ws.push([dx, dy, Math.exp(-(dx * dx + dy * dy) / (2 * 1.3 * 1.3))]);
+  for (let k = 0; k < 256; k++) wr[k] = Math.exp(-(k * k) / (2 * 9 * 9));
+  for (let y = 0; y < h; y++) {
+    for (let x0 = 0; x0 < w; x0++) {
+      const i = (y * w + x0) * 4, r = src[i], g = src[i + 1], b = src[i + 2];
+      let sr = 0, sg = 0, sb = 0, sw = 0;
+      for (let n = 0; n < ws.length; n++) {
+        const xx = x0 + ws[n][0], yy = y + ws[n][1];
+        if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
+        const j = (yy * w + xx) * 4;
+        const diff = (Math.abs(src[j] - r) + Math.abs(src[j + 1] - g) + Math.abs(src[j + 2] - b)) / 3 | 0;
+        const wt = ws[n][2] * wr[diff];
+        sr += src[j] * wt; sg += src[j + 1] * wt; sb += src[j + 2] * wt; sw += wt;
+      }
+      o[i] = sr / sw; o[i + 1] = sg / sw; o[i + 2] = sb / sw;
+    }
+  }
+  x.putImageData(d, 0, 0);
+  return c;
+}
+function sharpened(img, W, H, scale, lossy) {
+  const c = document.createElement("canvas"); c.width = W; c.height = H;
+  const x = c.getContext("2d", { willReadFrequently:true });
+  x.imageSmoothingEnabled = true; x.imageSmoothingQuality = "high";
+  x.drawImage(lossy ? deblocked(img) : img, 0, 0, W, H);
+  // Only strong edges are crisped; anything subtler is left smooth.
+  const b = document.createElement("canvas"); b.width = W; b.height = H;
+  const bx = b.getContext("2d", { willReadFrequently:true });
+  bx.filter = "blur(" + Math.min(3, 0.4 * scale).toFixed(2) + "px)";
+  bx.drawImage(c, 0, 0);
+  const d = x.getImageData(0, 0, W, H), p = d.data, q = bx.getImageData(0, 0, W, H).data;
+  for (let i = 0; i < p.length; i += 4) {
+    for (let j = i; j < i + 3; j++) {
+      const e = p[j] - q[j];
+      if (e > 10 || e < -10) p[j] = p[j] + 0.3 * e;
+    }
+  }
+  x.putImageData(d, 0, 0);
+  return c;
+}
+function bgDb() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open("wsb-ntp", 1);
+    r.onupgradeneeded = () => r.result.createObjectStore("bg");
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+}
+async function bgCacheGet(k) {
+  try { const db = await bgDb();
+    return await new Promise(res => { const q = db.transaction("bg").objectStore("bg").get(k); q.onsuccess = () => res(q.result || null); q.onerror = () => res(null); });
+  } catch (e) { return null; }
+}
+async function bgCachePut(k, blob) {
+  try { const db = await bgDb(); const st = db.transaction("bg", "readwrite").objectStore("bg"); st.clear(); st.put(blob, k); } catch (e) {}
+}
+async function enhanceBg() {
+  const gen = ++bgGen, l = $("bgl");
+  if (!l) return;
+  const bg = l.dataset.src, fit = l.dataset.fit, pic = l.querySelector(".pic");
+  const show = u => { if (gen !== bgGen) return; pic.style.backgroundImage = 'url("' + u + '")';
+                      if (bgUrl && bgUrl !== u) URL.revokeObjectURL(bgUrl); bgUrl = u.startsWith("blob:") ? u : ""; };
+  let img;
+  try { img = await loadImg(bg); } catch (e) { return; }
+  if (gen !== bgGen) return;
+  const iw = img.naturalWidth, ih = img.naturalHeight;
+  let [W, H] = bgTarget(iw, ih, fit);
+  bgInfo = { w:iw, h:ih, sw:Math.round(innerWidth * (window.devicePixelRatio || 1)), sh:Math.round(innerHeight * (window.devicePixelRatio || 1)), scale:Math.max(W / iw, H / ih) };
+  paintBgNote();
+  if (/\.gif(\?|$)/.test(bg) || fit === "center" || bgInfo.scale < 1.15) { show(bg); return; }
+  const cap = Math.min(1, 4096 / Math.max(W, H));
+  W = Math.round(W * cap); H = Math.round(H * cap);
+  const key = "v2|" + bg + "|" + fit + "|" + W + "x" + H;
+  let blob = await bgCacheGet(key);
+  if (!blob) {
+    if (gen !== bgGen) return;
+    try {
+      const c = sharpened(img, W, H, bgInfo.scale * cap, /\.(jpe?g|jfif|webp|avif)(\?|$)/i.test(bg));
+      blob = await new Promise(r => c.toBlob(r, "image/png"));
+    } catch (e) { blob = null; }
+    if (blob) bgCachePut(key, blob);
+  }
+  if (blob) show(URL.createObjectURL(blob));
+}
+let bgResizeT = 0;
+addEventListener("resize", () => { clearTimeout(bgResizeT); bgResizeT = setTimeout(() => { if ($("bgl") && !$("bgv")) enhanceBg(); }, 400); });
+function paintBgNote() {
+  const n = $("bgRes"), i = bgInfo;
+  if (!n) return;
+  const small = i && bgNow && !/\.(mp4|webm|m4v)(\?|$)/.test(bgNow) && i.scale > 1.3 && (l => l && l.dataset.fit !== "center")($("bgl"));
+  n.classList.toggle("hide", !small);
+  if (small) n.textContent = "This picture is " + i.w + " \u00d7 " + i.h + " pixels and your screen is " + i.sw + " \u00d7 " + i.sh +
+    ", so it is enlarged " + i.scale.toFixed(1) + "\u00d7 and sharpened. For a crisp background, use a version at least " + i.sw + " pixels wide.";
+}
+readCfg();
+
+function tick() {
+  const d = new Date();
+  const o = { hour:cfg.clock24 ? "2-digit" : "numeric", minute:"2-digit", hourCycle:cfg.clock24 ? "h23" : "h12" };
+  if (cfg.clockSec) o.second = "2-digit";
+  paintClock(d, o);
+  if (!PRIVATE) {
+    const h = d.getHours(), name = String(cfg.ntpName || "").trim().slice(0, 30);
+    $("h1").textContent = (h < 5 ? "Good night" : h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening") + (name ? ", " + name : "");
+    $("tag").textContent = d.toLocaleDateString([], { weekday:"long", month:"long", day:"numeric" });
+    paintCountdown(d);
+  }
+}
+// Classic, big, flip (each digit turns over when it changes) or analog.
+let clockPrev = "", clockKind = "";
+function paintClock(d, o) {
+  const c = $("clock"), kind = ["big", "flip", "analog"].indexOf(cfg.clockStyle) >= 0 ? cfg.clockStyle : "";
+  if (kind !== clockKind) { c.className = kind; c.innerHTML = ""; clockPrev = ""; clockKind = kind; }
+  if (kind === "analog") {
+    if (!c.firstChild) {
+      let ticks = "";
+      for (let i = 0; i < 12; i++) { const a = i * Math.PI / 6; ticks += '<line class="tick' + (i % 3 ? "" : " q") + '" x1="' + (75 + 58 * Math.sin(a)) + '" y1="' + (75 - 58 * Math.cos(a)) + '" x2="' + (75 + 64 * Math.sin(a)) + '" y2="' + (75 - 64 * Math.cos(a)) + '"/>'; }
+      c.innerHTML = '<svg viewBox="0 0 150 150" role="img"><circle class="face" cx="75" cy="75" r="72"/>' + ticks +
+        '<line class="h" x1="75" y1="75" x2="75" y2="38"/><line class="m" x1="75" y1="75" x2="75" y2="22"/><line class="s" x1="75" y1="84" x2="75" y2="16"/><circle cx="75" cy="75" r="4" fill="var(--accent)"/></svg>';
+    }
+    const h = d.getHours() % 12, m = d.getMinutes(), sec = d.getSeconds();
+    c.querySelector(".h").style.transform = "rotate(" + (h * 30 + m / 2) + "deg)";
+    c.querySelector(".m").style.transform = "rotate(" + (m * 6 + sec / 10) + "deg)";
+    const sh = c.querySelector(".s"); if (sec === 0) { sh.style.transition = "none"; sh.style.transform = "rotate(0deg)"; void sh.offsetWidth; sh.style.transition = ""; } else sh.style.transform = "rotate(" + sec * 6 + "deg)";
+    c.querySelector("svg").setAttribute("aria-label", d.toLocaleTimeString([], o));
+    return;
+  }
+  const txt = d.toLocaleTimeString([], o);
+  if (kind !== "flip") { c.textContent = txt; return; }
+  const m = /^(.*?)(\s*[AaPp]\.?\s*[Mm]\.?)?$/.exec(txt), core = m[1], ap = (m[2] || "").trim();
+  const chars = core.split(""), prev = clockPrev.split("");
+  if (c.children.length !== chars.length + (ap ? 1 : 0)) { c.innerHTML = ""; chars.forEach(() => c.appendChild(document.createElement("span"))); if (ap) c.appendChild(Object.assign(document.createElement("span"), { className:"ap" })); }
+  chars.forEach((ch, i) => { const sp = c.children[i]; sp.className = /\d/.test(ch) ? "" : "sep"; if (sp.textContent !== ch) { sp.textContent = ch; if (prev.length && /\d/.test(ch)) { sp.classList.remove("go"); void sp.offsetWidth; sp.classList.add("go"); } } });
+  if (ap) c.lastChild.textContent = ap;
+  clockPrev = core;
+}
+function paintCountdown(now) {
+  const box = $("countdown"), m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(cfg.cdDate || "");
+  const label = String(cfg.cdLabel || "").trim().slice(0, 40) || "the big day";
+  if (!m) { box.classList.add("hide"); return; }
+  const days = Math.round((new Date(+m[1], m[2] - 1, +m[3]) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 864e5);
+  if (days < -1) { box.classList.add("hide"); return; }
+  box.classList.remove("hide");
+  box.textContent = "";
+  const b = document.createElement("b");
+  if (days > 1) { b.textContent = days.toLocaleString(); box.append(b, " days until " + label); }
+  else if (days === 1) { b.textContent = "Tomorrow:"; box.append(b, " " + label); }
+  else if (days === 0) { b.textContent = "Today:"; box.append(b, " " + label); }
+  else box.append(label + " was yesterday");
+}
+if (!PRIVATE) { tick(); setInterval(tick, 1000); }
+
+if (PRIVATE) {
+  document.documentElement.classList.add("private");
+  $("disc").setAttribute("fill", "#a66bff");
+  $("h1").innerHTML = "Private <b>window</b>";
+  $("tag").textContent = "Pages you open here leave no history, cookies or site data behind " +
+    "once every private window is closed. Downloads and bookmarks are still kept.";
+  $("top").classList.add("hide");
+  $("foot").classList.add("hide");
+  $("todoSec").classList.add("hide");
+}
+
+$("f").addEventListener("submit", e => {
+  e.preventDefault();
+  const q = $("q").value.trim();
+  if (!q) return;
+  // A one-off engine is a bang the chrome already understands ("!g cats").
+  const e2 = ENGS.find(x => x[0] === engPick);
+  const isAddr = /^[a-z][a-z0-9+.-]*:\/\//i.test(q) || (!/\s/.test(q) && /\.[a-z]{2,}(?:[:/?#]|$)/i.test(q));
+  send("go", e2 && engPick !== cfg.search && !isAddr && !/^!/.test(q) ? e2[3] + " " + q : q);   // resolved exactly like the address bar
+});
+const ENGS = [["ddg", "DuckDuckGo", "D", "!d"], ["google", "Google", "G", "!g"], ["bing", "Bing", "B", "!b"],
+              ["brave", "Brave", "Br", "!br"], ["start", "Startpage", "S", "!s"], ["wiki", "Wikipedia", "W", "!w"]];
+let engPick = null;
+function paintEng() {
+  const e = ENGS.find(x => x[0] === (engPick || cfg.search)) || ENGS[0];
+  $("eng").textContent = e[2];
+  $("eng").title = "Searching with " + e[1] + " - click to change for this search";
+}
+$("eng").onclick = e => {
+  e.stopPropagation();
+  const m = $("engMenu");
+  if (!m.classList.contains("hide")) { m.classList.add("hide"); return; }
+  m.innerHTML = "";
+  ENGS.forEach(x => {
+    const b = document.createElement("button");
+    b.type = "button";          // inside the search form: never a submit button
+    b.className = x[0] === (engPick || cfg.search) ? "on" : "";
+    const i = document.createElement("b"); i.textContent = x[2];
+    b.append(i, x[1] + (x[0] === cfg.search ? " (default)" : ""));
+    b.onclick = ev => { ev.stopPropagation(); engPick = x[0]; paintEng(); m.classList.add("hide"); $("q").focus(); };
+    m.appendChild(b);
+  });
+  m.classList.remove("hide");
+};
+paintEng();
+function open(u, e) { if (e && (e.ctrlKey || e.button === 1)) send("open", u, 1); else send("go", u); }
+
+/* ---------------------------------------------------------------- continue watching */
+function ytId(u) {
+  try {
+    const x = new URL(u);
+    if (/(^|\.)youtube\.com$/.test(x.hostname) && x.pathname === "/watch") return x.searchParams.get("v");
+    if (x.hostname === "youtu.be") return x.pathname.slice(1);
+  } catch (e) {}
+  return null;
+}
+function clock(s) {
+  s = Math.max(0, Math.floor(s || 0));
+  const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60;
+  return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(x).padStart(2, "0");
+}
+/* Anime players are often impossible to capture (protected video, or a player
+   that blocks reading its frames), so on anime sites the show's artwork is
+   looked up by title: AniList first, then MyAnimeList (through Jikan). Only
+   the show's name is sent. Found artwork is kept a month, a miss for a day. */
+const ART_SITE = /anime|crunchyroll|hidive|aniwatch|anitaku|zoro|kaido/i;
+const SAFE_URL = /^https:\/\/[^"\\\s()]+$/;
+function showTitle(t) {
+  for (let s of String(t || "").split(/\s+[|–—-]\s+/)) {
+    s = s.trim().replace(/^watch\s+/i, "")
+      .replace(/\s+(?:episode|ep\.?)\s*\d+[\s\S]*$/i, "")
+      .replace(/\s+(?:english\s+)?(?:sub(?:bed)?|dub(?:bed)?)\b[\s\S]*$/i, "")
+      .replace(/\s+(?:online|free|full\s+episodes?)\b[\s\S]*$/i, "")
+      .replace(/\s+on\s+\S+$/i, "")
+      .replace(/[\s:,.\-]+$/, "").trim();
+    if (s.length < 2 || /^(?:season|episode|ep)\b/i.test(s)) continue;
+    if (/^(?:crunchyroll|hidive|hi\s*anime\S*|aniwatch\S*|9anime\S*|gogoanime\S*)$/i.test(s)) continue;
+    return s.slice(0, 80);
+  }
+  return "";
+}
+function artFor(w) {
+  if (!ART_SITE.test(w.host || hostOf(w.u))) return null;
+  const q = showTitle(w.t);
+  if (!q) return null;
+  const c = get("art", {})[q.toLowerCase()], age = c ? Date.now() - (c.ts || 0) : 1e15;
+  const u = c && SAFE_URL.test(c.u || "") ? c.u : "";
+  return { q, u, known: !!c && age < (u ? 30 : 1) * 864e5 };
+}
+async function findArt(q) {
+  let answered = false;
+  try {
+    const r = await fetch("https://graphql.anilist.co", { method:"POST",
+      headers:{ "Content-Type":"application/json", Accept:"application/json" },
+      body:JSON.stringify({ query:"query($s:String){Page(perPage:1){media(search:$s,type:ANIME,sort:SEARCH_MATCH){bannerImage coverImage{extraLarge large}}}}", variables:{ s:q } }) });
+    if (r.ok) {
+      answered = true;
+      const m = ((((await r.json()) || {}).data || {}).Page || { media:[] }).media[0];
+      const u = m && (m.bannerImage || (m.coverImage && (m.coverImage.extraLarge || m.coverImage.large)));
+      if (u && SAFE_URL.test(u)) return u;
+    }
+  } catch (e) {}
+  try {
+    const r = await fetch("https://api.jikan.moe/v4/anime?limit=1&q=" + encodeURIComponent(q));
+    if (r.ok) {
+      answered = true;
+      const a = (((await r.json()) || {}).data || [])[0];
+      const im = a && a.images || {};
+      const u = a && ((a.trailer && a.trailer.images && a.trailer.images.maximum_image_url) ||
+                      (im.webp && im.webp.large_image_url) || (im.jpg && im.jpg.large_image_url));
+      if (u && SAFE_URL.test(u)) return u;
+    }
+  } catch (e) {}
+  return answered ? "" : null;         // null: offline, ask again next time
+}
+let artBusy = false;
+async function fillArt(qs) {
+  if (artBusy) return;
+  artBusy = true;
+  let found = false;
+  for (const q of qs) {
+    const u = await findArt(q);
+    if (u === null) continue;
+    const art = get("art", {});
+    art[q.toLowerCase()] = { u, ts:Date.now() };
+    const keys = Object.keys(art).sort((a, b) => art[a].ts - art[b].ts);
+    keys.slice(0, Math.max(0, keys.length - 100)).forEach(k => delete art[k]);
+    put("art", art);
+    if (u) found = true;
+  }
+  artBusy = false;
+  if (found) watching();
+}
+
+function watching() {
+  if (PRIVATE || cfg.cw === false) { $("watchSec").classList.add("hide"); return; }
+  const list = get("watch", []).slice(0, 8);
+  $("watchSec").classList.toggle("hide", !list.length);
+  const box = $("vids");
+  box.innerHTML = "";
+  const need = new Set();
+  list.forEach(w => {
+    const v = document.createElement("div");
+    v.className = "vid";
+    v.title = w.t + "\n" + w.u;
+    const id = ytId(w.u);
+    v.innerHTML = '<div class="th"></div><div class="bar"><i></i></div><div class="t"></div><div class="s"></div><button class="rm" title="Remove">×</button>';
+    const th = v.querySelector(".th");
+    // A frame of the video first, then the show's artwork, then the page's
+    // preview picture; a layer that fails to load shows the next.
+    const pics = [], art = artFor(w);
+    if (/^user\/thumbs\/[0-9a-f]{16}\.jpg(\?v=\d+)?$/.test(w.th || "")) pics.push(w.th);
+    if (art && art.u) pics.push(art.u);
+    if (art && !art.known) need.add(art.q);
+    if (/^https:\/\/[^"\\\s()]+$/.test(w.po || "")) pics.push(w.po);
+    if (id && /^[\w-]{6,20}$/.test(id)) pics.push("https://i.ytimg.com/vi/" + id + "/mqdefault.jpg");
+    if (pics.length) th.style.backgroundImage = pics.map(u => 'url("' + u + '")').join(",");
+    else th.textContent = w.host || hostOf(w.u);
+    v.querySelector(".bar i").style.width = Math.min(100, w.time / w.dur * 100) + "%";
+    v.querySelector(".t").textContent = w.t || w.u;
+    v.querySelector(".s").textContent = (w.host || hostOf(w.u)) + " · " + clock(w.time) + " of " + clock(w.dur) + " · " + clock(w.dur - w.time) + " left";
+    v.onclick = e => open(w.u, e);
+    v.onauxclick = e => { if (e.button === 1) open(w.u, e); };
+    v.querySelector(".rm").onclick = e => { e.stopPropagation(); put("watch", get("watch", []).filter(x => x.u !== w.u)); watching(); };
+    box.appendChild(v);
+  });
+  if (need.size) fillArt([...need]);
+}
+$("watchClear").onclick = () => { put("watch", []); watching(); };
+
+/* ---------------------------------------------------------------- shortcuts
+   Your own tiles first, then the most-visited sites (which can be turned off). */
+function topSites() {
+  if (PRIVATE) return;
+  const tiles = get("tiles", []);
+  const hist = get("history", []), icons = get("icons", {}), hidden = new Set(get("hidden", []));
+  const mine = new Set(tiles.map(t => hostOf(t.u)));
+  const byHost = new Map();
+  if (cfg.freq !== false) hist.forEach(h => {
+    const host = hostOf(h.u);
+    if (!host || host === "browser.example" || hidden.has(host) || mine.has(host)) return;
+    const e = byHost.get(host);
+    if (e) e.n++;
+    else byHost.set(host, { host, n:1, u:"https://" + host + "/" });
+  });
+  const top = [...byHost.values()].sort((a, b) => b.n - a.n).slice(0, Math.max(0, 12 - tiles.length));
+  const grid = $("grid");
+  grid.innerHTML = "";
+  $("toggleFreq").textContent = cfg.freq === false ? "Show frequently visited" : "Hide frequently visited";
+  const tile = (u, name, n, pinned) => {
+    const host = hostOf(u);
+    const a = document.createElement("a");
+    a.className = "site";
+    a.title = (name || host) + "\n" + u + (n ? "  (" + n + " visit" + (n === 1 ? "" : "s") + ")" : "");
+    const src = icons[host] || icons["www." + host];
+    if (src) { const im = new Image(); im.src = src; a.appendChild(im); }
+    else { const ph = document.createElement("div"); ph.className = "ph";
+           ph.textContent = (name || host || "?")[0].toUpperCase(); a.appendChild(ph); }
+    const sp = document.createElement("span");
+    sp.textContent = name || host;
+    a.appendChild(sp);
+    if (pinned) a.appendChild(Object.assign(document.createElement("div"), { className:"pin", title:"Your shortcut" }));
+    const rm = document.createElement("button");
+    rm.className = "rm"; rm.title = "Remove from this page"; rm.textContent = "×";
+    rm.onclick = e => { e.stopPropagation();
+      if (pinned) put("tiles", get("tiles", []).filter(t => t.u !== u));
+      else { const h = get("hidden", []); h.push(host); put("hidden", h); }
+      topSites(); };
+    a.appendChild(rm);
+    a.onclick = e => open(u, e);
+    a.onauxclick = e => { if (e.button === 1) open(u, e); };
+    a.draggable = true;
+    a.ondragstart = e => { dragTile = { u, n:name || host, pinned }; a.classList.add("drag"); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", u); };
+    a.ondragend = () => { a.classList.remove("drag"); dragTile = null; };
+    a.ondragover = e => { if (dragTile && dragTile.u !== u) { e.preventDefault(); a.classList.add("over"); } };
+    a.ondragleave = () => a.classList.remove("over");
+    a.ondrop = e => { e.preventDefault(); a.classList.remove("over"); if (dragTile) moveTile(dragTile, u); };
+    a.oncontextmenu = e => { e.preventDefault(); tileMenu(e, { u, n:name || host, pinned }); };
+    grid.appendChild(a);
+  };
+  tiles.forEach(t => tile(t.u, t.n, 0, true));
+  top.forEach(s => tile(s.u, s.host, s.n, false));
+  if (tiles.length < 12) {
+    const add = document.createElement("a");
+    add.className = "site add";
+    add.innerHTML = '<div class="ph">+</div><span>Add shortcut</span>';
+    add.onclick = addTile;
+    grid.appendChild(add);
+  }
+  $("empty").classList.add("hide");
+}
+/* Your shortcuts can be dragged into any order (dropping a frequently
+   visited site among them keeps it), renamed and re-pointed. */
+let dragTile = null;
+function moveTile(src, targetU) {
+  let tiles = get("tiles", []).filter(t => t.u !== src.u);
+  let i = tiles.findIndex(t => t.u === targetU);
+  if (i < 0) i = tiles.length;
+  tiles.splice(i, 0, { u:src.u, n:src.n });
+  put("tiles", tiles.slice(0, 12));
+  topSites();
+}
+function tileMenu(e, t) {
+  const old = $("tilemenu"); if (old) old.remove();
+  const m = document.createElement("div");
+  m.id = "tilemenu";
+  [["Open in new tab", () => send("open", t.u, 1)], ["Edit…", () => addTile(t)],
+   [t.pinned ? "Remove" : "Don't show this site", () => {
+     if (t.pinned) put("tiles", get("tiles", []).filter(x => x.u !== t.u));
+     else { const h = get("hidden", []); h.push(hostOf(t.u)); put("hidden", h); }
+     topSites(); }]].forEach(([label, fn]) => {
+    const b = document.createElement("button"); b.textContent = label;
+    b.onclick = ev => { ev.stopPropagation(); m.remove(); fn(); };
+    m.appendChild(b);
+  });
+  document.body.appendChild(m);
+  m.style.left = Math.min(e.clientX, innerWidth - m.offsetWidth - 8) + "px";
+  m.style.top = Math.min(e.clientY, innerHeight - m.offsetHeight - 8) + "px";
+  setTimeout(() => addEventListener("mousedown", function off(ev) { if (!m.contains(ev.target)) { m.remove(); removeEventListener("mousedown", off); } }), 0);
+}
+function addTile(edit) {
+  if (!edit || !edit.u) edit = null;
+  const box = document.createElement("div");
+  box.id = "addbox";
+  box.innerHTML = '<div><h3></h3><input id="tn" placeholder="Name" spellcheck="false" maxlength="40"><input id="tu" placeholder="Address, e.g. youtube.com" spellcheck="false">' +
+    '<div class="b"><button id="tc">Cancel</button><button class="m" id="to"></button></div></div>';
+  document.body.appendChild(box);
+  box.querySelector("h3").textContent = edit ? "Edit shortcut" : "Add a shortcut";
+  $("to").textContent = edit ? "Save" : "Add";
+  if (edit) { $("tn").value = edit.n || ""; $("tu").value = edit.u; }
+  const done = () => box.remove();
+  $("tu").focus();
+  $("tc").onclick = done;
+  box.onclick = e => { if (e.target === box) done(); };
+  const ok = () => {
+    let u = $("tu").value.trim();
+    if (!u) return;
+    if (!/^https?:\/\//i.test(u)) u = "https://" + u;
+    try { new URL(u); } catch (e) { $("tu").style.borderColor = "var(--accent)"; return; }
+    const tiles = get("tiles", []);
+    const at = edit ? tiles.findIndex(t => t.u === edit.u) : -1;
+    const item = { u, n:$("tn").value.trim() || hostOf(u) };
+    const rest = tiles.filter(t => t.u !== u && (!edit || t.u !== edit.u));
+    if (at >= 0) rest.splice(Math.min(at, rest.length), 0, item); else rest.push(item);
+    put("tiles", rest.slice(0, 12));
+    done(); topSites();
+  };
+  $("to").onclick = ok;
+  box.querySelectorAll("input").forEach(i => i.onkeydown = e => { if (e.key === "Enter") ok(); if (e.key === "Escape") done(); });
+}
+$("toggleFreq").onclick = () => {
+  const s = get("settings", {}); s.freq = cfg.freq === false; put("settings", s); readCfg(); topSites();
+  send("settings-changed");
+};
+
+/* ---------------------------------------------------------------- reading list */
+function readingList() {
+  if (PRIVATE) return;
+  const list = get("reading", []).filter(r => !r.done).sort((a, b) => (b.remind && b.remind <= Date.now()) - (a.remind && a.remind <= Date.now())).slice(0, 5);
+  $("readSec").classList.toggle("hide", !list.length);
+  const box = $("reads");
+  box.innerHTML = "";
+  const icons = get("icons", {});
+  list.forEach(r => {
+    const d = document.createElement("div");
+    d.className = "row";
+    const src = icons[hostOf(r.u)] || icons["www." + hostOf(r.u)];
+    d.innerHTML = (src ? "<img>" : '<div class="ph"></div>') + '<div class="t"></div><div class="d"></div><button class="rm" title="Mark as read">✓</button>';
+    if (src) d.querySelector("img").src = src;
+    const due = r.remind && r.remind <= Date.now();
+    d.querySelector(".t").textContent = (due ? "\u23f0 " : "") + (r.t || r.u);
+    d.querySelector(".d").textContent = hostOf(r.u) + (r.remind && !due ? " · reminder " + new Date(r.remind).toLocaleString([], { weekday:"short", hour:"numeric", minute:"2-digit" }) : "");
+    d.onclick = e => open(r.u, e);
+    d.querySelector(".rm").onclick = e => { e.stopPropagation();
+      put("reading", get("reading", []).map(x => x.u === r.u ? Object.assign(x, { done:true }) : x)); readingList(); };
+    box.appendChild(d);
+  });
+}
+$("readAll").onclick = () => send("go", "https://browser.example/side.html#reading");
+
+/* ---------------------------------------------------------------- sites you follow
+   Their newest posts (the browser checks the feeds every hour); new since you last looked get a dot. */
+function feedList() {
+  if (PRIVATE) return;
+  const all = get("feedItems", {}), follows = get("follows", []), seen = +get("feedSeen", 0) || 0;
+  const items = [];
+  follows.forEach(f => (all[f.u] || []).forEach(i => items.push(Object.assign({ site:f.site }, i))));
+  items.sort((a, b) => (b.d || 0) - (a.d || 0));
+  $("feedSec").classList.toggle("hide", !items.length);
+  const box = $("feeds"); box.innerHTML = "";
+  const icons = get("icons", {});
+  items.slice(0, 7).forEach(i => {
+    if (!/^https?:\/\//.test(i.u)) return;
+    const d = document.createElement("div"); d.className = "row";
+    const src = icons[i.site] || icons["www." + i.site];
+    d.innerHTML = (src ? "<img>" : '<div class="ph"></div>') + '<div class="t"></div><div class="d"></div>';
+    if (src) d.querySelector("img").src = src;
+    d.querySelector(".t").textContent = (i.d > seen ? "\u25cf " : "") + i.t;
+    if (i.d > seen) d.querySelector(".t").style.color = "var(--fg)";
+    const age = i.d ? Math.round((Date.now() - i.d) / 36e5) : -1;
+    d.querySelector(".d").textContent = i.site + (age >= 0 ? " · " + (age < 1 ? "just now" : age < 48 ? age + " h ago" : Math.round(age / 24) + " d ago") : "");
+    d.onclick = e => open(i.u, e);
+    box.appendChild(d);
+  });
+  if (items.length) setTimeout(() => put("feedSeen", Date.now()), 4000);
+}
+$("feedHide").onclick = () => { const h = (cfg.ntpHide || []).filter(x => x !== "feeds"); h.push("feeds"); saveCust("ntpHide", h); };
+feedList();
+
+function shieldLine() {
+  if (PRIVATE) return;
+  const st = get("stats", null);
+  if (st && st.blocked > 0) { $("nblk").textContent = st.blocked.toLocaleString(); $("shield").classList.remove("hide"); }
+}
+watching();
+topSites();
+readingList();
+shieldLine();
+
+/* ---------------------------------------------------------------- widgets
+   Calendar (your own events, and reminders set in the address bar), a quote,
+   a quick note, a stopwatch, and battery and connection. All off until turned on in Customize. */
+const QUOTES = [["The secret of getting ahead is getting started.", "Mark Twain"], ["Well done is better than well said.", "Benjamin Franklin"],
+  ["It always seems impossible until it's done.", "Nelson Mandela"], ["Simplicity is the ultimate sophistication.", "Leonardo da Vinci"],
+  ["The best way out is always through.", "Robert Frost"], ["Whatever you are, be a good one.", "Abraham Lincoln"],
+  ["Nothing will work unless you do.", "Maya Angelou"], ["Act as if what you do makes a difference. It does.", "William James"],
+  ["What we think, we become.", "Buddha"], ["Turn your wounds into wisdom.", "Oprah Winfrey"],
+  ["The only way to do great work is to love what you do.", "Steve Jobs"], ["Keep your face always toward the sunshine.", "Walt Whitman"],
+  ["You miss 100% of the shots you don't take.", "Wayne Gretzky"], ["Stay hungry, stay foolish.", "Stewart Brand"],
+  ["Little by little, one travels far.", "J. R. R. Tolkien"], ["Dream big and dare to fail.", "Norman Vaughan"],
+  ["Do what you can, with what you have, where you are.", "Theodore Roosevelt"], ["Be yourself; everyone else is already taken.", "Oscar Wilde"],
+  ["In the middle of difficulty lies opportunity.", "Albert Einstein"], ["The journey of a thousand miles begins with one step.", "Lao Tzu"],
+  ["Quality is not an act, it is a habit.", "Aristotle"], ["If you can dream it, you can do it.", "Walt Disney"],
+  ["Happiness depends upon ourselves.", "Aristotle"], ["Everything you can imagine is real.", "Pablo Picasso"],
+  ["Creativity is intelligence having fun.", "Albert Einstein"], ["The harder I work, the luckier I get.", "Samuel Goldwyn"],
+  ["Done is better than perfect.", "Sheryl Sandberg"], ["Believe you can and you're halfway there.", "Theodore Roosevelt"],
+  ["Life is what happens when you're busy making other plans.", "John Lennon"], ["Try to be a rainbow in someone's cloud.", "Maya Angelou"]];
+let calMonth = null, swStart = 0, swAcc = 0, swTimer = 0;
+function widgets() {
+  const g = $("wgrid"); if (!g) return;
+  const on = ["cal", "quote", "notew", "stopw", "sysw"].filter(k => !hidden(k) && !PRIVATE);
+  $("wSec").classList.toggle("hide", !on.length);
+  const have = [...g.children].map(x => x.dataset.w).join(",");
+  if (have === on.join(",")) { paintCal(); return; }
+  g.innerHTML = "";
+  on.forEach((k, i) => {
+    const d = document.createElement("div"); d.className = "wg" + (k === "quote" ? " q" : ""); d.dataset.w = k; d.style.animationDelay = i * 60 + "ms";
+    if (k === "quote") {
+      const day = Math.floor((Date.now() - new Date().getTimezoneOffset() * 6e4) / 864e5), q = QUOTES[day % QUOTES.length];
+      d.innerHTML = "<h3>Quote of the day</h3><p></p><span></span>"; d.querySelector("p").textContent = "“" + q[0] + "”"; d.querySelector("span").textContent = "- " + q[1];
+    } else if (k === "notew") {
+      d.innerHTML = '<h3>Quick note</h3><textarea placeholder="Jot something down" spellcheck="true"></textarea>';
+      const ta = d.querySelector("textarea"); ta.value = get("ntpNote", "") || ""; let t0 = 0;
+      ta.oninput = () => { clearTimeout(t0); t0 = setTimeout(() => put("ntpNote", ta.value.slice(0, 5000)), 300); };
+    } else if (k === "stopw") {
+      d.innerHTML = '<h3>Stopwatch</h3><div class="sw">0:00.0</div><div class="btns"><button data-x="go">Start</button><button data-x="reset">Reset</button></div>';
+      const paint = () => { const ms = swAcc + (swStart ? Date.now() - swStart : 0), s = ms / 1000; d.querySelector(".sw").textContent = Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0") + "." + Math.floor(ms % 1000 / 100); };
+      d.querySelector('[data-x="go"]').onclick = e => { if (swStart) { swAcc += Date.now() - swStart; swStart = 0; clearInterval(swTimer); e.target.textContent = "Start"; } else { swStart = Date.now(); swTimer = setInterval(paint, 100); e.target.textContent = "Stop"; } };
+      d.querySelector('[data-x="reset"]').onclick = () => { swStart = 0; swAcc = 0; clearInterval(swTimer); d.querySelector('[data-x="go"]').textContent = "Start"; paint(); };
+    } else if (k === "sysw") {
+      d.innerHTML = '<h3>This computer</h3><div class="bl">Battery</div><div class="bat"><i style="width:0"></i></div><div class="net" style="font-size:12px;color:var(--dim)"></div>';
+      const net = () => { d.querySelector(".net").textContent = navigator.onLine ? "\u25cf Online" : "\u25cb Offline"; };
+      net(); addEventListener("online", net); addEventListener("offline", net);
+      if (navigator.getBattery) navigator.getBattery().then(b => { const paint = () => { d.querySelector(".bat i").style.width = b.level * 100 + "%"; d.querySelector(".bat i").style.background = b.level < .2 && !b.charging ? "var(--accent)" : "#3fb971";
+        d.querySelector(".bl").textContent = "Battery " + Math.round(b.level * 100) + "%" + (b.charging ? " · charging" : ""); }; paint(); b.onlevelchange = b.onchargingchange = paint; }).catch(() => {});
+      else d.querySelector(".bl").textContent = "No battery information";
+    } else if (k === "cal") { d.innerHTML = '<h3></h3><div class="cal"></div><div class="evs"></div>'; d.style.gridRow = "span 2"; }
+    g.appendChild(d);
+  });
+  paintCal();
+}
+function paintCal() {
+  const d = document.querySelector('.wg[data-w="cal"]'); if (!d) return;
+  const now = new Date(); calMonth = calMonth || new Date(now.getFullYear(), now.getMonth(), 1);
+  const ev = get("events", {}), timers = get("timers", []) || [];
+  const key = x => x.toLocaleDateString("en-CA");
+  const h = d.querySelector("h3"); h.innerHTML = '<span style="cursor:pointer" data-m="-1">\u2039</span> <span></span> <span style="cursor:pointer" data-m="1">\u203a</span>';
+  h.children[1].textContent = calMonth.toLocaleDateString([], { month:"long", year:"numeric" });
+  h.querySelectorAll("[data-m]").forEach(s => s.onclick = () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + +s.dataset.m, 1); paintCal(); });
+  const c = d.querySelector(".cal"); c.innerHTML = "";
+  const first = new Date(calMonth), start = new Date(first); start.setDate(1 - ((first.getDay() + 6) % 7));
+  ["M", "T", "W", "T", "F", "S", "S"].forEach(x => { const b = document.createElement("b"); b.textContent = x; c.appendChild(b); });
+  const tset = new Set(timers.filter(t => t && t.end).map(t => key(new Date(t.end))));
+  for (let i = 0; i < 42; i++) {
+    const day = new Date(start); day.setDate(start.getDate() + i);
+    const sp = document.createElement("span"), k = key(day);
+    sp.textContent = day.getDate();
+    if (day.getMonth() !== calMonth.getMonth()) sp.className = "out";
+    if (k === key(now)) sp.classList.add("now");
+    if ((ev[k] && ev[k].length) || tset.has(k)) sp.classList.add("ev");
+    sp.title = (ev[k] || []).join("\n");
+    sp.onclick = () => { const t = prompt("Add something for " + day.toLocaleDateString([], { weekday:"long", month:"long", day:"numeric" }) + (ev[k] && ev[k].length ? "\n\nAlready: " + ev[k].join("; ") + "\n(leave empty to clear the day)" : ""), "");
+      if (t === null) return; const all = get("events", {}); if (!t.trim()) delete all[k]; else (all[k] = all[k] || []).push(t.trim().slice(0, 120)); put("events", all); paintCal(); };
+    c.appendChild(sp);
+  }
+  const upcoming = Object.keys(ev).filter(k => k >= key(now)).sort().slice(0, 3);
+  d.querySelector(".evs").textContent = upcoming.length ? upcoming.map(k => new Date(k + "T12:00").toLocaleDateString([], { month:"short", day:"numeric" }) + ": " + ev[k].join(", ")).join(" · ") : "Click a day to add something.";
+}
+
+/* ---------------------------------------------------------------- habits: a week of ticks and your streak */
+function habits() {
+  const sec = $("habitSec"); if (!sec) return;
+  if (PRIVATE || hidden("habits")) return;
+  const list = get("habits", []), box = $("habitList"), today = new Date();
+  const days = []; for (let i = 6; i >= 0; i--) days.push(new Date(today.getFullYear(), today.getMonth(), today.getDate() - i));
+  const key = d => d.toLocaleDateString("en-CA");
+  $("hDays").innerHTML = ""; days.forEach(d => { const s = document.createElement("span"); s.style.textAlign = "center"; s.textContent = d.toLocaleDateString([], { weekday:"narrow" }); $("hDays").appendChild(s); });
+  box.innerHTML = "";
+  list.forEach(h => {
+    const r = document.createElement("div"); r.className = "hrow";
+    r.innerHTML = '<div class="n"></div>' + days.map((d, i) => '<i data-d="' + key(d) + '"' + (i === 6 ? ' class="today"' : "") + "></i>").join("") + '<em></em><button title="Remove">\u00d7</button>';
+    r.querySelector(".n").textContent = h.name;
+    r.querySelectorAll("i").forEach(i => { if ((h.days || {})[i.dataset.d]) i.classList.add("on");
+      i.onclick = () => { const all = get("habits", []), x = all.find(y => y.id === h.id); if (!x) return; x.days = x.days || {}; if (x.days[i.dataset.d]) delete x.days[i.dataset.d]; else x.days[i.dataset.d] = 1; put("habits", all); habits(); }; });
+    let st = 0; for (let i = 0; i < 400; i++) { const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i); if ((h.days || {})[key(d)]) st++; else if (i) break; }
+    r.querySelector("em").textContent = st ? "\ud83d\udd25" + st : "";
+    r.querySelector("button").onclick = () => { if (confirm("Remove the habit “" + h.name + "”?")) { put("habits", get("habits", []).filter(y => y.id !== h.id)); habits(); } };
+    box.appendChild(r);
+  });
+}
+$("habitNew").onkeydown = e => { if (e.key !== "Enter") return; const v = $("habitNew").value.trim(); if (!v) return;
+  const all = get("habits", []); all.push({ id:"h" + Date.now().toString(36), name:v.slice(0, 60), days:{} }); put("habits", all.slice(0, 12)); $("habitNew").value = ""; habits(); };
+
+/* ---------------------------------------------------------------- live wallpapers */
+const live = { raf:0, cv:null, kind:"" };
+const LIVE_KINDS = ["gradient", "stars", "aurora", "rain", "snow", "embers", "fireflies", "waves", "music"];
+function rgba(hex, a) { const n = parseInt(String(hex).replace("#", "").slice(0, 6), 16) || 0xe8342a; return "rgba(" + (n >> 16) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + a + ")"; }
+function liveBg() {
+  const kind = PRIVATE ? "" : LIVE_KINDS.indexOf(cfg.liveBg) >= 0 ? cfg.liveBg : "";
+  document.querySelectorAll("#liveSeg button").forEach(b => b.classList.toggle("on", b.dataset.v === kind));
+  if (kind) document.body.classList.add("pic");
+  if (kind === live.kind && (live.cv || !kind)) return;
+  cancelAnimationFrame(live.raf); live.raf = 0; if (live.cv) { live.cv.remove(); live.cv = null; }
+  live.kind = kind; document.body.classList.toggle("pic", !!kind || !!$("bgl"));
+  if (!kind) return;
+  live.cv = Object.assign(document.createElement("canvas"), { id:"live" }); live.cv.setAttribute("aria-hidden", "true");
+  const bgl = $("bgl"); if (bgl) bgl.after(live.cv); else document.body.prepend(live.cv);
+  const g = live.cv.getContext("2d"), still = cfg.motion === "off" || (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
+  const stars = Array.from({ length:160 }, () => ({ x:Math.random(), y:Math.random(), r:Math.random() * 1.4 + .2, s:Math.random() * 3 + 1 }));
+  const P = Array.from({ length:240 }, () => ({ x:Math.random(), y:Math.random(), r:Math.random(), s:Math.random(), p:Math.random() * 6.283 }));
+  const acc = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#e8342a";
+  let ping = 0;
+  const step = now => {
+    const k = devicePixelRatio || 1, W = innerWidth, H = innerHeight; live.cv.width = W * k; live.cv.height = H * k; g.setTransform(k, 0, 0, k, 0, 0);
+    const t = still ? 0 : now / 1000;
+    const vgrad = (a, b) => { const gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, a); gr.addColorStop(1, b); g.fillStyle = gr; g.fillRect(0, 0, W, H); };
+    if (kind === "gradient") {
+      const a = t * .15, gr = g.createLinearGradient(W / 2 + Math.cos(a) * W, H / 2 + Math.sin(a) * H, W / 2 - Math.cos(a) * W, H / 2 - Math.sin(a) * H);
+      gr.addColorStop(0, "hsl(" + (260 + Math.sin(t * .2) * 40) + ",55%,22%)"); gr.addColorStop(.5, "hsl(" + (330 + Math.sin(t * .17) * 30) + ",55%,25%)"); gr.addColorStop(1, "hsl(" + (20 + Math.sin(t * .13) * 20) + ",60%,24%)");
+      g.fillStyle = gr; g.fillRect(0, 0, W, H);
+    } else if (kind === "stars") {
+      g.fillStyle = "#07060d"; g.fillRect(0, 0, W, H);
+      stars.forEach(p => { const x = ((p.x - t * .004 * p.s) % 1 + 1) % 1 * W, y = p.y * H; g.globalAlpha = .4 + .6 * Math.abs(Math.sin(t * p.s * .5 + p.x * 10)); g.fillStyle = "#fff"; g.beginPath(); g.arc(x, y, p.r, 0, 7); g.fill(); });
+      g.globalAlpha = 1;
+    } else if (kind === "aurora") {
+      g.fillStyle = "#060a12"; g.fillRect(0, 0, W, H);
+      g.globalCompositeOperation = "lighter";
+      [["#1fd1a3", 0], ["#3b8bf0", 2], ["#9a63f0", 4]].forEach(([c, o]) => {
+        g.beginPath(); g.moveTo(0, H);
+        for (let x = 0; x <= W; x += 16) g.lineTo(x, H * .35 + Math.sin(x / 180 + t * .5 + o) * 60 + Math.sin(x / 70 + t * .9 + o) * 18);
+        g.lineTo(W, H); g.closePath();
+        const gr = g.createLinearGradient(0, H * .2, 0, H * .8); gr.addColorStop(0, c + "66"); gr.addColorStop(1, c + "00"); g.fillStyle = gr; g.fill();
+      });
+      g.globalCompositeOperation = "source-over";
+    } else if (kind === "rain") {
+      vgrad("#0a1322", "#1b2b45");
+      g.strokeStyle = "rgba(170,200,255,.33)"; g.lineWidth = 1; g.beginPath();
+      P.forEach(p => { const y = ((p.y + t * (.55 + p.s * .8)) % 1.1) * H - .05 * H, x = ((p.x * W + y * .14) % W + W) % W, len = 9 + p.r * 20; g.moveTo(x, y); g.lineTo(x + len * .14, y + len); });
+      g.stroke();
+      g.strokeStyle = "rgba(170,200,255,.35)";
+      P.slice(0, 45).forEach(p => { const ph = (t * (.7 + p.s) + p.p) % 1; if (ph < .3) { g.globalAlpha = 1 - ph / .3; g.beginPath(); g.ellipse(p.x * W, H - 8 - p.r * 26, 2 + ph * 26, 1 + ph * 5, 0, 0, 6.283); g.stroke(); } });
+      g.globalAlpha = 1;
+    } else if (kind === "snow") {
+      vgrad("#0e1627", "#2b3753");
+      g.fillStyle = "#fff";
+      P.forEach(p => { const y = ((p.y + t * (.025 + p.s * .045)) % 1.05) * H - 10, x = p.x * W + Math.sin(t * (.4 + p.s * .6) + p.p) * 22 * (p.r + .3);
+        g.globalAlpha = .35 + .6 * p.r; g.beginPath(); g.arc(x, y, .7 + p.r * 2.6, 0, 6.283); g.fill(); });
+      g.globalAlpha = 1;
+      const gr = g.createLinearGradient(0, H * .85, 0, H); gr.addColorStop(0, "rgba(255,255,255,0)"); gr.addColorStop(1, "rgba(220,235,255,.14)"); g.fillStyle = gr; g.fillRect(0, H * .85, W, H * .15);
+    } else if (kind === "embers") {
+      const gr = g.createRadialGradient(W / 2, H * 1.15, 10, W / 2, H * 1.15, H * 1.1); gr.addColorStop(0, "#5a1e08"); gr.addColorStop(.5, "#241007"); gr.addColorStop(1, "#0b0503");
+      g.fillStyle = gr; g.fillRect(0, 0, W, H);
+      g.globalCompositeOperation = "lighter";
+      P.slice(0, 130).forEach(p => { const ph = (t * (.04 + p.s * .07) + p.y) % 1, y = H * (1.03 - ph * 1.12), x = p.x * W + Math.sin(t * (.7 + p.s) + p.p) * 36 * ph;
+        const a = (1 - ph) * (.45 + .45 * Math.sin(t * 5 + p.p * 3)); if (a <= 0) return;
+        const r = 1 + p.r * 2.4, rg = g.createRadialGradient(x, y, 0, x, y, r * 4); rg.addColorStop(0, "hsla(" + (18 + p.r * 22) + ",100%,62%," + a + ")"); rg.addColorStop(1, "hsla(20,100%,50%,0)");
+        g.fillStyle = rg; g.beginPath(); g.arc(x, y, r * 4, 0, 6.283); g.fill(); });
+      g.globalCompositeOperation = "source-over";
+    } else if (kind === "fireflies") {
+      vgrad("#030d08", "#0a2014");
+      g.fillStyle = "#020805";
+      for (let i = 0; i < 9; i++) { const x = (i / 8) * W, h = H * (.22 + ((i * 37) % 10) / 45); g.beginPath(); g.moveTo(x - 70, H); g.lineTo(x, H - h); g.lineTo(x + 70, H); g.fill(); }
+      g.globalCompositeOperation = "lighter";
+      P.slice(0, 55).forEach(p => { const x = (p.x + Math.sin(t * .12 * (1 + p.s) + p.p) * .07) * W, y = (.12 + p.y * .8 + Math.cos(t * .1 * (1 + p.r) + p.p * 2) * .05) * H;
+        const glow = Math.max(0, Math.sin(t * (.8 + p.s * 1.6) + p.p)); if (glow < .02) return;
+        const rg = g.createRadialGradient(x, y, 0, x, y, 14); rg.addColorStop(0, "rgba(220,255,120," + glow * .9 + ")"); rg.addColorStop(1, "rgba(180,255,80,0)");
+        g.fillStyle = rg; g.beginPath(); g.arc(x, y, 14, 0, 6.283); g.fill(); });
+      g.globalCompositeOperation = "source-over";
+    } else if (kind === "waves") {
+      const sky = g.createLinearGradient(0, 0, 0, H * .62); sky.addColorStop(0, "#241640"); sky.addColorStop(.6, "#b85f6e"); sky.addColorStop(1, "#f4a96a");
+      g.fillStyle = sky; g.fillRect(0, 0, W, H * .62);
+      const sx = W * .68, sy = H * .56, sg = g.createRadialGradient(sx, sy, 10, sx, sy, 150); sg.addColorStop(0, "rgba(255,226,150,.95)"); sg.addColorStop(.35, "rgba(255,190,120,.5)"); sg.addColorStop(1, "rgba(255,160,100,0)");
+      g.fillStyle = sg; g.beginPath(); g.arc(sx, sy, 150, 0, 6.283); g.fill();
+      ["#2d6f8f", "#23597a", "#1a4566", "#123351", "#0b243d"].forEach((c, i) => {
+        const base = H * (.6 + i * .085), amp = 6 + i * 4, sp = .6 + i * .25;
+        g.beginPath(); g.moveTo(0, H);
+        for (let x = 0; x <= W; x += 12) g.lineTo(x, base + Math.sin(x / (120 + i * 30) + t * sp + i) * amp + Math.sin(x / 47 + t * sp * 1.7) * amp * .3);
+        g.lineTo(W, H); g.closePath(); g.fillStyle = c; g.fill();
+      });
+      g.strokeStyle = "rgba(255,220,160,.5)"; g.lineWidth = 2;
+      for (let i = 0; i < 12; i++) { const y = H * .63 + i * 14, w = 60 - i * 3 + Math.sin(t * 2 + i) * 12; g.globalAlpha = .6 - i * .045; g.beginPath(); g.moveTo(sx - w / 2, y); g.lineTo(sx + w / 2, y); g.stroke(); }
+      g.globalAlpha = 1;
+    } else if (kind === "music") {
+      g.fillStyle = "#07070c"; g.fillRect(0, 0, W, H);
+      const fresh = vizBins && Date.now() - vizAt < 800;
+      const bins = fresh ? vizBins : Array.from({ length:48 }, (_, i) => 26 + 18 * Math.sin(t * 1.6 + i * .35) * Math.sin(t * .7 + i * .12));
+      const bass = bins.slice(0, 6).reduce((a, b) => a + b, 0) / 6 / 255;
+      const rg = g.createRadialGradient(W / 2, H * .45, 0, W / 2, H * .45, H * (.45 + bass * .3)); rg.addColorStop(0, rgba(acc, .12 + bass * .3)); rg.addColorStop(1, rgba(acc, 0));
+      g.fillStyle = rg; g.fillRect(0, 0, W, H);
+      const n = bins.length, bw = W / (n * 2);
+      for (let i = 0; i < n; i++) {
+        const v = Math.max(.02, bins[i] / 255), h = v * H * .45, floor = H - 64, y = floor - h;
+        const gr = g.createLinearGradient(0, y, 0, floor); gr.addColorStop(0, rgba(acc, .95)); gr.addColorStop(1, rgba(acc, .15));
+        g.fillStyle = gr;
+        g.fillRect(W / 2 + i * bw + 1, y, bw - 2, h); g.fillRect(W / 2 - (i + 1) * bw + 1, y, bw - 2, h);
+        // and its reflection
+        g.fillStyle = rgba(acc, .12);
+        g.fillRect(W / 2 + i * bw + 1, floor + 2, bw - 2, h * .25); g.fillRect(W / 2 - (i + 1) * bw + 1, floor + 2, bw - 2, h * .25);
+      }
+      if (!still && mch && now - ping > 1000) { ping = now; mch.postMessage({ type:"vizon" }); }
+    }
+    if (!still && !document.hidden) live.raf = requestAnimationFrame(step);
+  };
+  live.raf = requestAnimationFrame(step);
+}
+document.addEventListener("visibilitychange", () => { if (!document.hidden && live.kind && !live.raf && live.cv) { const k = live.kind; live.kind = ""; if (live.cv) { live.cv.remove(); live.cv = null; } liveBgKick(k); } });
+function liveBgKick() { liveBg(); }
+document.querySelectorAll("#liveSeg button").forEach(b => b.onclick = () => { saveBg("liveBg", b.dataset.v); liveBg(); });
+
+/* ---------------------------------------------------------------- little surprises
+   A spider on Halloween, fireworks on New Year's Day, and one for the Konami code. */
+function egg(kind) {
+  if (cfg.motion === "off" || (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches)) return;
+  const c = Object.assign(document.createElement("canvas"), { id:"egg" }); c.style.cssText = "left:0;top:0;width:100%;height:100%";
+  document.body.appendChild(c); const g = c.getContext("2d"); c.width = innerWidth; c.height = innerHeight;
+  let n = 0; const parts = [];
+  const step = () => {
+    g.clearRect(0, 0, c.width, c.height); n++;
+    if (kind === "spider") {
+      const x = c.width * .82, y = Math.min(n * 3, 220) + Math.sin(n / 20) * 6 - (n > 260 ? (n - 260) * 5 : 0);
+      g.strokeStyle = "rgba(200,200,200,.6)"; g.beginPath(); g.moveTo(x, 0); g.lineTo(x, y - 12); g.stroke();
+      g.fillStyle = "#111"; g.beginPath(); g.arc(x, y, 12, 0, 7); g.fill(); g.beginPath(); g.arc(x, y + 14, 8, 0, 7); g.fill();
+      g.strokeStyle = "#111"; g.lineWidth = 2; for (let i = 0; i < 4; i++) { const w = Math.sin(n / 6 + i) * 3; g.beginPath(); g.moveTo(x - 8, y - 4 + i * 4); g.lineTo(x - 22, y - 10 + i * 7 + w); g.moveTo(x + 8, y - 4 + i * 4); g.lineTo(x + 22, y - 10 + i * 7 - w); g.stroke(); }
+      g.fillStyle = "#e8342a"; g.beginPath(); g.arc(x - 4, y + 14, 2, 0, 7); g.arc(x + 4, y + 14, 2, 0, 7); g.fill();
+      if (n < 360) requestAnimationFrame(step); else c.remove();
+      return;
+    }
+    if (n % (kind === "fireworks" ? 28 : 6) === 1 && n < 180) {
+      const cx = Math.random() * c.width, cy = kind === "fireworks" ? Math.random() * c.height * .5 + 40 : -10, hue = Math.random() * 360;
+      for (let i = 0; i < (kind === "fireworks" ? 60 : 8); i++) { const a = Math.random() * 6.28, sp = kind === "fireworks" ? Math.random() * 5 + 1 : 0;
+        parts.push({ x:kind === "fireworks" ? cx : Math.random() * c.width, y:cy, vx:Math.cos(a) * sp, vy:kind === "fireworks" ? Math.sin(a) * sp : Math.random() * 3 + 2, life:1, c:"hsl(" + (hue + i * 7) + ",90%,60%)" }); }
+    }
+    parts.forEach(p => { p.x += p.vx; p.y += p.vy; p.vy += kind === "fireworks" ? .06 : 0; p.life -= kind === "fireworks" ? .012 : .004; g.globalAlpha = Math.max(0, p.life); g.fillStyle = p.c; g.fillRect(p.x, p.y, 3, kind === "fireworks" ? 3 : 7); });
+    g.globalAlpha = 1;
+    if (n < 320) requestAnimationFrame(step); else c.remove();
+  };
+  requestAnimationFrame(step);
+}
+(function () {
+  if (PRIVATE) return;
+  const d = new Date(), md = (d.getMonth() + 1) + "-" + d.getDate(), done = get("eggDone", "");
+  const k = md === "10-31" ? "spider" : md === "1-1" ? "fireworks" : "";
+  if (k && done !== d.getFullYear() + "-" + md) { put("eggDone", d.getFullYear() + "-" + md); setTimeout(() => egg(k), 900); }
+  const code = [38, 38, 40, 40, 37, 39, 37, 39, 66, 65]; let at = 0;
+  addEventListener("keydown", e => { if (document.activeElement && /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) { at = 0; return; } at = e.keyCode === code[at] ? at + 1 : e.keyCode === code[0] ? 1 : 0; if (at === code.length) { at = 0; egg("confetti"); setTimeout(() => egg("spider"), 400); } });
+})();
+
+/* ---------------------------------------------------------------- seasonal effects
+   Snow in winter, blossom in spring, fireflies in summer, leaves in autumn,
+   drifting behind everything. Off with Customize, Animations off, or
+   Windows' reduce motion. */
+const fx = { cv:null, parts:[], raf:0, kind:"" };
+function fxKind(d) { const m = (d || new Date()).getMonth(); return m === 11 || m <= 1 ? "snow" : m <= 4 ? "petals" : m <= 7 ? "fireflies" : "leaves"; }
+function fxOn() {
+  return !PRIVATE && !hidden("fx") && cfg.motion !== "off" && cfg.motion !== "reduced" &&
+    !(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
+}
+function fxStart() {
+  if (!fxOn()) { fxStop(); return; }
+  if (fx.raf) return;
+  if (!fx.cv) { fx.cv = Object.assign(document.createElement("canvas"), { id:"fx" }); fx.cv.setAttribute("aria-hidden", "true"); document.body.prepend(fx.cv); }
+  fx.kind = fxKind();
+  const W = innerWidth, H = innerHeight, n = fx.kind === "fireflies" ? 26 : 38;
+  fx.parts = Array.from({ length:n }, () => fxNew(W, H, true));
+  const g = fx.cv.getContext("2d");
+  let last = performance.now();
+  const step = now => {
+    const dt = Math.min(50, now - last) / 16.7; last = now;
+    const w = fx.cv.width = innerWidth * (devicePixelRatio || 1), h = fx.cv.height = innerHeight * (devicePixelRatio || 1), k = devicePixelRatio || 1;
+    g.setTransform(k, 0, 0, k, 0, 0);
+    fx.parts.forEach(p => fxDraw(g, p, dt, now));
+    fx.parts = fx.parts.map(p => p.y > innerHeight + 20 || p.x < -30 || p.x > innerWidth + 30 ? fxNew(innerWidth, innerHeight, false) : p);
+    fx.raf = document.hidden ? 0 : requestAnimationFrame(step);
+  };
+  fx.raf = requestAnimationFrame(step);
+}
+function fxStop() { cancelAnimationFrame(fx.raf); fx.raf = 0; if (fx.cv) { fx.cv.remove(); fx.cv = null; } }
+function fxNew(W, H, anywhere) {
+  const r = Math.random;
+  return { x:r() * W, y:anywhere ? r() * H : -15, s:.5 + r() * 1, a:r() * 6.28, spin:(r() - .5) * .04, wob:r() * 6.28, hue:r(),
+    vy:fx.kind === "fireflies" ? 0 : .25 + r() * .5, vx:(r() - .5) * .3, ph:r() * 6.28 };
+}
+function fxDraw(g, p, dt, now) {
+  p.wob += .015 * dt; p.a += p.spin * dt;
+  if (fx.kind === "fireflies") {
+    p.x += Math.cos(p.wob * 1.3 + p.ph) * .35 * dt; p.y += Math.sin(p.wob + p.ph) * .25 * dt;
+    const glow = .35 + .65 * Math.max(0, Math.sin(now / 700 + p.ph));
+    const r = 2 + p.s * 1.5, grd = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 5);
+    grd.addColorStop(0, "rgba(255,236,140," + (.9 * glow) + ")"); grd.addColorStop(1, "rgba(255,220,90,0)");
+    g.fillStyle = grd; g.beginPath(); g.arc(p.x, p.y, r * 5, 0, 7); g.fill();
+    return;
+  }
+  p.y += p.vy * p.s * dt; p.x += (p.vx + Math.sin(p.wob) * .35) * dt;
+  g.save(); g.translate(p.x, p.y); g.rotate(p.a);
+  if (fx.kind === "snow") { g.globalAlpha = .45 + p.s * .35; g.fillStyle = "#fff"; g.beginPath(); g.arc(0, 0, 1.2 + p.s * 1.8, 0, 7); g.fill(); }
+  else if (fx.kind === "petals") { g.globalAlpha = .75; g.fillStyle = "hsl(" + (330 + p.hue * 25) + ",75%," + (82 - p.hue * 8) + "%)"; g.beginPath(); g.ellipse(0, 0, 3 + p.s * 3, 1.8 + p.s * 1.6, 0, 0, 7); g.fill(); }
+  else { g.globalAlpha = .8; g.fillStyle = "hsl(" + (10 + p.hue * 35) + ",70%,45%)"; const z = 4 + p.s * 4;
+    g.beginPath(); g.moveTo(0, -z); g.quadraticCurveTo(z * .9, 0, 0, z); g.quadraticCurveTo(-z * .9, 0, 0, -z); g.fill();
+    g.strokeStyle = "rgba(0,0,0,.25)"; g.lineWidth = .8; g.beginPath(); g.moveTo(0, -z); g.lineTo(0, z); g.stroke(); }
+  g.restore();
+}
+document.addEventListener("visibilitychange", () => { if (document.hidden) { cancelAnimationFrame(fx.raf); fx.raf = 0; } else fxStart(); });
+
+/* ---------------------------------------------------------------- tip of the day */
+var TIPS = [   // var: applyCustom can run before this line
+  "Press Ctrl+Shift+P for the command palette: every feature, by typing a few letters.",
+  "Alt+S skips an intro. Do it once and later episodes of the same show skip it by themselves.",
+  "Alt+. and Alt+, change a video's speed, and the speed is remembered for that site.",
+  "Select a word and use Define selected word (Ctrl+Shift+P) to see what it means.",
+  "Search all open tabs from the command palette finds the tab that mentions what you are looking for.",
+  "Watch this page's price (Ctrl+Shift+P) tells you when a product gets cheaper.",
+  "Right-click a tab to snooze it: it closes now and comes back when you choose.",
+  "Alt+H highlights the selected text, and the highlight is there every time you come back.",
+  "Ctrl+Shift+S takes a screenshot of just the part of the page you pick.",
+  "Alt+Q shows a QR code of the page, to open it on your phone.",
+  "Type \"weather in Paris\", \"20 usd to eur\" or \"btc price\" in the address bar for an instant answer.",
+  "Type \"timer 5 min\" in the address bar to start a timer.",
+  "Ctrl+Shift+E opens the sidebar: notes, to-do, reading list, timers and your tabs.",
+  "Notes in the sidebar can have checklists, headings and links, and save as Markdown.",
+  "Background on this page can be a slideshow of your own pictures and videos.",
+  "Alt+Shift+F starts focus mode, which keeps distracting sites closed for a while.",
+  "Workspaces (menu) keep separate sets of tabs, like school and games, in one window.",
+  "Turn on mouse gestures in Settings: hold the right button and draw left to go back.",
+  "Always mute this site (Ctrl+Shift+P) keeps a noisy site quiet for good.",
+  "Forget recent browsing (Ctrl+Shift+P) removes the last 15 minutes, hour or day from history.",
+  "Ctrl+Shift+A searches your open tabs, bookmarks, history and commands at once.",
+  "Reader view shows just the article, without the clutter around it.",
+  "Clipboard history (Alt+Shift+V) keeps the last things you copied on web pages.",
+  "Text snippets (Settings, Tools): type a short keyword like ;addr in any text box and it becomes your saved text.",
+  "Split view (menu) shows two tabs side by side.",
+  "Ctrl+M mutes the tab, Ctrl+Shift+K duplicates it.",
+  "Double-click the empty space next to your tabs to open a new tab.",
+  "Night light (menu) makes pages warmer in the evening.",
+  "Page tools (menu) can unlock copying, clean up clutter and let you edit a page's text.",
+  "Settings, Backup saves your bookmarks, notes, settings and more to one file."
+];
+let tipN = -1;
+function tipOfDay(step) {
+  const box = $("tip");
+  if (!TIPS) return;
+  if (PRIVATE || hidden("tip")) { box.classList.add("hide"); return; }
+  if (tipN < 0) { const d = new Date(); tipN = Math.floor((d.getTime() - d.getTimezoneOffset() * 6e4) / 864e5) % TIPS.length; }
+  tipN = (tipN + (step || 0)) % TIPS.length;
+  $("tipT").textContent = TIPS[tipN];
+  box.classList.remove("hide");
+}
+$("tipNext").onclick = () => tipOfDay(1);
+$("tipX").onclick = () => { const h = (cfg.ntpHide || []).filter(x => x !== "tip"); h.push("tip"); saveCust("ntpHide", h); };
+// first shown by applyCustom, once the page's settings are in
+
+/* ---------------------------------------------------------------- to-do
+   Kept in storage, so the sidebar shows the same list. */
+const CHECK = '<svg viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg>';
+function todos() {
+  const list = get("todo", []), box = $("todos");
+  box.innerHTML = "";
+  list.forEach(it => {
+    const r = document.createElement("div");
+    r.className = "todo" + (it.done ? " done" : "");
+    r.innerHTML = '<div class="box" role="checkbox">' + CHECK + '</div><div class="tx"></div><button class="rm" title="Delete">×</button>';
+    r.querySelector(".box").setAttribute("aria-checked", it.done ? "true" : "false");
+    r.querySelector(".tx").textContent = it.t;
+    r.querySelector(".box").onclick = () => { put("todo", get("todo", []).map(x => x.id === it.id ? Object.assign(x, { done:!x.done }) : x)); todos(); };
+    r.querySelector(".rm").onclick = () => { put("todo", get("todo", []).filter(x => x.id !== it.id)); todos(); };
+    box.appendChild(r);
+  });
+  $("todoClear").classList.toggle("hide", !list.some(x => x.done));
+}
+$("todoNew").addEventListener("keydown", e => {
+  if (e.key !== "Enter") return;
+  const t = $("todoNew").value.trim();
+  if (!t) return;
+  const list = get("todo", []);
+  list.push({ id:Date.now().toString(36) + Math.random().toString(36).slice(2, 5), t:t.slice(0, 200), done:false, ts:Date.now() });
+  put("todo", list.slice(-50));
+  $("todoNew").value = "";
+  todos();
+});
+$("todoClear").onclick = () => { put("todo", get("todo", []).filter(x => !x.done)); todos(); };
+
+/* ---------------------------------------------------------------- weather
+   Open-Meteo: free, no account and no key. Only the city you typed is sent. */
+const WXI = {
+  sun:'<svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="6" fill="#f5b642"/><g stroke="#f5b642" stroke-width="2" stroke-linecap="round"><path d="M16 3v4M16 25v4M3 16h4M25 16h4M6.8 6.8l2.8 2.8M22.4 22.4l2.8 2.8M6.8 25.2l2.8-2.8M22.4 9.6l2.8-2.8"/></g></svg>',
+  moon:'<svg viewBox="0 0 32 32"><path d="M21 22a9 9 0 0 1-8.6-12.6A9 9 0 1 0 23.6 20.6 9 9 0 0 1 21 22z" fill="#c9cfe0"/></svg>',
+  cloud:'<svg viewBox="0 0 32 32"><path d="M9 25a6 6 0 0 1-.6-12A8 8 0 0 1 24 13.5 5.8 5.8 0 0 1 23.5 25z" fill="#b8c0cc"/></svg>',
+  partly:'<svg viewBox="0 0 32 32"><circle cx="12" cy="11" r="5" fill="#f5b642"/><path d="M11 27a5 5 0 0 1-.5-10A7 7 0 0 1 24 17.5 5 5 0 0 1 23.5 27z" fill="#b8c0cc"/></svg>',
+  rain:'<svg viewBox="0 0 32 32"><path d="M9 20a5.5 5.5 0 0 1-.5-11A7.5 7.5 0 0 1 23 9.5 5.3 5.3 0 0 1 22.5 20z" fill="#9aa4b4"/><g stroke="#5aa0ff" stroke-width="2" stroke-linecap="round"><path d="M11 23l-1.5 4M16 23l-1.5 4M21 23l-1.5 4"/></g></svg>',
+  snow:'<svg viewBox="0 0 32 32"><path d="M9 20a5.5 5.5 0 0 1-.5-11A7.5 7.5 0 0 1 23 9.5 5.3 5.3 0 0 1 22.5 20z" fill="#b8c0cc"/><g fill="#e6f0ff"><circle cx="11" cy="25" r="1.6"/><circle cx="16" cy="27" r="1.6"/><circle cx="21" cy="25" r="1.6"/></g></svg>',
+  storm:'<svg viewBox="0 0 32 32"><path d="M9 19a5.5 5.5 0 0 1-.5-11A7.5 7.5 0 0 1 23 8.5 5.3 5.3 0 0 1 22.5 19z" fill="#8a93a3"/><path d="M17 18l-5 7h4l-2 5 6-8h-4l2-4z" fill="#f5b642"/></svg>',
+  fog:'<svg viewBox="0 0 32 32"><g stroke="#b8c0cc" stroke-width="2.4" stroke-linecap="round"><path d="M6 11h20M4 16h24M7 21h18M10 26h12"/></g></svg>'
+};
+function wxKind(c, day) {
+  return c === 0 ? (day ? "sun" : "moon") : c <= 2 ? (day ? "partly" : "cloud") : c === 3 ? "cloud" : c === 45 || c === 48 ? "fog" :
+         (c >= 71 && c <= 77) || c === 85 || c === 86 ? "snow" : c >= 95 ? "storm" : c >= 51 ? "rain" : "cloud";
+}
+const WXN = { 0:"Clear", 1:"Mostly clear", 2:"Partly cloudy", 3:"Cloudy", 45:"Fog", 48:"Fog", 51:"Drizzle", 53:"Drizzle", 55:"Drizzle",
+  56:"Freezing drizzle", 57:"Freezing drizzle", 61:"Light rain", 63:"Rain", 65:"Heavy rain", 66:"Freezing rain", 67:"Freezing rain",
+  71:"Light snow", 73:"Snow", 75:"Heavy snow", 77:"Snow grains", 80:"Showers", 81:"Showers", 82:"Heavy showers", 85:"Snow showers",
+  86:"Snow showers", 95:"Thunderstorm", 96:"Thunderstorm", 99:"Thunderstorm" };
+// A few parts are off until you turn them on in Customize.
+const DEFAULT_OFF = ["habits", "cal", "quote", "notew", "stopw", "sysw"];
+const hidden = k => DEFAULT_OFF.includes(k) ? !(cfg.ntpShow || []).includes(k) : (cfg.ntpHide || []).indexOf(k) >= 0;
+const wxUnit = () => cfg.wxUnit === "c" || cfg.wxUnit === "f" ? cfg.wxUnit : /^en-US$/i.test(navigator.language) ? "f" : "c";
+let wxBusy = "";
+async function weather() {
+  const box = $("wx");
+  if (PRIVATE || hidden("weather")) { box.classList.add("hide"); return; }
+  const city = String(cfg.wxCity || "").trim(), unit = wxUnit();
+  const chip = text => { box.className = "chip"; box.textContent = text; box.onclick = () => openCust("cCity"); };
+  if (!city) { chip("+ Add weather"); return; }
+  const key = city.toLowerCase() + "|" + unit;
+  const c = get("weather", null);
+  const show = d => {
+    box.className = "";
+    box.innerHTML = WXI[wxKind(d.code, d.day)] + '<span class="tt"></span><span class="ww"><span></span><span></span></span>';
+    box.querySelector(".tt").textContent = Math.round(d.t) + "°";
+    const s = box.querySelectorAll(".ww span");
+    s[0].textContent = d.name;
+    s[1].textContent = (WXN[d.code] || "") + " · H " + Math.round(d.hi) + "° L " + Math.round(d.lo) + "°";
+    box.title = d.name + ": " + Math.round(d.t) + "°" + d.unit.toUpperCase() + ", " + (WXN[d.code] || "") + " - open the forecast";
+    box.onclick = () => send("go", "weather " + d.name);
+  };
+  if (c && c.key === key) { show(c); if (Date.now() - c.ts < 30 * 60000) return; }
+  if (wxBusy === key) return;
+  wxBusy = key;
+  try {
+    const g = await (await fetch("https://geocoding-api.open-meteo.com/v1/search?count=1&language=en&format=json&name=" + encodeURIComponent(city))).json();
+    const loc = g && g.results && g.results[0];
+    if (!loc) { chip("City not found: " + city); return; }
+    const w = await (await fetch("https://api.open-meteo.com/v1/forecast?latitude=" + loc.latitude + "&longitude=" + loc.longitude +
+      "&current=temperature_2m,weather_code,is_day&daily=temperature_2m_max,temperature_2m_min&forecast_days=1&timezone=auto" +
+      (unit === "f" ? "&temperature_unit=fahrenheit" : ""))).json();
+    const d = { key, ts:Date.now(), name:loc.name, t:w.current.temperature_2m, code:w.current.weather_code, day:w.current.is_day,
+                hi:w.daily.temperature_2m_max[0], lo:w.daily.temperature_2m_min[0], unit };
+    put("weather", d);
+    if (key === String(cfg.wxCity || "").trim().toLowerCase() + "|" + wxUnit()) show(d);
+  } catch (e) { if (!(c && c.key === key)) chip("Weather unavailable right now"); }
+  finally { wxBusy = ""; }
+}
+setInterval(() => { if (!document.hidden) weather(); }, 10 * 60000);
+
+/* ---------------------------------------------------------------- customize */
+const SHOW = [["weather", "Weather"], ["todo", "To-do list"], ["watch", "Continue watching"], ["shortcuts", "Shortcuts"],
+              ["reading", "Reading list"], ["shield", "Blocked counter"], ["feeds", "Sites you follow"], ["tip", "Tip of the day"], ["fx", "Seasonal effects"], ["greet", "Greeting and date"], ["clock", "Clock"],
+              ["habits", "Habit tracker"], ["cal", "Calendar"], ["quote", "Quote of the day"], ["notew", "Quick note"], ["stopw", "Stopwatch"], ["sysw", "Battery and connection"]];
+function applyCustom() {
+  SHOW.forEach(([k]) => { if (k !== "clock") document.body.classList.toggle("h-" + k, hidden(k)); });
+  weather(); tick(); paintEng();
+  if (typeof widgets === "function") { widgets(); habits(); liveBg(); }
+  if (typeof tipOfDay === "function") tipOfDay(0);
+  if (typeof fxStart === "function") fxStart();
+}
+function saveCust(k, v) { const s = get("settings", {}); s[k] = v; put("settings", s); readCfg(); applyCustom(); paintCust(); }
+function paintCust() {
+  document.querySelectorAll("#cClock button").forEach(b => b.classList.toggle("on", (b.dataset.v === "24") === !!cfg.clock24));
+  document.querySelectorAll("#cStyle button").forEach(b => b.classList.toggle("on", b.dataset.v === (cfg.clockStyle || "")));
+  document.querySelectorAll("#cUnit button").forEach(b => b.classList.toggle("on", b.dataset.v === wxUnit()));
+  $("cSec").checked = !!cfg.clockSec;
+  const box = $("cShow");
+  if (!box.children.length) SHOW.forEach(([k, label]) => {
+    const l = document.createElement("label"); l.className = "chk";
+    const i = document.createElement("input"); i.type = "checkbox"; i.dataset.k = k;
+    i.onchange = () => {
+      if (k === "clock") { saveCust("clock", i.checked); return; }
+      if (DEFAULT_OFF.includes(k)) { const sh = (cfg.ntpShow || []).filter(x => x !== k); if (i.checked) sh.push(k); saveCust("ntpShow", sh); return; }
+      const h = (cfg.ntpHide || []).filter(x => x !== k); if (!i.checked) h.push(k); saveCust("ntpHide", h);
+    };
+    l.append(i, " " + label); box.appendChild(l);
+  });
+  box.querySelectorAll("input").forEach(i => { i.checked = i.dataset.k === "clock" ? cfg.clock !== false : !hidden(i.dataset.k); });
+}
+function openCust(focus) {
+  $("bgbox").classList.add("hide");
+  $("cName").value = cfg.ntpName || ""; $("cCity").value = cfg.wxCity || "";
+  $("cCdLabel").value = cfg.cdLabel || ""; $("cCdDate").value = cfg.cdDate || "";
+  paintCust();
+  $("custbox").classList.remove("hide");
+  if (focus) $(focus).focus();
+}
+$("custBtn").onclick = e => { e.stopPropagation(); if ($("custbox").classList.contains("hide")) openCust(); else $("custbox").classList.add("hide"); };
+let custT = 0;
+[["cName", "ntpName"], ["cCity", "wxCity"], ["cCdLabel", "cdLabel"]].forEach(([id, k]) => {
+  $(id).oninput = () => { clearTimeout(custT); custT = setTimeout(() => saveCust(k, $(id).value.trim()), id === "cCity" ? 700 : 250); };
+});
+$("cCdDate").onchange = () => saveCust("cdDate", $("cCdDate").value);
+$("cSec").onchange = () => saveCust("clockSec", $("cSec").checked);
+document.querySelectorAll("#cClock button").forEach(b => b.onclick = () => saveCust("clock24", b.dataset.v === "24"));
+document.querySelectorAll("#cStyle button").forEach(b => b.onclick = () => saveCust("clockStyle", b.dataset.v));
+document.querySelectorAll("#cUnit button").forEach(b => b.onclick = () => saveCust("wxUnit", b.dataset.v));
+if (!PRIVATE) { todos(); applyCustom(); }
+
+document.querySelectorAll("footer a[data-go]").forEach(a => {
+  a.onclick = () => send("go", "https://browser.example/" + a.dataset.go);
+});
+function saveBg(k, v) { const s = get("settings", {}); s[k] = v; put("settings", s); readCfg(); paintBgBox(); send("settings-changed"); }
+function paintBgBox() {
+  const fit = ["cover", "contain", "stretch", "center"].indexOf(cfg.bgFit) >= 0 ? cfg.bgFit : "cover";
+  const dim = +cfg.bgDim || 0;
+  document.querySelectorAll("#bgFitSeg button").forEach(b => b.classList.toggle("on", b.dataset.v === fit));
+  $("bgDimR").value = dim; $("bgDimV").textContent = dim + "%";
+  $("bgRemove").disabled = !cfg.bg;
+  paintSlides();
+  paintBgNote();
+  if (typeof paintVibes === "function") paintVibes();
+}
+function paintSlides() {
+  const L = slideList(), box = $("slList");
+  $("slN").textContent = L.length ? "(" + L.length + ")" : "";
+  $("slNext").disabled = L.length < 2; $("slClear").disabled = !L.length;
+  const ev = ["tab", "hour", "day"].indexOf(cfg.slideEvery) >= 0 ? cfg.slideEvery : "tab";
+  document.querySelectorAll("#slEvery button").forEach(b => { b.classList.toggle("on", b.dataset.v === ev); b.disabled = !L.length; });
+  const key = L.join("|");
+  if (box.dataset.k !== key) {
+    box.dataset.k = key; box.textContent = "";
+    if (!L.length) box.innerHTML = '<span id="slEmpty">Add a few pictures, GIFs or videos and they take turns behind this page.</span>';
+    L.forEach((u, n) => {
+      const d = document.createElement("div"); d.className = "sl"; d.dataset.u = u; d.title = "Show this one now";
+      const m = /\.(mp4|webm|m4v)$/.test(u) ? Object.assign(document.createElement("video"), { muted:true, preload:"metadata", src:u + "#t=0.5" })
+                                               : Object.assign(document.createElement("img"), { src:u, loading:"lazy", alt:"" });
+      const x = document.createElement("button"); x.type = "button"; x.textContent = "\u00d7"; x.title = "Remove from the slideshow";
+      x.onclick = e => { e.stopPropagation(); removeSlides([u]); };
+      d.onclick = () => { const i = slideList().indexOf(u), c = slideList().indexOf(bgNow); if (i >= 0 && c >= 0) { slideSkip += i - c; paintBackground(); paintSlides(); } };
+      d.append(m, x); box.appendChild(d);
+    });
+  }
+  box.querySelectorAll(".sl").forEach(d => d.classList.toggle("on", d.dataset.u === bgNow));
+}
+function removeSlides(list) {
+  list.forEach(u => send("slides-del", u.slice("user/slides/".length)));
+  const s = get("settings", {}); s.slides = (Array.isArray(s.slides) ? s.slides : []).filter(x => list.indexOf(x) < 0);
+  put("settings", s); readCfg(); paintBgBox(); send("settings-changed");
+}
+$("bgBtn").onclick = e => { e.stopPropagation(); paintBgBox(); $("bgbox").classList.toggle("hide"); };
+$("bgChoose").onclick = () => send("pick-bg-ntp");
+$("bgRemove").onclick = () => saveBg("bg", "");
+$("slAdd").onclick = () => send("slides-add");
+$("slNext").onclick = () => { slideSkip++; paintBackground(); paintSlides(); };
+$("slClear").onclick = () => { if (confirm("Remove every picture and video from the slideshow?")) removeSlides(slideList()); };
+document.querySelectorAll("#slEvery button").forEach(b => b.onclick = () => saveBg("slideEvery", b.dataset.v));
+document.querySelectorAll("#bgFitSeg button").forEach(b => b.onclick = () => saveBg("bgFit", b.dataset.v));
+$("bgDimR").oninput = () => {
+  $("bgDimV").textContent = $("bgDimR").value + "%";
+  const l = $("bgl"); if (l) l.style.setProperty("--dim", String($("bgDimR").value / 100));
+};
+$("bgDimR").onchange = () => saveBg("bgDim", +$("bgDimR").value);
+addEventListener("mousedown", e => {
+  if (!$("bgbox").contains(e.target) && e.target !== $("bgBtn")) $("bgbox").classList.add("hide");
+  if (!$("mubox").contains(e.target) && e.target !== $("muBtn")) $("mubox").classList.add("hide");
+  if (!$("custbox").contains(e.target) && e.target !== $("custBtn") && !(e.target.closest && e.target.closest("#wx"))) $("custbox").classList.add("hide");
+  if (!$("engMenu").contains(e.target) && e.target !== $("eng")) $("engMenu").classList.add("hide");
+});
+addEventListener("keydown", e => { if (e.key === "Escape") { $("bgbox").classList.add("hide"); $("mubox").classList.add("hide"); $("custbox").classList.add("hide"); $("engMenu").classList.add("hide"); } });
+if (wv) wv.addEventListener("message", e => {
+  const p = String(e.data).split(S);
+  if (p[0] === "bg-picked") {
+    const s = get("settings", {}); s.bg = p[1]; put("settings", s); readCfg(); paintBgBox();
+    send("settings-changed");
+  }
+  if (p[0] === "slides-added") {
+    const add = String(p[1] || "").split("\n").filter(x => SLIDE_RE.test(x));
+    if (!add.length) return;
+    const s = get("settings", {}), L = Array.isArray(s.slides) ? s.slides.filter(x => SLIDE_RE.test(x)) : [];
+    add.forEach(x => { if (L.indexOf(x) < 0) L.push(x); });
+    s.slides = L.slice(-200); put("settings", s);
+    readCfg();
+    // show the first new one straight away
+    const i = slideList().indexOf(add[0]), c = slideList().indexOf(bgNow);
+    if (i >= 0 && c >= 0 && i !== c) { slideSkip += i - c; paintBackground(); }
+    paintBgBox(); send("settings-changed");
+  }
+});
+addEventListener("keydown", e => {
+  const ae = document.activeElement;
+  if (e.key === "/" && ae !== $("q") && !(ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) && !document.getElementById("addbox")) {
+    e.preventDefault(); $("q").focus();
+  }
+});
+document.addEventListener("visibilitychange", () => {
+  const v = $("bgv");
+  if (v) { if (document.hidden) v.pause(); else v.play().catch(() => {}); }
+});
+addEventListener("storage", e => {
+  if (e.key === "wsb.settings") { readCfg(); topSites(); watching(); if (!PRIVATE) applyCustom(); }
+  if (e.key === "wsb.todo") todos();
+  if (e.key === "wsb.history" || e.key === "wsb.icons" || e.key === "wsb.tiles" || e.key === "wsb.hidden") topSites();
+  if (e.key === "wsb.watch" || e.key === "wsb.art") watching();
+  if (e.key === "wsb.reading") readingList();
+  if (e.key === "wsb.feedItems") feedList();
+  if (e.key === "wsb.habits") habits();
+  if (e.key === "wsb.events" || e.key === "wsb.timers") paintCal();
+  if (e.key === "wsb.stats") shieldLine();
+});
+
+/* Vibes: a matching color, moving background and ambient sound together. The
+   look you had before comes back with "No vibe". */
+const VIBES = [["rainy", "Rainy night", "🌧️", "#5b8def", "rain", "rain"], ["space", "Space", "🪐", "#9b6bff", "stars", "space"], ["beach", "Beach", "🏖️", "#16b3c9", "waves", "waves"],
+               ["cozy", "Cozy cabin", "🔥", "#e8833a", "embers", "fire"], ["forest", "Forest", "🌲", "#3fae5a", "fireflies", "forest"], ["snow", "Snow day", "❄️", "#7fb8e6", "snow", "wind"],
+               ["cafe", "Coffee shop", "☕", "#b07a4f", "gradient", "cafe"]];
+function paintVibes() {
+  const box = $("vibes");
+  if (!box.firstChild) {
+    VIBES.concat([["", "No vibe", "✖️", "#888888"]]).forEach(([id, n, e, c]) => {
+      const b = document.createElement("button"); b.type = "button"; b.dataset.v = id; b.style.setProperty("--vc", c); b.innerHTML = "<b></b><span></span>";
+      b.querySelector("b").textContent = e; b.querySelector("span").textContent = n; b.onclick = () => applyVibe(id); box.appendChild(b);
+    });
+  }
+  box.querySelectorAll("button").forEach(b => b.classList.toggle("on", !!b.dataset.v && b.dataset.v === cfg.vibe));
+}
+function applyVibe(id) {
+  const s = get("settings", {}), v = VIBES.find(x => x[0] === id);
+  if (v) {
+    if (!s.vibe) s.vibePrev = { accent:s.accent || "", liveBg:s.liveBg || "", ambient:s.ambient || "", theme:s.theme || "" };
+    Object.assign(s, { vibe:id, accent:v[3], liveBg:v[4], ambient:v[5], theme:"dark", musicMuted:false });
+  } else {
+    const pv = s.vibePrev || {};
+    Object.assign(s, { vibe:"", accent:pv.accent || "", liveBg:pv.liveBg || "", ambient:pv.ambient || "" });
+    if (pv.theme) s.theme = pv.theme;
+    delete s.vibePrev;
+  }
+  put("settings", s); readCfg(); applyCustom(); paintBgBox(); music(); send("settings-changed");
+  muSend("ambient", s.ambient || "");
+  if (v) { const r = document.documentElement; r.classList.remove("vibing"); void r.offsetWidth; r.classList.add("vibing"); setTimeout(() => r.classList.remove("vibing"), 900); }
+}
+/* ---------------------------------------------------------------- music
+   Songs, radio and ambient sounds play in the browser's toolbar page, so they
+   can keep going while you browse. This page is the remote control: it shows
+   what is playing and sends commands on the "wsb-music" channel. The corner
+   button stops or starts everything (the choice is remembered). */
+const MUSIC_RE = /^user\/music\/m\d+\.(mp3|m4a|aac|ogg|oga|opus|wav|flac)$/;
+const RADIO_RE = /^https:\/\/[^\s"'<>\\]{4,500}$/;
+const AMBS = [["rain", "Rain", "🌧️"], ["storm", "Thunderstorm", "⛈️"], ["waves", "Waves", "🌊"], ["wind", "Wind", "🍃"], ["fire", "Fireplace", "🔥"],
+              ["cafe", "Café", "☕"], ["forest", "Forest", "🌲"], ["space", "Space", "🌌"], ["white", "White noise", "〰️"], ["brown", "Brown noise", "🟤"]];
+const GENRES = [["lofi", "Lo-fi"], ["chillout", "Chill"], ["jazz", "Jazz"], ["pop", "Pop"], ["rock", "Rock"], ["classical", "Classical"], ["dance", "Dance"], ["hiphop", "Hip hop"], ["country", "Country"], ["news", "News"]];
+const mch = typeof BroadcastChannel === "function" ? new BroadcastChannel("wsb-music") : null;
+let muSt = null, muStAt = 0, muTab = "songs", muEditPl = false, vizBins = null, vizAt = 0;
+function musicList() {
+  return (Array.isArray(cfg.music) ? cfg.music : []).filter(x => x && typeof x.u === "string" && MUSIC_RE.test(x.u))
+    .map(x => ({ u:x.u, n:String(x.n || "").slice(0, 120) || "Song" }));
+}
+function musicVol() { const v = cfg.musicVol; return typeof v === "number" && v >= 0 && v <= 100 ? v : 50; }
+function ambVolume() { const v = cfg.ambVol; return typeof v === "number" && v >= 0 && v <= 100 ? v : 40; }
+function playlists() { return (Array.isArray(cfg.playlists) ? cfg.playlists : []).filter(p => p && typeof p.id === "string" && Array.isArray(p.songs)); }
+function stations() { return (Array.isArray(cfg.stations) ? cfg.stations : []).filter(x => x && typeof x.u === "string" && RADIO_RE.test(x.u)); }
+function hasSound() { return !PRIVATE && (musicList().length > 0 || !!(cfg.radioNow && cfg.radioNow.u) || AMBS.some(a => a[0] === cfg.ambient)); }
+function muLive() { return muSt && Date.now() - muStAt < 4000 ? muSt : null; }
+function muSend(cmd, arg) {
+  const st = muLive();
+  if (mch) mch.postMessage({ type:"cmd", cmd, arg, to:st && (st.playing || st.amb) ? st.from : "" });
+}
+const fetchWait = {}; let fetchN = 0;
+function viaBrowser(url) {
+  return new Promise((res, rej) => {
+    if (!mch) { rej(); return; }
+    const id = "f" + (++fetchN) + Math.random().toString(36).slice(2, 7);
+    fetchWait[id] = [res, rej];
+    mch.postMessage({ type:"fetch", id, url });
+    setTimeout(() => { if (fetchWait[id]) { delete fetchWait[id]; rej(); } }, 16000);
+  });
+}
+if (mch) {
+  mch.onmessage = e => {
+    const m = e.data || {};
+    if (m.type === "state") {
+      const cur = muLive();
+      if (!cur || m.from === cur.from || m.playing || m.amb || !(cur.playing || cur.amb)) { muSt = m; muStAt = Date.now(); music(); }
+    } else if (m.type === "viz") { vizBins = m.b; vizAt = Date.now(); }
+    else if (m.type === "fetched") { const w = fetchWait[m.id]; if (w) { delete fetchWait[m.id]; if (m.err) w[1](); else w[0](String(m.text || "")); } }
+  };
+  mch.postMessage({ type:"hello" });
+}
+setInterval(() => { if (!document.hidden) paintMute(); }, 1500);
+function music() {
+  // songs that can't be played: the button goes instead of offering nothing
+  const st = muLive(), on = hasSound() && !(st && st.dead && !st.amb && !(cfg.radioNow && cfg.radioNow.u) && !AMBS.some(a => a[0] === cfg.ambient));
+  document.body.classList.toggle("hasmusic", on);
+  $("mubar").classList.toggle("hide", !on);
+  paintMute();
+}
+function paintMute() {
+  const bar = $("mubar"), st = muLive(), playing = !!(st && (st.playing || st.amb)), muted = !!cfg.musicMuted;
+  bar.classList.toggle("off", muted); bar.classList.toggle("playing", playing && !muted);
+  const blocked = !!(st && st.blocked && !playing);
+  bar.classList.toggle("blocked", blocked);
+  const amb = st && st.amb ? (AMBS.find(a => a[0] === st.amb) || [])[1] : "";
+  const name = st && st.n ? (st.radio ? "📻 " : "") + st.n : amb ? amb : "";
+  $("muName").textContent = name + (st && st.n && amb ? " + " + amb : "");
+  const label = playing && !muted ? "Stop the music" : blocked ? "Play music" : "Play music";
+  $("mute").title = (muted ? "Turn the music back on" : label) + (name ? " - " + name : "") + (blocked ? " (if nothing plays, click the ♪ button in the toolbar)" : "");
+  $("mute").setAttribute("aria-label", muted ? "Turn the music back on" : label);
+  $("mute").setAttribute("aria-pressed", muted ? "true" : "false");
+  $("muNext").classList.toggle("hide", !(st && st.n && !st.radio));
+  if (!$("mubox").classList.contains("hide")) {
+    $("muList").querySelectorAll(".mr").forEach(r => { const on = !!st && !st.radio && r.dataset.u === st.u; r.classList.toggle("on", on); r.querySelector("i").textContent = on ? (st.playing ? "♫" : "❚❚") : "♪"; });
+    document.querySelectorAll("#muRes .mr,#muSaved .mr").forEach(r => r.classList.toggle("on", !!st && st.radio && r.dataset.u === st.u));
+    document.querySelectorAll("#muAmbs button").forEach(b => b.classList.toggle("on", cfg.ambient === b.dataset.k));
+    $("muStop").classList.toggle("hide", !(cfg.radioNow && cfg.radioNow.u));
+  }
+}
+function saveMusic(k, v) { const s = get("settings", {}); s[k] = v; put("settings", s); readCfg(); music(); paintMusicBox(); send("settings-changed"); }
+function paintMusicBox() {
+  const L = musicList(), pls = playlists(), cur = pls.find(p => p.id === cfg.playlist);
+  document.querySelectorAll("#muTabs button").forEach(b => b.classList.toggle("on", b.dataset.v === muTab));
+  $("muSongs").classList.toggle("hide", muTab !== "songs"); $("muRadio").classList.toggle("hide", muTab !== "radio"); $("muAmb").classList.toggle("hide", muTab !== "amb");
+  $("muVolR").value = musicVol(); $("muVolV").textContent = musicVol() + "%";
+  $("ambVolR").value = ambVolume(); $("ambVolV").textContent = ambVolume() + "%";
+  $("muEv").checked = !!cfg.musicEverywhere;
+  document.querySelectorAll("#muOrder button").forEach(b => { b.classList.toggle("on", b.dataset.v === (cfg.musicShuffle ? "1" : "")); b.disabled = L.length < 2; });
+  // playlists
+  const pb = $("muPls"); pb.textContent = "";
+  const chip = (id, name) => { const b = document.createElement("button"); b.type = "button"; b.textContent = name; b.className = (cur ? cur.id : "") === id ? "on" : ""; b.onclick = () => { muEditPl = false; saveMusic("playlist", id); }; pb.appendChild(b); };
+  chip("", "All songs"); pls.forEach(p => chip(p.id, p.n));
+  const nb = document.createElement("button"); nb.type = "button"; nb.textContent = "+ New"; nb.title = "Make a playlist"; nb.className = "add";
+  nb.onclick = () => { const n = (prompt("Name the playlist (for example Chill, Study or Gaming):") || "").trim().slice(0, 30); if (!n) return;
+    const all = playlists(), id = "p" + Date.now().toString(36); all.push({ id, n, songs:[] }); muEditPl = true;
+    const s = get("settings", {}); s.playlists = all.slice(-20); s.playlist = id; put("settings", s); readCfg(); paintMusicBox(); send("settings-changed"); };
+  pb.appendChild(nb);
+  $("muPlBar").classList.toggle("hide", !cur);
+  $("muPlEdit").textContent = muEditPl ? "Done" : "Choose songs";
+  // song list: in a playlist being edited, every song with a tick for the ones in it
+  const view = cur && !muEditPl ? L.filter(x => cur.songs.indexOf(x.u) >= 0) : L;
+  const box = $("muList"), key = view.map(x => x.u).join("|") + "/" + (cur ? cur.id + cur.songs.join(",") : "") + "/" + muEditPl;
+  $("muClear").disabled = !L.length;
+  if (box.dataset.k !== key) {
+    box.dataset.k = key; box.textContent = "";
+    if (!L.length) box.innerHTML = '<span class="muEmpty">Add songs from your computer (MP3, M4A, WAV, OGG or FLAC) and they play whenever you open a new tab.</span>';
+    else if (!view.length) box.innerHTML = '<span class="muEmpty">This playlist is empty. Click “Choose songs”.</span>';
+    view.forEach(x => {
+      const r = document.createElement("div"); r.className = "mr"; r.dataset.u = x.u;
+      const i = document.createElement("i"), n = document.createElement("span"), b = document.createElement("button");
+      n.textContent = x.n; b.type = "button";
+      if (cur && muEditPl) {
+        const inPl = cur.songs.indexOf(x.u) >= 0; r.classList.toggle("pick", inPl); i.textContent = inPl ? "✓" : "+"; r.title = inPl ? "Take out of " + cur.n : "Put in " + cur.n;
+        r.onclick = () => { const all = playlists(), p = all.find(y => y.id === cur.id); if (!p) return; const k = p.songs.indexOf(x.u); if (k >= 0) p.songs.splice(k, 1); else p.songs.push(x.u); saveMusic("playlists", all); };
+        r.append(i, n); box.appendChild(r); return;
+      }
+      i.textContent = "♪"; r.title = "Play this song";
+      b.textContent = "×"; b.title = cur ? "Take out of this playlist" : "Remove this song";
+      b.onclick = e => { e.stopPropagation(); if (cur) { const all = playlists(), p = all.find(y => y.id === cur.id); if (p) { p.songs = p.songs.filter(u => u !== x.u); saveMusic("playlists", all); } } else removeMusic([x.u]); };
+      r.onclick = () => muSend("play", x.u);
+      r.append(i, n, b); box.appendChild(r);
+    });
+  }
+  // radio and ambient
+  paintStations(); paintAmbient();
+  paintMute();
+}
+function removeMusic(list) {
+  list.forEach(u => send("music-del", u.slice("user/music/".length)));
+  const s = get("settings", {}); s.music = (Array.isArray(s.music) ? s.music : []).filter(x => !x || list.indexOf(x.u) < 0);
+  if (Array.isArray(s.playlists)) s.playlists.forEach(p => { if (p && Array.isArray(p.songs)) p.songs = p.songs.filter(u => list.indexOf(u) < 0); });
+  put("settings", s); readCfg(); music(); paintMusicBox(); send("settings-changed");
+}
+/* Internet radio from radio-browser.info, a free directory of stations. Only
+   stations with secure (https) streams can play here. */
+let radioRes = [], radioMsg = "";
+function stationRow(x, saved) {
+  const r = document.createElement("div"); r.className = "mr st"; r.dataset.u = x.u;
+  const i = document.createElement("i"), n = document.createElement("span"), d = document.createElement("small"), b = document.createElement("button");
+  i.textContent = "📻"; n.textContent = x.n; d.textContent = x.d || ""; b.type = "button";
+  const isSaved = stations().some(y => y.u === x.u);
+  b.textContent = saved ? "×" : isSaved ? "★" : "☆"; b.title = saved ? "Forget this station" : isSaved ? "Saved" : "Save this station";
+  b.onclick = e => { e.stopPropagation(); const all = stations();
+    if (saved) saveMusic("stations", all.filter(y => y.u !== x.u));
+    else if (!isSaved) { all.push({ u:x.u, n:x.n, d:x.d || "" }); saveMusic("stations", all.slice(-50)); } };
+  r.title = "Listen"; r.onclick = () => { muSend("radio", { u:x.u, n:x.n }); const s = get("settings", {}); s.radioNow = { u:x.u, n:x.n }; put("settings", s); readCfg(); music(); setTimeout(paintMusicBox, 50); };
+  const t = document.createElement("div"); t.className = "tt"; t.append(n, d);
+  r.append(i, t, b); return r;
+}
+function paintStations() {
+  const res = $("muRes"); res.textContent = "";
+  if (radioMsg) res.innerHTML = '<span class="muEmpty"></span>', res.firstChild.textContent = radioMsg;
+  radioRes.slice(0, 30).forEach(x => res.appendChild(stationRow(x, false)));
+  const sv = $("muSaved"); sv.textContent = "";
+  const L = stations();
+  if (!L.length) sv.innerHTML = '<span class="muEmpty">Tap ☆ on a station to keep it here.</span>';
+  L.forEach(x => sv.appendChild(stationRow(x, true)));
+}
+async function radioSearch(q, tag) {
+  radioMsg = "Looking…"; radioRes = []; paintStations();
+  const path = "/json/stations/search?" + (tag ? "tag=" + encodeURIComponent(tag) + "&tagExact=false" : "name=" + encodeURIComponent(q)) + "&order=clickcount&reverse=true&hidebroken=true&is_https=true&limit=60";
+  let text = null;
+  for (const host of ["https://de1.api.radio-browser.info", "https://fi1.api.radio-browser.info"]) { try { text = await viaBrowser(host + path); break; } catch (e) {} }
+  let list = [];
+  try { list = JSON.parse(text || "[]"); } catch (e) {}
+  const seen = {};
+  radioRes = (Array.isArray(list) ? list : []).map(x => ({ u:String(x.url_resolved || x.url || ""), n:String(x.name || "").trim().slice(0, 80), d:[x.country, x.codec, x.bitrate ? x.bitrate + " kbps" : ""].filter(Boolean).join(" · ").slice(0, 80) }))
+    .filter(x => RADIO_RE.test(x.u) && x.n && !seen[x.u] && (seen[x.u] = 1));
+  radioMsg = text == null ? "The station list can't be reached right now." : radioRes.length ? "" : "No stations found.";
+  paintStations(); paintMute();
+}
+function paintAmbient() {
+  const g = $("muAmbs");
+  if (!g.firstChild) AMBS.forEach(([k, n, e]) => {
+    const b = document.createElement("button"); b.type = "button"; b.dataset.k = k; b.innerHTML = "<b></b><span></span>";
+    b.querySelector("b").textContent = e; b.querySelector("span").textContent = n;
+    b.onclick = () => { const v = cfg.ambient === k ? "" : k; const s = get("settings", {}); s.ambient = v; if (v) s.musicMuted = false; put("settings", s); readCfg(); music(); muSend("ambient", v); paintMusicBox(); };
+    g.appendChild(b);
+  });
+  g.querySelectorAll("button").forEach(b => b.classList.toggle("on", cfg.ambient === b.dataset.k));
+  $("focusAmb").value = AMBS.some(a => a[0] === cfg.focusAmbient) ? cfg.focusAmbient : "";
+}
+$("focusAmb").innerHTML = '<option value="">Nothing</option>' + AMBS.map(a => '<option value="' + a[0] + '">' + a[1] + '</option>').join("");
+$("focusAmb").onchange = () => saveMusic("focusAmbient", $("focusAmb").value);
+$("muGenres").innerHTML = GENRES.map(g => '<button type="button" data-t="' + g[0] + '">' + g[1] + '</button>').join("");
+$("muGenres").querySelectorAll("button").forEach(b => b.onclick = () => { $("muGenres").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); radioSearch("", b.dataset.t); });
+$("muQ").onkeydown = e => { if (e.key === "Enter" && $("muQ").value.trim()) { $("muGenres").querySelectorAll("button").forEach(x => x.classList.remove("on")); radioSearch($("muQ").value.trim().slice(0, 60), ""); } };
+$("muStop").onclick = () => { muSend("radio", null); const s = get("settings", {}); s.radioNow = null; put("settings", s); readCfg(); music(); setTimeout(paintMusicBox, 50); };
+document.querySelectorAll("#muTabs button").forEach(b => b.onclick = () => { muTab = b.dataset.v; paintMusicBox(); if (muTab === "radio" && !radioRes.length && !radioMsg) $("muGenres").querySelector("button").click(); });
+$("muBtn").onclick = e => { e.stopPropagation(); paintMusicBox(); $("mubox").classList.toggle("hide"); };
+$("muAdd").onclick = () => send("music-add");
+$("muClear").onclick = () => { if (confirm("Remove all the music?")) removeMusic(musicList().map(x => x.u)); };
+$("muPlEdit").onclick = () => { muEditPl = !muEditPl; paintMusicBox(); };
+$("muPlDel").onclick = () => { const cur = playlists().find(p => p.id === cfg.playlist); if (!cur || !confirm("Delete the playlist “" + cur.n + "”? The songs stay.")) return;
+  const s = get("settings", {}); s.playlists = playlists().filter(p => p.id !== cur.id); s.playlist = ""; put("settings", s); readCfg(); muEditPl = false; paintMusicBox(); send("settings-changed"); };
+$("muVolR").oninput = () => { $("muVolV").textContent = $("muVolR").value + "%"; };
+$("muVolR").onchange = () => saveMusic("musicVol", +$("muVolR").value);
+$("ambVolR").oninput = () => { $("ambVolV").textContent = $("ambVolR").value + "%"; };
+$("ambVolR").onchange = () => saveMusic("ambVol", +$("ambVolR").value);
+$("muEv").onchange = () => saveMusic("musicEverywhere", $("muEv").checked);
+document.querySelectorAll("#muOrder button").forEach(b => b.onclick = () => saveMusic("musicShuffle", b.dataset.v === "1"));
+$("mute").onclick = () => { const st = muLive(); if (cfg.musicMuted || !(st && (st.playing || st.amb))) { const s = get("settings", {}); s.musicMuted = false; put("settings", s); readCfg(); } muSend("toggle"); setTimeout(paintMute, 250); };
+$("muNext").onclick = () => muSend("next");
+addEventListener("storage", e => { if (e.key === "wsb.settings") { music(); if (!$("mubox").classList.contains("hide")) paintMusicBox(); } });
+if (wv) wv.addEventListener("message", e => {
+  const p = String(e.data).split(S);
+  if (p[0] !== "music-added") return;
+  const add = String(p[1] || "").split("\n").map(l => l.split("\t")).filter(x => MUSIC_RE.test(x[0])).map(x => ({ u:x[0], n:String(x[1] || "").slice(0, 120) }));
+  if (!add.length) return;
+  const s = get("settings", {}), L = (Array.isArray(s.music) ? s.music : []).filter(x => x && MUSIC_RE.test(x.u));
+  add.forEach(x => { if (!L.some(y => y.u === x.u)) L.push(x); });
+  s.music = L.slice(-200); s.musicMuted = false; s.musicPaused = false; s.radioNow = null;
+  // songs added while a playlist is picked go into it
+  const pl = Array.isArray(s.playlists) ? s.playlists.find(p => p && p.id === s.playlist) : null;
+  if (pl && Array.isArray(pl.songs)) add.forEach(x => { if (pl.songs.indexOf(x.u) < 0) pl.songs.push(x.u); });
+  put("settings", s); readCfg(); music(); paintMusicBox(); send("settings-changed");
+  setTimeout(() => muSend("play", add[0].u), 80);
+});
+music();
+</script>

@@ -1,0 +1,1747 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Settings</title>
+<!-- Writes straight to localStorage. The chrome listens for the storage event
+     and re-reads, so changes here apply to every open window immediately.
+     The filter-list, VPN and extension status comes from the shell, which owns
+     the downloads, the VPN relay and the engine. -->
+<style>
+:root{
+  --bg:#16131a; --bg2:#1e1a24; --bg3:#272230; --line:#322c3c;
+  --fg:#f3eff1; --dim:#9a91a3; --dim2:#6f6779; --accent:#e8342a; --good:#4ec98a; --warn:#e8a33a;
+}
+:root[data-theme="light"]{
+  --bg:#efebe3; --bg2:#f9f6ef; --bg3:#e6e0d6; --line:#d9d2c6;
+  --fg:#1d1a20; --dim:#6b6560; --dim2:#928b83; --good:#1f9a5c; --warn:#b8741a;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--fg);min-height:100vh;
+  font:14px/1.5 "Segoe UI Variable Text","Segoe UI",system-ui,sans-serif}
+.wrap{max-width:780px;margin:0 auto;padding:40px 24px 80px}
+h1{font-size:26px;font-weight:600;margin-bottom:6px;letter-spacing:-.01em}
+.sub{color:var(--dim);margin-bottom:18px}
+.jump{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;position:sticky;top:0;background:var(--bg);padding:10px 0;z-index:2}
+.jump a{color:var(--dim);font-size:12.5px;text-decoration:none;padding:4px 10px;border-radius:14px;background:var(--bg2);border:1px solid var(--line)}
+.jump a:hover{color:var(--fg);border-color:var(--accent)}
+#q{height:34px;width:100%;margin-bottom:6px}
+h2{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim2);
+  margin:30px 0 10px;padding-left:2px;scroll-margin-top:110px}
+.card{background:var(--bg2);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.set{display:flex;align-items:center;gap:16px;padding:14px 16px;flex-wrap:wrap}
+.set + .set,.set + .grp,.grp + .set,.grp + .grp,.set + .pad,.pad + .set{border-top:1px solid var(--line)}
+.set .txt{flex:1;min-width:220px}
+.set .txt b{display:block;font-weight:500}
+.set .txt span{color:var(--dim);font-size:12.5px}
+select,input[type=text],input[type=password],input[type=number]{height:34px;background:var(--bg3);color:var(--fg);
+  border:1px solid var(--line);border-radius:8px;padding:0 10px;font:13.5px/1 "Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;
+  outline:0;min-width:180px}
+input[type=number]{min-width:90px;width:90px}
+select:focus,input:focus,textarea:focus{border-color:var(--accent)}
+.sw{width:42px;height:24px;border-radius:12px;background:var(--bg3);border:1px solid var(--line);
+  position:relative;cursor:pointer;flex:none;transition:background .15s,border-color .15s}
+.sw i{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:9px;
+  background:var(--dim);transition:transform .15s,background .15s}
+.sw.on{background:var(--accent);border-color:var(--accent)}
+.sw.on i{transform:translateX(18px);background:#fff}
+.sw.dis{opacity:.45;cursor:default}
+button.act{height:34px;padding:0 14px;border-radius:8px;background:var(--bg3);
+  border:1px solid var(--line);color:var(--fg);font:13.5px/1 "Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;cursor:pointer;flex:none}
+button.act:hover{border-color:var(--accent);color:var(--accent)}
+button.act.warn:hover{background:var(--accent);color:#fff}
+button.act.main{background:var(--accent);border-color:var(--accent);color:#fff}
+button.act.main:hover{filter:brightness(1.1);color:#fff}
+button.act[disabled]{opacity:.5;cursor:default}
+.grp{padding:8px 16px 4px;color:var(--dim2);font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;background:var(--bg)}
+.list{display:flex;align-items:center;gap:14px;padding:11px 16px}
+.list + .list{border-top:1px solid var(--line)}
+.list .txt{flex:1;min-width:0}
+.list .txt b{font-weight:500}
+.list .txt span{display:block;color:var(--dim);font-size:12px}
+.list .meta{color:var(--dim2);font-size:11.5px;text-align:right;min-width:120px;font-variant-numeric:tabular-nums}
+.list .meta.err{color:var(--warn)}
+.list .meta.busy{color:var(--accent)}
+.statline{display:flex;align-items:center;gap:12px;padding:14px 16px;border-top:1px solid var(--line);color:var(--dim);font-size:12.5px;flex-wrap:wrap}
+.statline b{color:var(--fg);font-weight:600}
+textarea{width:100%;min-height:150px;resize:vertical;background:var(--bg3);color:var(--fg);border:1px solid var(--line);
+  border-radius:8px;padding:10px;font:12.5px/1.5 Consolas,ui-monospace,monospace;outline:0}
+.pad{padding:14px 16px}
+.pad p{color:var(--dim);font-size:12.5px;margin-bottom:10px}
+code{font:12px Consolas,monospace;background:var(--bg3);padding:1px 5px;border-radius:4px;color:var(--fg)}
+.row2{display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap}
+.row2 .note{color:var(--dim);font-size:12px;margin-right:auto}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.chip{display:flex;align-items:center;gap:6px;background:var(--bg3);border:1px solid var(--line);border-radius:14px;padding:3px 6px 3px 11px;font-size:12.5px}
+.chip button{border:0;background:none;color:var(--dim);cursor:pointer;font-size:14px;line-height:1;padding:0 4px;border-radius:8px}
+.chip button:hover{color:var(--accent)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+td{padding:7px 16px;border-top:1px solid var(--line);color:var(--dim)}
+td:first-child{color:var(--fg);width:42%}
+tr:first-child td{border-top:0}
+kbd{background:var(--bg3);border:1px solid var(--line);border-radius:4px;
+  padding:1px 6px;font:inherit;font-size:11.5px;color:var(--fg)}
+.about{color:var(--dim);font-size:12.5px;padding:16px;line-height:1.7}
+.about b{color:var(--fg)}
+.swatches{display:flex;gap:8px}
+.swatches button{width:26px;height:26px;border-radius:13px;border:2px solid transparent;cursor:pointer}
+.swatches button.on{border-color:var(--fg)}
+.vstate{display:flex;align-items:center;gap:14px;padding:16px}
+.vstate .dotb{width:12px;height:12px;border-radius:6px;background:var(--dim2);flex:none}
+.vstate.on .dotb{background:var(--good);box-shadow:0 0 0 4px rgba(78,201,138,.2)}
+.vstate.connecting .dotb{background:var(--accent);animation:pulse 1s infinite}
+.vstate.error .dotb{background:var(--warn)}
+@keyframes pulse{50%{opacity:.3}}
+.vstate .txt{flex:1;min-width:0}
+.vstate .txt b{display:block;font-size:15px;font-weight:600}
+.vstate .txt span{color:var(--dim);font-size:12.5px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid2 label{display:flex;flex-direction:column;gap:4px;color:var(--dim);font-size:12px}
+.grid2 input,.grid2 select{width:100%;min-width:0}
+.ext{display:flex;align-items:center;gap:12px;padding:11px 16px}
+.ext + .ext{border-top:1px solid var(--line)}
+.ext .txt{flex:1;min-width:0}
+.ext .txt b{font-weight:500}
+.ext .txt span{display:block;color:var(--dim);font-size:12px}
+.hidden,.nomatch{display:none!important}
+#saved{position:fixed;left:50%;transform:translateX(-50%);bottom:26px;
+  background:var(--bg3);border:1px solid var(--line);border-radius:9px;
+  padding:9px 16px;font-size:12.5px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:80%}
+#saved.on{opacity:1}
+/* motion */
+h1,.sub,.jump{animation:up .45s cubic-bezier(.2,.8,.2,1) both}
+.sub{animation-delay:.04s}.jump{animation-delay:.08s}
+h2,.card{animation:up .45s cubic-bezier(.2,.8,.2,1) both}
+h2:nth-of-type(1),.card:nth-of-type(1){animation-delay:.1s}h2:nth-of-type(2),.card:nth-of-type(2){animation-delay:.14s}
+h2:nth-of-type(3),.card:nth-of-type(3){animation-delay:.18s}h2:nth-of-type(4),.card:nth-of-type(4){animation-delay:.22s}
+.set{transition:background .15s}
+.set:hover{background:color-mix(in srgb,var(--bg3) 45%,transparent)}
+.sw,.sw i{transition:background .2s,transform .22s cubic-bezier(.3,1.4,.5,1)!important}
+.act{transition:border-color .15s,color .15s,transform .1s}
+.act:active{transform:scale(.95)}
+@keyframes up{from{opacity:0;transform:translateY(10px)}}
+@keyframes fadeIn{from{opacity:0}}
+:root[data-motion="reduced"] *{animation-name:fadeIn!important;animation-duration:.15s!important;animation-delay:0s!important}
+:root[data-motion="off"] *,:root[data-motion="off"] *::before,:root[data-motion="off"] *::after{animation:none!important;transition:none!important}
+@media (prefers-reduced-motion:reduce){*{animation-name:fadeIn!important;animation-duration:.15s!important;animation-delay:0s!important}}
+</style>
+
+<div class="wrap">
+  <h1>Settings</h1>
+  <div class="sub">Everything here is stored on this computer only.</div>
+  <div class="jump">
+    <input type="text" id="q" placeholder="Search settings" spellcheck="false">
+    <a href="#vpn">VPN</a><a href="#default">Default</a><a href="#search">Search</a><a href="#shield">Shield</a><a href="#lists">Filter lists</a>
+    <a href="#privacy">Privacy</a><a href="#family">Family</a><a href="#saver">Data saver</a><a href="#video">Video</a><a href="#downloads">Downloads</a><a href="#perf">Performance</a><a href="#focus">Focus</a><a href="#tools">Tools</a><a href="#access">Accessibility</a>
+    <a href="#look">Appearance</a><a href="#extensions">Extensions</a><a href="#backup">Backup</a><a href="#keys">Keyboard</a>
+  </div>
+
+  <h2 id="vpn">VPN</h2>
+  <div class="card">
+    <div class="vstate" id="vpnState"><div class="dotb"></div>
+      <div class="txt"><b id="vpnTitle">VPN is off</b><span id="vpnNote">Sites see your real address.</span></div>
+      <button class="act main" id="vpnGo">Connect</button></div>
+    <div class="set">
+      <div class="txt"><b>How to connect</b>
+        <span><b style="display:inline;font-weight:600">Free (Tor)</b> needs no account: traffic goes through three volunteer relays, so it is private but slower.
+          The first time, about 22 MB is downloaded from torproject.org.
+          <b style="display:inline;font-weight:600">My VPN provider</b> uses a SOCKS5 or HTTPS proxy server your VPN service gives you.</span></div>
+      <select id="vpnMode"><option value="tor">Free (Tor)</option><option value="proxy">My VPN provider</option></select>
+    </div>
+    <div class="set" id="vpnCountryRow">
+      <div class="txt"><b>Country</b><span>Where sites will think you are. "Fastest" connects quickest.</span></div>
+      <select id="vpnCountry"></select>
+    </div>
+    <div class="pad" id="vpnProvider">
+      <p>Your provider's dashboard lists these, usually under "SOCKS5 proxy" or "manual setup". Many providers use separate
+        <b>service credentials</b> for this, not your account password.</p>
+      <div class="grid2">
+        <label>Fill in for<select id="vpnPreset">
+          <option value="">Choose a provider&hellip;</option>
+          <option value="nord-us">NordVPN (United States)</option>
+          <option value="nord-nl">NordVPN (Netherlands)</option>
+          <option value="nord-se">NordVPN (Sweden)</option>
+          <option value="pia-nl">Private Internet Access (Netherlands)</option>
+        </select></label>
+        <label>Type<select id="vpnType"><option value="socks5">SOCKS5</option><option value="http">HTTP proxy</option><option value="https">HTTPS proxy</option></select></label>
+        <label>Server<input type="text" id="vpnHost" placeholder="socks.example.com" spellcheck="false"></label>
+        <label>Port<input type="number" id="vpnPort" min="1" max="65535" style="width:100%"></label>
+        <label>Username<input type="text" id="vpnUser" spellcheck="false" autocomplete="off"></label>
+        <label>Password<input type="password" id="vpnPass" autocomplete="new-password" placeholder="Not saved"></label>
+      </div>
+      <div class="row2"><span class="note" id="vpnPassNote">The password is encrypted with your Windows account and never leaves this computer.</span>
+        <button class="act" id="vpnSave">Save</button><button class="act main" id="vpnTest">Save and connect</button></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Kill switch</b><span>If the VPN drops, block the internet instead of silently using your real address.</span></div>
+      <div class="sw" id="vpnKill"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Connect when the browser starts</b><span>Turns the VPN on every time Webs Browser opens.</span></div>
+      <div class="sw" id="vpnAuto"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Split tunneling</b><span>Choose which sites use the VPN. Banks and streaming sites often block VPN addresses.</span></div>
+      <select id="vpnSplit"><option value="all">Every site except the list</option><option value="only">Only the sites in the list</option></select>
+    </div>
+    <div class="pad">
+      <p id="vpnListNote"></p>
+      <div class="row2" style="margin-top:0"><input type="text" id="vpnListIn" placeholder="example.com" spellcheck="false" style="flex:1">
+        <button class="act" id="vpnListAdd">Add</button></div>
+      <div class="chips" id="vpnList"></div>
+    </div>
+    <div class="statline" id="vpnFoot"></div>
+  </div>
+
+  <h2 id="default">Default browser</h2>
+  <div class="card">
+    <div class="set">
+      <div class="txt"><b id="defTitle">Default browser</b>
+        <span id="defNote">Checking&hellip;</span></div>
+      <button class="act" id="defBtn">Make default</button>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Start with Windows</b><span>Opens Webs Browser when you sign in to Windows.</span></div>
+      <div class="sw" id="autostart"><i></i></div>
+    </div>
+  </div>
+
+  <h2 id="search">Search and start-up</h2>
+  <div class="card">
+    <div class="set">
+      <div class="txt"><b>Search engine</b>
+        <span>Used by the address bar and the new tab page. Type <code>!g</code>, <code>!d</code>, <code>!b</code>, <code>!w</code> before a search to use Google, DuckDuckGo, Bing or Wikipedia once.</span></div>
+      <select id="searchEngine">
+        <option value="ddg">DuckDuckGo</option>
+        <option value="google">Google</option>
+        <option value="bing">Bing</option>
+        <option value="brave">Brave Search</option>
+        <option value="start">Startpage</option>
+        <option value="wiki">Wikipedia</option>
+      </select>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Search suggestions</b>
+        <span>Suggests searches as you type in the address bar. What you type is sent to your search engine, so this is off in private windows.</span></div>
+      <div class="sw" id="suggest"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Home page</b>
+        <span>Where the home button goes. Leave empty for the new tab page.</span></div>
+      <input type="text" id="home" placeholder="https://" spellcheck="false">
+    </div>
+    <div class="set">
+      <div class="txt"><b>Reopen tabs on start-up</b>
+        <span>Restore the tabs that were open when the browser last closed. Only the active one loads straight away. Pinned tabs always come back.</span></div>
+      <div class="sw" id="restore"><i></i></div>
+    </div>
+  </div>
+
+  <h2>Search keywords</h2>
+  <div class="card"><div class="pad">
+    <p>Type a keyword, a space and your search in the address bar to search one site directly, e.g. <code>yt lofi</code> searches YouTube.
+      Put <code>%s</code> where the search goes.</p>
+    <div id="kwRows"></div>
+    <div class="row2"><input type="text" id="kwK" placeholder="keyword" spellcheck="false" style="min-width:90px;width:110px">
+      <input type="text" id="kwN" placeholder="Name" spellcheck="false" style="min-width:120px;width:150px">
+      <input type="text" id="kwU" placeholder="https://site.com/search?q=%s" spellcheck="false" style="flex:1">
+      <button class="act" id="kwAdd">Add</button></div>
+    <div class="row2"><span class="note"></span><button class="act" id="kwReset">Restore the default keywords</button></div>
+  </div></div>
+
+  <h2 id="shield">Shield</h2>
+  <div class="card">
+    <div class="set">
+      <div class="txt"><b>Block ads and trackers</b>
+        <span>Stops ad servers, trackers and malware sites before they load, and hides what is left. Turn it off for one site from the shield button in the toolbar.</span></div>
+      <div class="sw" id="shOn"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Block popups and pop-unders</b>
+        <span>Windows a page opens without you clicking, and known ad popups even when you did.</span></div>
+      <div class="sw" id="shPopups"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Skip YouTube ads</b>
+        <span>Removes ads from the player and the feed. Anything that still gets through is muted and skipped.</span></div>
+      <div class="sw" id="shYt"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Reject cookie pop-ups</b>
+        <span>Clicks "Reject all" on consent banners that offer it, and hides the rest.</span></div>
+      <div class="sw" id="shCookies"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Hide leftover ad spaces</b>
+        <span>Collapses the empty boxes and "sponsored" blocks that blocked ads leave behind.</span></div>
+      <div class="sw" id="shCosmetic"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Strip tracking from links</b>
+        <span>Removes utm_, fbclid, gclid and similar tags from addresses before the page loads.</span></div>
+      <div class="sw" id="shClean"><i></i></div>
+    </div>
+    <div class="statline" id="shStats"></div>
+  </div>
+
+  <h2 id="lists">Filter lists</h2>
+  <div class="card">
+    <div id="listRows"></div>
+    <div class="statline"><span id="listSum" style="flex:1"></span>
+      <button class="act" id="updNow">Update now</button></div>
+  </div>
+
+  <h2>My filters</h2>
+  <div class="card"><div class="pad">
+    <p>One rule per line, in uBlock Origin / EasyList syntax. Elements you remove with
+      <b>Block an element</b> are added here. Examples: <code>||ads.example.com^</code> blocks a server,
+      <code>example.com##.promo</code> hides something on one site, <code>@@||example.com^</code> never blocks a site.</p>
+    <textarea id="custom" spellcheck="false" placeholder="! your filters"></textarea>
+    <div class="row2"><span class="note" id="customNote"></span><button class="act" id="customSave">Save filters</button></div>
+  </div></div>
+
+  <h2>Sites where Shield is off</h2>
+  <div class="card"><div class="pad">
+    <p>Shield does nothing on these sites or their subdomains.</p>
+    <div class="row2" style="margin-top:0"><input type="text" id="allowIn" placeholder="example.com" spellcheck="false" style="flex:1">
+      <button class="act" id="allowAdd">Add</button></div>
+    <div class="chips" id="allowList"></div>
+  </div></div>
+
+  <h2 id="privacy">Privacy</h2>
+  <div class="card">
+    <div class="set">
+      <div class="txt"><b>Lock private windows with a PIN</b><span id="plNote">A new private window asks for the PIN before it shows anything.</span></div>
+      <button class="act" id="plSet">Set PIN&hellip;</button><button class="act" id="plOff">Remove</button>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Warn before programs from new sites</b><span>When a program (.exe, .msi, a script) downloads from a site you haven't used before, the browser says so.</span></div>
+      <div class="sw" id="dlWarn"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Keep what you type in long text boxes</b><span>If a page closes or crashes while you write a long message, it offers your text back next time (kept a week, on this computer only; never passwords or card numbers).</span></div>
+      <div class="sw" id="drafts"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Permission check-up</b><span>Which sites may use your camera, microphone, location or notifications. Ctrl+Shift+P → Permission check-up.</span></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Warn about look-alike sites</b>
+        <span>Stops before sites whose address imitates a well-known one, like paypa1.com, gooogle.com or letters from other alphabets.</span></div>
+      <div class="sw" id="lookalike"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Has this password leaked?</b>
+        <span>Checks against over 800 million passwords found in data breaches (Have I Been Pwned). Only the first 5 characters of a scrambled
+          fingerprint of it are sent, never the password.</span></div>
+    </div>
+    <div class="pad" style="padding-top:0">
+      <div style="display:flex;gap:8px"><input type="password" id="pwCheck" placeholder="Type a password to check" autocomplete="off" style="flex:1">
+        <button class="act" id="pwGo">Check</button></div>
+      <div id="pwOut" style="margin-top:8px;font-size:13px"></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Always try HTTPS first</b>
+        <span>Plain http:// addresses are upgraded to secure ones, falling back only if a site has no HTTPS.</span></div>
+      <div class="sw" id="https"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Secure DNS</b>
+        <span>Looks up site addresses over an encrypted connection, so your internet provider cannot see or change them.</span></div>
+      <select id="dns">
+        <option value="">Off (use Windows' DNS)</option>
+        <option value="cloudflare">Cloudflare 1.1.1.1</option>
+        <option value="cloudflare-family">Cloudflare for Families (blocks malware and adult sites)</option>
+        <option value="quad9">Quad9 (blocks malware)</option>
+        <option value="adguard">AdGuard (blocks ads)</option>
+        <option value="mullvad">Mullvad</option>
+        <option value="google">Google</option>
+      </select>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Ask sites not to sell or share my data</b>
+        <span>Sends the Global Privacy Control signal, which is legally binding in some places.</span></div>
+      <div class="sw" id="shGpc"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Fingerprint protection</b>
+        <span>Hides details sites use to recognise your computer without cookies (canvas, graphics card, CPU and memory size, battery). A few sites may notice.</span></div>
+      <div class="sw" id="fp"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Block notification requests</b>
+        <span>Sites cannot even ask to send you notifications.</span></div>
+      <div class="sw" id="notif"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Stop videos playing by themselves</b>
+        <span>Videos with sound wait until you click. Applies after the browser restarts.</span></div>
+      <div class="sw" id="autoplay"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Built-in tracking prevention</b>
+        <span>The engine's own tracker protection, working alongside Shield. Strict can break some logins.</span></div>
+      <select id="tracking">
+        <option value="off">Off</option>
+        <option value="basic">Basic</option>
+        <option value="balanced">Balanced</option>
+        <option value="strict">Strict</option>
+      </select>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Delete history automatically</b>
+        <span>Forget pages older than this.</span></div>
+      <select id="histDays">
+        <option value="0">Never</option>
+        <option value="1">After 1 day</option>
+        <option value="7">After 1 week</option>
+        <option value="30">After 30 days</option>
+        <option value="90">After 3 months</option>
+        <option value="365">After 1 year</option>
+      </select>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Clear cookies and site data when I close the browser</b>
+        <span>You will be signed out of every site each time. History and bookmarks are kept.</span></div>
+      <div class="sw" id="clearexit"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Clear browsing data</b>
+        <span>Cookies, cache and site storage. You will be signed out of sites. History, bookmarks and settings are kept.</span></div>
+      <button class="act warn" id="clearsite">Clear</button>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Erase history and bookmarks</b>
+        <span>Wipes everything this browser remembers about where you have been.</span></div>
+      <button class="act warn" id="clearall">Erase</button>
+    </div>
+  </div>
+
+  <h2>Per-site settings</h2>
+  <div class="card"><div class="pad">
+    <p>Change these for the site you are on by clicking the lock left of the address.</p>
+    <div class="grp" style="margin:0 -16px;padding-left:16px">JavaScript blocked</div>
+    <div class="chips" id="jsoffList"></div>
+    <div class="grp" style="margin:10px -16px 0;padding-left:16px">Mobile version</div>
+    <div class="chips" id="mobileList"></div>
+    <div class="grp" style="margin:10px -16px 0;padding-left:16px">Copy and right-click always unlocked</div>
+    <div class="chips" id="unlockList"></div>
+    <div class="grp" style="margin:10px -16px 0;padding-left:16px">Dark mode off</div>
+    <div class="chips" id="darkoffList"></div>
+    <div class="grp" style="margin:10px -16px 0;padding-left:16px">Remembered zoom</div>
+    <div class="chips" id="zoomList"></div>
+    <div class="grp" style="margin:10px -16px 0;padding-left:16px">Always muted (command palette: Always mute this site)</div>
+    <div class="chips" id="muteSitesList"></div>
+    <div class="grp" style="margin:10px -16px 0;padding-left:16px">Video speed remembered</div>
+    <div class="chips" id="ratesList"></div>
+  </div></div>
+
+  <h2 id="video">Video</h2>
+  <div class="card">
+    <div class="set">
+      <div class="txt"><b>Continue watching</b>
+        <span>Remembers where you stopped in long videos, shows them on the new tab page and offers to jump back when you return.</span></div>
+      <div class="sw" id="cw"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Skip sponsor segments on YouTube</b>
+        <span>Uses the community SponsorBlock database to jump over sponsor reads, self-promotion and "like and subscribe" parts. Only a short hash of the video id is sent.</span></div>
+      <div class="sw" id="sb"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Remember playback speed for each site</b>
+        <span>When you change a video's speed with the browser's controls (Alt+. and Alt+,), long videos on that site start at that speed next time.</span></div>
+      <div class="sw" id="rateMem"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Learn where intros end</b>
+        <span>Skip an intro once with Alt+S and later episodes of the same show skip it at the same point by themselves. Needs Continue watching.</span></div>
+      <div class="sw" id="introLearn"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Next episode countdown</b>
+        <span>When an episode ends and the page has a Next episode button, it is pressed after a 5 second countdown you can cancel. Needs Continue watching.</span></div>
+      <div class="sw" id="nextEp"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Pause videos when you switch tabs</b>
+        <span>A playing tab pauses when you go to another one, and plays again when you come back.</span></div>
+      <div class="sw" id="pauseOnSwitch"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Subtitles</b><span>Bigger or clearer captions on sites that use standard captions, YouTube and Netflix.</span></div>
+      <select id="subSize"><option value="">Site's size</option><option value="s">Small</option><option value="m">Medium</option><option value="l">Large</option><option value="xl">Extra large</option></select>
+      <select id="subColor"><option value="">Site's color</option><option value="#ffffff">White</option><option value="#ffe34d">Yellow</option><option value="#7df0ff">Cyan</option></select>
+      <select id="subBg"><option value="">Site's background</option><option value="0">No box</option><option value="0.5">Light box</option><option value="0.85">Dark box</option></select>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Media keys</b><span>The play/pause, next and previous keys on your keyboard control the video playing in the browser, even when the window is in the background.</span></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Video controls</b>
+        <span><kbd>Alt</kbd>+<kbd>P</kbd> pops the video out, <kbd>Alt</kbd>+<kbd>K</kbd> plays or pauses, <kbd>Alt</kbd>+<kbd>J</kbd>/<kbd>L</kbd> skip 10 s,
+          <kbd>Alt</kbd>+<kbd>S</kbd> skips an intro, <kbd>Alt</kbd>+<kbd>,</kbd>/<kbd>.</kbd> change the speed. The video button in the toolbar controls every tab.</span></div>
+    </div>
+  </div>
+
+  <h2 id="downloads">Downloads</h2>
+  <div class="card">
+    <div class="set">
+      <div class="txt"><b>Download folder</b><span id="dlDir">&hellip;</span></div>
+      <button class="act" id="dlPick">Change</button><button class="act" id="dlReset">Default</button>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Ask where to save each file</b><span>Shows a Save dialog for every download.</span></div>
+      <div class="sw" id="askdl"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Sort downloads into folders</b><span>Pictures, Videos, Music, Documents, Archives and Programs each get their own folder inside the download folder.</span></div>
+      <div class="sw" id="dlSort"><i></i></div>
+    </div>
+  </div>
+
+  <h2 id="perf">Performance</h2>
+  <div class="card">
+    <div class="set">
+      <div class="txt"><b>Tab limit</b><span>With more tabs than this awake, the ones you used longest ago go to sleep (pinned tabs and tabs playing sound never do).</span></div>
+      <select id="tabLimit"><option value="0">No limit</option><option value="8">8 tabs</option><option value="12">12 tabs</option><option value="20">20 tabs</option><option value="30">30 tabs</option><option value="50">50 tabs</option></select>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Warn about a page that is already open</b><span>Offers to switch to the tab that already has it, instead of keeping two.</span></div>
+      <div class="sw" id="dupGuard"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Pictures in tab hover cards</b><span>Hovering over a tab shows what the page looked like when you last had it open.</span></div>
+      <div class="sw" id="hoverThumb"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Sleeping tabs</b>
+        <span>Tabs you have not looked at for a while stop running until you come back to them. Tabs playing sound never sleep.</span></div>
+      <select id="sleep">
+        <option value="0">Never</option>
+        <option value="5">After 5 minutes</option>
+        <option value="15">After 15 minutes</option>
+        <option value="30">After 30 minutes</option>
+        <option value="60">After 1 hour</option>
+        <option value="120">After 2 hours</option>
+      </select>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Forgotten tabs</b>
+        <span>Offers to close tabs you have not looked at for a while. They go to Recently closed tabs.</span></div>
+      <select id="staleDays">
+        <option value="0">Never</option><option value="3">After 3 days</option><option value="7">After a week</option>
+        <option value="14">After 2 weeks</option><option value="30">After a month</option>
+      </select>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Task manager</b><span>See how much memory and CPU each tab uses, and end the ones that hang.</span></div>
+      <button class="act" id="taskmgr">Open</button>
+    </div>
+  </div>
+
+  <h2 id="saver">Data saver</h2>
+  <div class="card">
+    <div class="set">
+      <div class="txt"><b>Data saver</b><span>For slow or limited connections: pictures (and, if you choose, videos) on web sites are not downloaded. Ctrl+Shift+P → "Show pictures on this site" makes an exception.</span></div>
+      <select id="saver"><option value="0">Off</option><option value="1">Skip pictures</option><option value="2">Skip pictures and videos</option></select>
+    </div>
+    <div class="pad"><div class="grp" style="margin:0 -16px;padding-left:16px">Sites that always get pictures</div><div class="chips" id="saverList"></div></div>
+  </div>
+
+  <h2 id="family">Family safety</h2>
+  <div class="card" id="famCard">
+    <div class="set" id="famOffRow">
+      <div class="txt"><b>Family safety</b><span>Block sites and set a daily time limit, protected by a PIN. Private windows are turned off while it is on.
+        It is a light lock for younger children, not a guarantee: someone who can reinstall the browser can remove it.</span></div>
+      <button class="act" id="famSetup">Set up&hellip;</button>
+    </div>
+    <div id="famLocked" class="set hidden">
+      <div class="txt"><b>Family safety is on</b><span>Enter the PIN to change it.</span></div>
+      <input type="password" id="famPin" placeholder="PIN" inputmode="numeric" style="width:110px" maxlength="12"><button class="act" id="famUnlock">Unlock</button>
+    </div>
+    <div id="famEdit" class="hidden">
+      <div class="set"><div class="txt"><b>Daily time limit</b><span>After this much browsing in a day, web pages are closed until tomorrow (or until the PIN is entered).</span></div>
+        <select id="famMins"><option value="0">No limit</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="90">1 hour 30</option><option value="120">2 hours</option><option value="180">3 hours</option><option value="240">4 hours</option></select></div>
+      <div class="pad"><div class="grp" style="margin:0 -16px;padding-left:16px">Blocked sites</div><div class="chips" id="famList"></div>
+        <div style="display:flex;gap:6px;margin-top:10px"><input id="famAdd" placeholder="site.com" spellcheck="false" style="flex:1"><button class="act" id="famAddBtn">Block</button></div></div>
+      <div class="set"><div class="txt"><b>Turn off Family safety</b><span>Removes the PIN, the blocked sites and the time limit.</span></div><button class="act" id="famOff">Turn off</button></div>
+    </div>
+  </div>
+
+  <h2 id="focus">Focus and screen time</h2>
+  <div class="card">
+    <div class="set">
+      <div class="txt"><b>Focus mode</b><span>Blocks the sites below for 25 minutes to 4 hours. Start it from the menu or with Alt+Shift+F.</span></div>
+    </div>
+    <div class="pad" style="padding-top:0">
+      <div class="chips" id="focusList"></div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <input id="focusAdd" placeholder="Add a site, e.g. tiktok.com" spellcheck="false" style="flex:1">
+        <button class="act" id="focusAddBtn">Add</button><button class="act" id="focusReset">Reset list</button>
+      </div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Count screen time</b><span>Keeps a count, on this computer only, of how long each site was the tab in front. Kept for 14 days.</span></div>
+      <div class="sw" id="screentime"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Screen time</b><span>Today and the past two weeks, site by site.</span></div>
+      <button class="act" id="openInsights">Open</button>
+    </div>
+  </div>
+
+  <h2 id="tools">Tools and customization</h2>
+  <div class="card">
+    <div class="set">
+      <div class="txt"><b>Clipboard history</b><span>Keeps the last 25 bits of text you copied on web pages (Alt+Shift+V). Password boxes are never recorded; private windows keep nothing.</span></div>
+      <button class="act" id="clipClear">Clear</button>
+      <div class="sw" id="cliphist"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Mouse gestures</b><span>Hold the right mouse button and draw: left = back, right = forward, up = new tab, down then right = close tab,
+        up then down = reload, left then up = reopen closed tab, down = page bottom, up then left = page top.</span></div>
+      <div class="sw" id="gestures"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Double-click a word for its meaning</b><span>Shows an English definition next to the word. The word is looked up at dictionaryapi.dev. You can also use Define selected word from the command palette (Ctrl+Shift+P).</span></div>
+      <div class="sw" id="dictClick"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Remember where you stopped reading</b><span>Long articles offer to continue where you left off.</span></div>
+      <div class="sw" id="readPos"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Readable font everywhere</b><span>An easy-to-read font with more space between letters, words and lines, on every site. It can also be turned on for single sites from the command palette.</span></div>
+      <div class="sw" id="readFont"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>More pages</b><span>Stored data per site, your browsing recap, games and profiles.</span></div>
+      <button class="act" data-open="storage.html">Stored data</button><button class="act" data-open="recap.html">Recap</button><button class="act" data-open="games.html">Games</button>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Text snippets</b><span>Type a short keyword in any text box and it turns into your text. Keywords start with ; so they never
+        appear by accident, for example ;addr for your address.</span></div>
+    </div>
+    <div class="pad" style="padding-top:0">
+      <div class="chips" id="snipList"></div>
+      <div style="display:flex;gap:8px;margin-top:10px;align-items:flex-start">
+        <input id="snipK" placeholder=";keyword" spellcheck="false" style="width:120px">
+        <textarea id="snipV" placeholder="The text it becomes" style="min-height:38px;height:38px;flex:1"></textarea>
+        <button class="act" id="snipAdd">Add</button>
+      </div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Your CSS for sites</b><span>Restyle any site. Add or edit it from Menu → Page tools → Your CSS for this site.</span></div>
+    </div>
+    <div class="pad" style="padding-top:0"><div class="chips" id="cssList"></div></div>
+    <div class="set">
+      <div class="txt"><b>Userscripts</b><span>Your own JavaScript, run on the sites you list when their pages load, like Tampermonkey.
+        Only add scripts you wrote or trust: they can read and change everything on those sites.</span></div>
+    </div>
+    <div class="pad" style="padding-top:0">
+      <div id="usList"></div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <input id="usName" placeholder="Name" spellcheck="false" style="width:160px">
+        <input id="usMatch" placeholder="Sites, e.g. youtube.com, reddit.com (or * for all)" spellcheck="false" style="flex:1">
+      </div>
+      <textarea id="usCode" placeholder="// runs on those sites&#10;document.querySelectorAll('.ad').forEach(e => e.remove());" spellcheck="false"
+        style="margin-top:8px;font:12.5px/1.5 Consolas,monospace;min-height:120px"></textarea>
+      <div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end"><button class="act" id="usNew">Clear</button><button class="act" id="usSave">Save script</button></div>
+    </div>
+  </div>
+
+  <h2 id="access">Accessibility</h2>
+  <div class="card">
+    <div class="set">
+      <div class="txt"><b>Vision filter</b><span>Changes how every web page is shown. The color-blind options shift colors that are hard to tell apart.</span></div>
+      <select id="vision">
+        <option value="">None</option><option value="contrast">High contrast</option><option value="gray">Grayscale</option><option value="invert">Inverted colors</option>
+        <option value="deutan">Easier red-green (deuteranopia)</option><option value="protan">Easier red-green (protanopia)</option><option value="tritan">Easier blue-yellow (tritanopia)</option>
+      </select>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Big mouse pointer</b><span>A larger pointer on web pages.</span></div>
+      <div class="sw" id="bigCursor"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Highlight links</b><span>Outlines and underlines every link so they are easy to spot.</span></div>
+      <div class="sw" id="linkHl"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Break reminders</b><span>After a stretch of screen time, a reminder to look at something far away for 20 seconds (the 20-20-20 rule).</span></div>
+      <select id="breaks"><option value="0">Off</option><option value="20">Every 20 minutes</option><option value="30">Every 30 minutes</option>
+        <option value="45">Every 45 minutes</option><option value="60">Every hour</option></select>
+    </div>
+  </div>
+
+  <h2 id="look">Appearance</h2>
+  <div class="card">
+    <div class="set">
+      <div class="txt"><b>Theme</b><span>Web pages that offer a dark mode follow it too.</span></div>
+      <select id="theme">
+        <option value="dark">Dark</option>
+        <option value="light">Light</option>
+        <option value="auto">Light by day, dark after sunset</option>
+      </select>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Tiny toolbar</b><span>Smaller tabs and buttons, for small screens.</span></div>
+      <div class="sw" id="tiny"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Click effects</b><span>A little ripple or sparkles where you click on web pages.</span></div>
+      <select id="clickFx"><option value="">None</option><option value="ripple">Ripple</option><option value="sparkle">Sparkles</option></select>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Sound effects</b><span>Soft sounds when tabs open and close, and a chime when a download finishes.</span></div>
+      <div class="sw" id="sounds"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Sound style</b><span>How the sound effects sound.</span></div>
+      <select id="soundPack"><option value="soft">Soft</option><option value="retro">Retro game</option><option value="typewriter">Typewriter</option><option value="scifi">Sci-fi</option><option value="bubbles">Bubbles</option></select>
+      <button class="act" id="soundTry">Try it</button>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Startup animation</b><span>A web spins itself and a spider drops in when the browser opens (about a second and a half).</span></div>
+      <div class="sw" id="startAnim"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Animations</b><span>Panels, tabs and pages move smoothly. Reduced keeps only quick fades; Windows' own "reduce motion" setting is followed too.</span></div>
+      <select id="motion"><option value="">Full</option><option value="reduced">Reduced</option><option value="off">Off</option></select>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Color theme</b><span>The colors of the dark theme: the toolbar, menus and the browser's own pages.</span></div>
+      <select id="pack">
+        <option value="">Default</option><option value="midnight">Midnight</option><option value="ocean">Ocean</option><option value="forest">Forest</option>
+        <option value="rose">Rose</option><option value="coffee">Coffee</option><option value="mono">Graphite</option><option value="amoled">Pure black</option>
+        <option value="custom">Your own colors</option>
+      </select>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Theme editor</b><span>Pick every color of the dark theme yourself, with a live preview. Save it as a file to share, or open someone else's.</span></div>
+      <button class="act" id="ctEdit">Edit colors&hellip;</button>
+    </div>
+    <div class="pad hidden" id="ctBox">
+      <div id="ctPrev" style="border-radius:12px;padding:12px;margin-bottom:12px;border:1px solid var(--line)">
+        <div style="display:flex;gap:6px;margin-bottom:8px"><span class="cp-tab" style="padding:5px 12px;border-radius:8px 8px 0 0">Active tab</span><span class="cp-tab2" style="padding:5px 12px">Other tab</span></div>
+        <div class="cp-bar" style="border-radius:10px;padding:10px 12px"><b class="cp-fg">Page title</b> <span class="cp-dim">· some quieter text</span> <span class="cp-dim2">· the quietest</span>
+          <div class="cp-card" style="margin-top:8px;border-radius:8px;padding:8px 10px;border:1px solid">A menu or card</div></div>
+      </div>
+      <div class="grid2" id="ctGrid"></div>
+      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button class="act" id="ctFrom">Start from the current colors</button><button class="act" id="ctSave">Save as file</button><button class="act" id="ctOpen">Open a theme file&hellip;</button></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Accent color</b><span>Used for the active tab, switches and highlights.</span></div>
+      <div class="swatches" id="accent"></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Dark mode for every site</b>
+        <span>Darkens pages that have no dark mode of their own. Turn it off for one site from the lock button.</span></div>
+      <div class="sw" id="dark"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Toolbar buttons</b><span>Choose which buttons the toolbar shows. Everything stays in the menu.</span></div>
+    </div>
+    <div class="pad" style="padding-top:0"><div class="chips" id="tbBtns"></div></div>
+    <div class="set">
+      <div class="txt"><b>Compact toolbar</b><span>Smaller tabs and toolbar, more room for pages.</span></div>
+      <div class="sw" id="compact"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Bookmarks bar</b><span>A row of bookmarks under the address bar. Ctrl+Shift+B.</span></div>
+      <div class="sw" id="marks"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Tab preview cards</b><span>Hovering a tab shows its full title and address.</span></div>
+      <div class="sw" id="hover"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Scroll over the tabs to switch tabs</b><span>The mouse wheel over the tab strip moves between tabs.</span></div>
+      <div class="sw" id="wheel"><i></i></div>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Default zoom</b><span>For sites you have not zoomed yourself. Zoom per site is remembered.</span></div>
+      <select id="defzoom">
+        <option value="0.8">80%</option><option value="0.9">90%</option><option value="1">100%</option>
+        <option value="1.1">110%</option><option value="1.25">125%</option><option value="1.5">150%</option>
+      </select>
+    </div>
+    <div class="set">
+      <div class="txt"><b>New tab background</b><span id="bgNote">A picture, GIF or looping video behind the new tab page.</span></div>
+      <button class="act" id="bgPick">Choose file</button><button class="act" id="bgClear">Remove</button>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Background slideshow</b><span id="slNote">Several pictures or videos that take turns. Manage them from Background on the new tab page.</span></div>
+      <select id="slEvery"><option value="tab">Every new tab</option><option value="hour">Every hour</option><option value="day">Every day</option></select>
+      <button class="act" id="slAdd">Add files</button>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Background fit</b><span>Fill crops to cover the page; Fit shows the whole picture with a soft blurred edge around it.</span></div>
+      <select id="bgFit"><option value="cover">Fill</option><option value="contain">Fit</option><option value="stretch">Stretch</option><option value="center">Center</option></select>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Dim background</b><span>Darkens it if the clock and text are hard to read. Off keeps the picture exactly as it is.</span></div>
+      <select id="bgDim"><option value="0">Off</option><option value="10">10%</option><option value="20">20%</option><option value="30">30%</option><option value="45">45%</option><option value="60">60%</option></select>
+    </div>
+  </div>
+
+  <h2 id="extensions">Extensions</h2>
+  <div class="card">
+    <div class="pad">
+      <p>Chrome extensions from the Chrome Web Store work here too. Paste the extension's store address, or add an unpacked
+        extension folder. Extensions run with the permissions they ask for, so only add ones you trust.</p>
+      <div class="row2" style="margin-top:0"><input type="text" id="extUrl" placeholder="https://chromewebstore.google.com/detail/&hellip;" spellcheck="false" style="flex:1">
+        <button class="act main" id="extAdd">Add</button><button class="act" id="extFolder">Add a folder&hellip;</button></div>
+      <div class="row2"><span class="note" id="extNote"></span></div>
+    </div>
+    <div id="extRows"></div>
+  </div>
+
+  <h2 id="backup">Backup and restore</h2>
+  <div class="card">
+    <div class="set">
+      <div class="txt"><b>Back up everything</b><span>Bookmarks, history, settings, Shield rules, saved sessions, notes and the reading list, in one file.</span></div>
+      <button class="act" id="bkSave">Save backup</button><button class="act" id="bkLoad">Restore&hellip;</button>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Automatic backup</b><span id="bkAutoNote">A backup file in a folder you choose, so nothing is lost if Windows is reinstalled. The last five are kept.</span></div>
+      <select id="bkAuto"><option value="0">Off</option><option value="1">Every day</option><option value="7">Every week</option></select>
+      <button class="act" id="bkDir">Folder&hellip;</button><button class="act" id="bkNow">Back up now</button>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Sync between computers</b><span id="syNote">Choose a folder that syncs between your computers (OneDrive, Google Drive, Dropbox or a USB stick). Bookmarks, notes, the reading list, collections, highlights and to-dos are shared every 15 minutes. Sync adds and updates; deleting on one computer doesn't delete on the others.</span></div>
+      <button class="act" id="syDir">Folder&hellip;</button><button class="act" id="syNow">Sync now</button><button class="act" id="syOff">Stop</button>
+    </div>
+    <div class="set">
+      <div class="txt"><b>Bookmarks file</b><span>The standard HTML bookmarks format every browser can import and export.</span></div>
+      <button class="act" id="bmExport">Export</button><button class="act" id="bmImport">Import&hellip;</button>
+    </div>
+    <div class="set">
+      <div class="txt"><b>From another browser on this computer</b>
+        <span id="impNote">Copies bookmarks from the browser's default profile. Nothing is removed there.</span></div>
+      <button class="act" data-imp="chrome">Chrome</button>
+      <button class="act" data-imp="edge">Edge</button>
+      <button class="act" data-imp="brave">Brave</button>
+    </div>
+  </div>
+
+  <h2 id="keys">Keyboard</h2>
+  <div class="card">
+    <table>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>T</kbd> / <kbd>W</kbd></td><td>New tab / close tab</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd></td><td>Reopen the tab you just closed</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>N</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd></td><td>New window / new private window</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>L</kbd>, <kbd>Alt</kbd>+<kbd>D</kbd>, <kbd>F6</kbd></td><td>Focus the address bar</td></tr>
+      <tr><td><kbd>Alt</kbd>+<kbd>Enter</kbd> in the address bar</td><td>Open in a new tab</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>A</kbd></td><td>Search open tabs</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd></td><td>Command palette</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd> / <kbd>Ctrl</kbd>+<kbd>M</kbd></td><td>Duplicate tab / mute tab</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Y</kbd></td><td>Copy the page address</td></tr>
+      <tr><td><kbd>Alt</kbd>+<kbd>Q</kbd> / <kbd>Alt</kbd>+<kbd>A</kbd></td><td>QR code for the page / auto-scroll</td></tr>
+      <tr><td><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd></td><td>Focus mode on / off</td></tr>
+      <tr><td><kbd>Alt</kbd>+<kbd>↑</kbd> / <kbd>↓</kbd></td><td>Video volume up / down</td></tr>
+      <tr><td><kbd>Alt</kbd>+<kbd>H</kbd></td><td>Highlight the selected text</td></tr>
+      <tr><td><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd></td><td>Clipboard history</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>F</kbd> / <kbd>Ctrl</kbd>+<kbd>G</kbd></td><td>Find on page / next match</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>Tab</kbd>, <kbd>Ctrl</kbd>+<kbd>PgDn</kbd></td><td>Next tab (Shift or PgUp for previous)</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>PgUp</kbd> / <kbd>PgDn</kbd></td><td>Move the tab left / right</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>1</kbd>..<kbd>8</kbd> / <kbd>9</kbd></td><td>Nth tab / last tab</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>D</kbd></td><td>Bookmark this page</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>H</kbd> / <kbd>J</kbd> / <kbd>Shift</kbd>+<kbd>O</kbd></td><td>History / downloads / bookmarks</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd></td><td>Sidebar</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd></td><td>Screenshot an area</td></tr>
+      <tr><td><kbd>Alt</kbd>+<kbd>V</kbd></td><td>VPN panel</td></tr>
+      <tr><td><kbd>Alt</kbd>+<kbd>P</kbd> / <kbd>K</kbd> / <kbd>J</kbd> / <kbd>L</kbd> / <kbd>S</kbd></td><td>Pop out video / play-pause / -10 s / +10 s / skip intro</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>+</kbd> / <kbd>-</kbd> / <kbd>0</kbd></td><td>Zoom in, out, reset</td></tr>
+      <tr><td><kbd>Alt</kbd>+<kbd>Left</kbd> / <kbd>Right</kbd> / <kbd>Home</kbd></td><td>Back / forward / home</td></tr>
+      <tr><td><kbd>F5</kbd>, <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd></td><td>Reload / reload without cache</td></tr>
+      <tr><td><kbd>F11</kbd></td><td>Full screen on and off</td></tr>
+      <tr><td><kbd>F12</kbd>, <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>I</kbd></td><td>Developer tools</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>/</kbd></td><td>Show every shortcut</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>Close the open panel, leave full screen, or stop loading</td></tr>
+    </table>
+  </div>
+
+  <h2>About</h2>
+  <div class="card">
+    <div class="about">
+      <b>Webs Browser</b> &mdash; a single Windows executable with no bundled runtime.
+      Pages are rendered by the Microsoft Edge WebView2 engine that is already part of Windows,
+      so it stays current with Edge's security updates. Shield uses the same filter lists as
+      uBlock Origin, fetched straight from their publishers and refreshed every few days.
+      The free VPN runs the official Tor client from torproject.org, checked against its published checksum.
+      <div style="margin-top:10px">Profile: %LOCALAPPDATA%\WebStudiosBrowser &middot; <a href="whatsnew.html" style="color:var(--accent)">What's new</a></div>
+    </div>
+  </div>
+</div>
+<div id="saved">Saved</div>
+
+<script>
+"use strict";
+/* Color themes (Settings → Appearance), for the dark theme. */
+(function () {
+  const P = { midnight:["#0e1220","#151a2c","#1d2338","#262d46","#28304a","#e8ecf6","#98a2bd","#6b7593"], forest:["#0f1612","#151f19","#1c2a21","#24352a","#26372c","#e6f0e8","#93a898","#6a7f6f"],
+    ocean:["#0b1519","#102026","#152a31","#1b353e","#1d3942","#e3f1f4","#8fb0b8","#658891"], rose:["#1a1216","#22181d","#2d2027","#382830","#3a2931","#f6ecf0","#b5979f","#85707a"],
+    mono:["#141414","#1c1c1c","#252525","#2e2e2e","#303030","#efefef","#a0a0a0","#707070"], coffee:["#17120e","#201913","#2a2119","#34291f","#372b21","#f3ebe3","#aa9886","#7d6d5e"],
+    amoled:["#000000","#0b0b0d","#151518","#1e1e22","#222226","#f2f2f2","#9a9aa2","#6a6a72"] };
+  const K = ["bg", "bg2", "bg3", "bg4", "line", "fg", "dim", "dim2"];
+  function apply() {
+    let s = {}; try { s = JSON.parse(localStorage.getItem("wsb.settings") || "{}"); } catch (e) {}
+    const light = s.theme === "light" || document.documentElement.dataset.theme === "light";
+    const pk = !light && (s.pack === "custom" && Array.isArray(s.customTheme) && s.customTheme.length === 8 && s.customTheme.every(c => /^#[0-9a-f]{6}$/i.test(c)) ? s.customTheme : P[s.pack]), r = document.documentElement.style;
+    K.forEach((k, i) => { if (pk) r.setProperty("--" + k, pk[i]); else r.removeProperty("--" + k); });
+  }
+  apply();
+  addEventListener("storage", e => { if (e.key === "wsb.settings") setTimeout(apply, 0); });
+  document.addEventListener("wsb-pack", apply);
+})();
+
+const S = "\u0001";
+const wv = window.chrome && window.chrome.webview;
+const send = (...a) => { if (wv) wv.postMessage(a.map(x => x == null ? "" : String(x)).join(S)); };
+const get = (k, d) => { try { const v = localStorage.getItem("wsb." + k);
+  return v ? JSON.parse(v) : d; } catch (e) { return d; } };
+const put = (k, v) => { try { localStorage.setItem("wsb." + k, JSON.stringify(v)); return true; } catch (e) { return false; } };
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+
+const DEF = { search:"ddg", home:"", theme:"dark", marks:true, restore:true, https:true, sleep:30, tracking:"balanced",
+              suggest:true, accent:"#e8342a", compact:false, defzoom:1, histDays:0, notif:true, askdl:false, dldir:"",
+              clearexit:false, dark:false, fp:false, sb:true, cw:true, autostart:false, autoplay:false,
+              jsoff:[], mobile:[], darkoff:[], hover:true, wheel:true, keywords:null, bg:"", bgFit:"cover", bgDim:0, screentime:true, unlock:[], staleDays:7, cliphist:true, gestures:false, snippets:[], scripts:[], siteCss:{}, hideBtns:[], pack:"", vision:"", breaks:0, bigCursor:false, linkHl:false, lookalike:true, rateMem:true, introLearn:true, nextEp:true, dictClick:false, dlSort:false, saver:0, saverAllow:[], motion:"", backupAuto:0, backupDir:"", pauseOnSwitch:false, readPos:true, readFont:false, tabLimit:0, dupGuard:true, hoverThumb:true, dlWarn:true, drafts:true, tiny:false, sounds:false, clickFx:"", syncDir:"" };
+const DEFSH = { on:true, cosmetic:true, popups:true, cookies:true, yt:true, clean:true, gpc:true, lists:{}, custom:"", allow:[] };
+const DEFVPN = { mode:"tor", country:"", ptype:"socks5", phost:"", pport:1080, puser:"", kill:true,
+                 onlyMode:false, bypass:[], only:[], dns:"", auto:false };
+const KEYWORDS = [
+  { k:"yt", n:"YouTube", u:"https://www.youtube.com/results?search_query=%s" },
+  { k:"w", n:"Wikipedia", u:"https://en.wikipedia.org/w/index.php?search=%s" },
+  { k:"gh", n:"GitHub", u:"https://github.com/search?q=%s" },
+  { k:"r", n:"Reddit", u:"https://www.reddit.com/search/?q=%s" },
+  { k:"a", n:"Amazon", u:"https://www.amazon.com/s?k=%s" },
+  { k:"maps", n:"Google Maps", u:"https://www.google.com/maps/search/%s" },
+  { k:"img", n:"Google Images", u:"https://www.google.com/search?tbm=isch&q=%s" },
+  { k:"tr", n:"Google Translate", u:"https://translate.google.com/?sl=auto&op=translate&text=%s" },
+  { k:"imdb", n:"IMDb", u:"https://www.imdb.com/find/?q=%s" },
+  { k:"mal", n:"MyAnimeList", u:"https://myanimelist.net/search/all?q=%s" }
+];
+let cfg = Object.assign({}, DEF, get("settings", {}));
+let sh = Object.assign({}, DEFSH, get("shield", {}));
+let vcfg = Object.assign({}, DEFVPN, get("vpn", {}));
+document.documentElement.dataset.theme = cfg.theme; document.documentElement.dataset.motion = cfg.motion || "";
+function applyAccent() { if (/^#[0-9a-f]{6}$/i.test(cfg.accent || "")) document.documentElement.style.setProperty("--accent", cfg.accent); }
+applyAccent();
+
+let toastT = 0;
+function flash(msg) {
+  $("#saved").textContent = msg || "Saved";
+  $("#saved").classList.add("on");
+  clearTimeout(toastT);
+  toastT = setTimeout(() => $("#saved").classList.remove("on"), msg && msg.length > 40 ? 4000 : 1600);
+}
+// The storage event only reaches OTHER documents, so the chrome in this window
+// is told directly as well.
+function commit(note) { put("settings", cfg); send("settings-changed"); if (note !== false) flash(); }
+function commitShield(note) { put("shield", sh); send("settings-changed"); if (note !== false) flash(); }
+function commitVpn(note) { put("vpn", vcfg); send("vpn-config", JSON.stringify(vcfg)); send("settings-changed"); if (note !== false) flash(); }
+
+function bindSwitch(id, obj, key, after) {
+  const n = $("#" + id);
+  const paint = () => n.classList.toggle("on", !!obj()[key]);
+  n.onclick = () => { obj()[key] = !obj()[key]; paint(); if (after) after(); else if (obj() === sh) commitShield(); else if (obj() === vcfg) commitVpn(); else commit(); };
+  paint();
+  return paint;
+}
+function bindSelect(id, key, after, obj) {
+  const n = $("#" + id);
+  const o = obj || (() => cfg);
+  n.value = String(o()[key]);
+  n.onchange = () => { o()[key] = /^\d+(\.\d+)?$/.test(n.value) ? +n.value : n.value;
+    if (o() === vcfg) commitVpn(); else commit(); if (after) after(); };
+}
+
+bindSelect("searchEngine", "search");
+// "auto" is kept as themeMode; theme stays dark or light (the browser switches it at sunrise and sunset).
+$("#theme").value = cfg.themeMode === "auto" ? "auto" : cfg.theme;
+$("#theme").onchange = () => {
+  const v = $("#theme").value;
+  if (v === "auto") { cfg.themeMode = "auto"; cfg.theme = sunTheme(); } else { cfg.themeMode = ""; cfg.theme = v; }
+  commit(); document.documentElement.dataset.theme = cfg.theme; send("theme", cfg.theme);
+};
+bindSelect("motion", "motion", () => { document.documentElement.dataset.motion = cfg.motion || ""; });
+bindSelect("saver", "saver");
+bindSelect("tabLimit", "tabLimit");
+bindSelect("clickFx", "clickFx");
+bindSelect("soundPack", "soundPack");
+$("#soundPack").value = cfg.soundPack || "soft";
+$("#soundTry").onclick = () => { try { localStorage.setItem("wsb.soundTry", String(Date.now())); } catch (e) {} };
+/* private window PIN */
+function paintPl() { $("#plOff").disabled = !(cfg.privLock && cfg.privLock.pin); $("#plNote").textContent = cfg.privLock && cfg.privLock.pin ? "On: new private windows ask for the PIN." : "A new private window asks for the PIN before it shows anything."; }
+$("#plSet").onclick = async () => {
+  const a = prompt("Choose a PIN (4 to 12 digits) for private windows"); if (a == null) return;
+  if (!/^\d{4,12}$/.test(a)) { alert("The PIN must be 4 to 12 digits."); return; }
+  if (prompt("Type the PIN again") !== a) { alert("The two PINs were different. Nothing was changed."); return; }
+  const salt = [...crypto.getRandomValues(new Uint8Array(8))].map(x => x.toString(16).padStart(2, "0")).join("");
+  cfg.privLock = { salt, pin:await pinHash(a, salt) }; commit(); paintPl();
+};
+$("#plOff").onclick = async () => {
+  const L = cfg.privLock; if (!L) return;
+  const a = prompt("Enter the current PIN to remove it"); if (a == null) return;
+  if (await pinHash(a, L.salt) !== L.pin) { alert("Wrong PIN."); return; }
+  cfg.privLock = null; commit(); paintPl();
+};
+paintPl();
+/* sync folder */
+function paintSync() {
+  const last = get("syncLast", null);
+  $("#syNow").disabled = $("#syOff").disabled = !cfg.syncDir;
+  if (cfg.syncDir) $("#syNote").textContent = "Syncing with " + cfg.syncDir + (last ? " · last " + new Date(last.ts).toLocaleString() + (last.ok ? "" : " (" + last.msg + ")") : "") + ". Sync adds and updates; deleting on one computer doesn't delete on the others.";
+}
+$("#syDir").onclick = () => send("pick-folder", "sync", cfg.syncDir || "");
+$("#syNow").onclick = () => { put("syncReq", Date.now()); flash("Syncing…"); };
+$("#syOff").onclick = () => { cfg.syncDir = ""; commit(); paintSync(); };
+paintSync();
+// subtitles: three choices kept together in cfg.subs
+function paintSubs() { const x = cfg.subs || {}; $("#subSize").value = x.size || ""; $("#subColor").value = x.color || ""; $("#subBg").value = x.bg == null ? "" : String(x.bg); }
+["subSize", "subColor", "subBg"].forEach(id => $("#" + id).onchange = () => {
+  const x = { size:$("#subSize").value, color:$("#subColor").value };
+  if ($("#subBg").value !== "") x.bg = +$("#subBg").value;
+  cfg.subs = x; commit();
+});
+paintSubs();
+bindSelect("tracking", "tracking");
+bindSelect("sleep", "sleep");
+bindSelect("histDays", "histDays");
+bindSelect("defzoom", "defzoom");
+bindSelect("staleDays", "staleDays");
+bindSelect("pack", "pack", () => document.dispatchEvent(new Event("wsb-pack")));
+bindSelect("vision", "vision");
+bindSelect("breaks", "breaks");
+bindSelect("bgFit", "bgFit");
+bindSelect("bgDim", "bgDim");
+bindSelect("dns", "dns", null, () => vcfg);
+["restore","marks","https","suggest","fp","notif","autoplay","clearexit","cw","sb","dark","compact","hover","wheel","askdl","autostart","screentime","cliphist","gestures","bigCursor","linkHl","lookalike","rateMem","introLearn","nextEp","dictClick","dlSort","pauseOnSwitch","readPos","readFont","dupGuard","hoverThumb","dlWarn","drafts","tiny","sounds","startAnim"]
+  .forEach(k => bindSwitch(k, () => cfg, k));
+bindSwitch("shOn", () => sh, "on");
+bindSwitch("shPopups", () => sh, "popups");
+bindSwitch("shYt", () => sh, "yt");
+bindSwitch("shCosmetic", () => sh, "cosmetic");
+bindSwitch("shClean", () => sh, "clean");
+bindSwitch("shGpc", () => sh, "gpc");
+// The cookie switch drives both the auto-reject clicks and the cookie-notice list.
+bindSwitch("shCookies", () => sh, "cookies", () => {
+  sh.lists = Object.assign({}, sh.lists, { cookies: !!sh.cookies });
+  commitShield(); renderLists();
+});
+$("#autoplay").addEventListener("click", () => flash("Restart the browser for this to apply"));
+
+$("#home").value = cfg.home || "";
+$("#home").onchange = () => {
+  let v = $("#home").value.trim();
+  if (v && !/^[a-z][a-z0-9+.-]*:\/\//i.test(v)) v = "https://" + v;
+  cfg.home = v;
+  $("#home").value = v;
+  commit();
+};
+$("#taskmgr").onclick = () => send("open", "https://browser.example/taskmgr.html");
+
+/* ---------------------------------------------------------------- search in settings */
+// Its own class, so it never fights the VPN form's "hidden" rows.
+$("#q").oninput = () => {
+  const q = $("#q").value.trim().toLowerCase();
+  document.querySelectorAll(".nomatch").forEach(n => n.classList.remove("nomatch"));
+  if (!q) return;
+  document.querySelectorAll("h2").forEach(h => {
+    const card = h.nextElementSibling;
+    if (h.textContent.toLowerCase().includes(q)) return;
+    const rows = [...card.querySelectorAll(".set,.card>.pad,.list,.ext,tr")];
+    let any = false;
+    rows.forEach(n => { const hit = n.textContent.toLowerCase().includes(q); n.classList.toggle("nomatch", !hit); any = any || hit; });
+    if (!rows.length) any = card.textContent.toLowerCase().includes(q);
+    h.classList.toggle("nomatch", !any); card.classList.toggle("nomatch", !any);
+  });
+};
+
+/* ---------------------------------------------------------------- appearance */
+const ACCENTS = ["#e8342a","#f08a24","#e8b12a","#3fb971","#1fa3a3","#3b8bf0","#6c63ff","#9a63f0","#e85aa8"];
+ACCENTS.forEach(c => {
+  const b = document.createElement("button");
+  b.style.background = c; b.title = c;
+  if ((cfg.accent || "").toLowerCase() === c) b.className = "on";
+  b.onclick = () => { cfg.accent = c; commit(); applyAccent();
+    document.querySelectorAll("#accent button").forEach(x => x.classList.toggle("on", x === b)); };
+  $("#accent").appendChild(b);
+});
+function paintBg() {
+  const vid = /^user\/ntp-bg\.(mp4|webm|m4v)(\?|$)/.test(cfg.bg || ""), gif = /^user\/ntp-bg\.gif(\?|$)/.test(cfg.bg || "");
+  $("#bgNote").textContent = !cfg.bg ? "A picture, GIF or looping video behind the new tab page."
+    : vid ? "A video is set. It plays on a loop, muted." : gif ? "A GIF is set." : "A picture is set.";
+  $("#bgClear").disabled = !cfg.bg;
+  const n = (Array.isArray(cfg.slides) ? cfg.slides : []).length;
+  $("#slNote").textContent = n ? n + (n === 1 ? " picture or video" : " pictures and videos") + " in the slideshow (it takes the place of the single background). Manage them from Background on the new tab page."
+    : "Several pictures or videos that take turns. Manage them from Background on the new tab page.";
+  $("#slEvery").value = ["tab", "hour", "day"].indexOf(cfg.slideEvery) >= 0 ? cfg.slideEvery : "tab";
+}
+paintBg();
+$("#bgPick").onclick = () => send("pick-bg");
+$("#bgClear").onclick = () => { cfg.bg = ""; commit(); paintBg(); };
+$("#slAdd").onclick = () => send("slides-add");
+$("#slEvery").onchange = () => { cfg.slideEvery = $("#slEvery").value; commit(); };
+
+/* ---------------------------------------------------------------- per-site lists */
+function chipList(box, items, remove, empty) {
+  box.innerHTML = "";
+  if (!items.length) { box.innerHTML = '<span style="color:var(--dim2);font-size:12.5px">' + esc(empty || "None.") + '</span>'; return; }
+  items.forEach(([label, key]) => {
+    const c = document.createElement("div");
+    c.className = "chip";
+    c.innerHTML = "<span>" + esc(label) + '</span><button title="Remove">×</button>';
+    c.querySelector("button").onclick = () => remove(key);
+    box.appendChild(c);
+  });
+}
+function renderSiteLists() {
+  ["jsoff","mobile","darkoff","unlock","muteSites"].forEach(k => chipList($("#" + k + "List"), (cfg[k] || []).map(h => [h, h]),
+    h => { cfg[k] = cfg[k].filter(x => x !== h); commit(); renderSiteLists(); }));
+  const z = get("zooms", {});
+  chipList($("#zoomList"), Object.keys(z).map(h => [h + "  " + Math.round(z[h] * 100) + "%", h]),
+    h => { const zz = get("zooms", {}); delete zz[h]; put("zooms", zz); send("settings-changed"); renderSiteLists(); });
+  const r = get("rates", {});
+  chipList($("#ratesList"), Object.keys(r).map(h => [h + "  " + r[h] + "\u00d7", h]),
+    h => { const rr = get("rates", {}); delete rr[h]; put("rates", rr); renderSiteLists(); });
+}
+renderSiteLists();
+
+/* ---------------------------------------------------------------- focus mode sites */
+const FOCUS_SITES = ["youtube.com", "tiktok.com", "instagram.com", "facebook.com", "x.com", "twitter.com", "reddit.com", "twitch.tv", "netflix.com"];
+const focusSites = () => Array.isArray(cfg.focusSites) ? cfg.focusSites : FOCUS_SITES.slice();
+function renderFocus() {
+  chipList($("#focusList"), focusSites().map(h => [h, h]), h => { cfg.focusSites = focusSites().filter(x => x !== h); commit(); renderFocus(); }, "No sites. Focus mode will not block anything.");
+}
+renderFocus();
+$("#focusAddBtn").onclick = () => {
+  let h = $("#focusAdd").value.trim().toLowerCase();
+  try { if (/^[a-z]+:\/\//.test(h)) h = new URL(h).hostname; } catch (e) {}
+  h = h.replace(/^www\./, "").replace(/\/.*$/, "");
+  if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(h)) { flash("Type a site like tiktok.com"); return; }
+  cfg.focusSites = focusSites().filter(x => x !== h).concat([h]); commit(); $("#focusAdd").value = ""; renderFocus();
+};
+$("#focusAdd").onkeydown = e => { if (e.key === "Enter") $("#focusAddBtn").click(); };
+$("#focusReset").onclick = () => { delete cfg.focusSites; commit(); renderFocus(); };
+$("#openInsights").onclick = () => send("go", "https://browser.example/insights.html");
+
+/* ---------------------------------------------------------------- toolbar, clipboard, snippets, CSS, userscripts */
+const TBTN = [["home", "Home"], ["star", "Bookmark star"], ["read", "Reader view"], ["shield", "Shield"], ["vpnb", "VPN"], ["splitb", "Split view"],
+              ["sideb", "Sidebar"], ["dlb", "Downloads"], ["mediab", "Media"]];
+function renderTb() {
+  const box = $("#tbBtns"); box.innerHTML = "";
+  TBTN.forEach(([id, label]) => {
+    const l = document.createElement("label"); l.className = "chip"; l.style.cursor = "pointer"; l.style.paddingRight = "11px";
+    const i = document.createElement("input"); i.type = "checkbox"; i.checked = !(cfg.hideBtns || []).includes(id); i.style.accentColor = "var(--accent)";
+    i.onchange = () => { const h = (cfg.hideBtns || []).filter(x => x !== id); if (!i.checked) h.push(id); cfg.hideBtns = h; commit(); };
+    l.append(i, " " + label); box.appendChild(l);
+  });
+}
+renderTb();
+$("#clipClear").onclick = () => { put("clips", []); flash("Clipboard history cleared"); };
+function renderSnips() {
+  chipList($("#snipList"), (cfg.snippets || []).map(x => [x.k + "  →  " + x.v.replace(/\s+/g, " ").slice(0, 50), x.k]),
+    k => { cfg.snippets = (cfg.snippets || []).filter(x => x.k !== k); commit(); renderSnips(); }, "No snippets yet.");
+}
+renderSnips();
+$("#snipAdd").onclick = () => {
+  let k = $("#snipK").value.trim().replace(/\s+/g, ""), v = $("#snipV").value;
+  if (!k || !v.trim()) { flash("Type a keyword and its text"); return; }
+  if (k[0] !== ";") k = ";" + k;
+  if (k.length < 3 || k.length > 20) { flash("Keywords are 2 to 19 characters after the ;"); return; }
+  cfg.snippets = (cfg.snippets || []).filter(x => x.k !== k).concat([{ k, v:v.slice(0, 5000) }]).slice(0, 100);
+  commit(); $("#snipK").value = ""; $("#snipV").value = ""; renderSnips();
+};
+function renderCss() {
+  chipList($("#cssList"), Object.keys(cfg.siteCss || {}).map(h => [h, h]),
+    h => { cfg.siteCss = Object.assign({}, cfg.siteCss); delete cfg.siteCss[h]; commit(); renderCss(); }, "No sites restyled yet.");
+}
+renderCss();
+let usEdit = "";
+function renderUs() {
+  const box = $("#usList"); box.innerHTML = "";
+  (cfg.scripts || []).forEach(sc => {
+    const r = document.createElement("div");
+    r.style.cssText = "display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line)";
+    r.innerHTML = '<div style="flex:1;min-width:0"><b style="font-weight:600"></b><div style="color:var(--dim);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div></div>' +
+      '<button class="act">Edit</button><button class="act">Delete</button><div class="sw"><i></i></div>';
+    r.querySelector("b").textContent = sc.name || "Script";
+    r.querySelector("b + div").textContent = "On " + (sc.match || "no sites") + " · " + sc.code.length + " characters";
+    const [ed, del] = r.querySelectorAll("button"), sw = r.querySelector(".sw");
+    sw.classList.toggle("on", sc.on !== false);
+    sw.onclick = () => { sc.on = sc.on === false; commit(); renderUs(); };
+    ed.onclick = () => { usEdit = sc.id; $("#usName").value = sc.name; $("#usMatch").value = sc.match; $("#usCode").value = sc.code; $("#usSave").textContent = "Save changes"; };
+    del.onclick = () => { if (!confirm("Delete the userscript " + (sc.name || "") + "?")) return; cfg.scripts = cfg.scripts.filter(x => x.id !== sc.id); commit(); renderUs(); };
+    box.appendChild(r);
+  });
+}
+renderUs();
+$("#usNew").onclick = () => { usEdit = ""; $("#usName").value = ""; $("#usMatch").value = ""; $("#usCode").value = ""; $("#usSave").textContent = "Save script"; };
+$("#usSave").onclick = () => {
+  const name = $("#usName").value.trim().slice(0, 60) || "Script", match = $("#usMatch").value.trim().toLowerCase().slice(0, 500), code = $("#usCode").value;
+  if (!match) { flash("List the sites it runs on (or * for all)"); return; }
+  if (!code.trim()) { flash("Write the script first"); return; }
+  if (code.length > 200000) { flash("That script is too long"); return; }
+  const list = (cfg.scripts || []).slice(), i = list.findIndex(x => x.id === usEdit);
+  const item = { id:usEdit || Date.now().toString(36), name, match, code, on:true };
+  if (i >= 0) list[i] = Object.assign(list[i], item); else list.push(item);
+  cfg.scripts = list; commit(); $("#usNew").click(); renderUs(); flash("Userscript saved - it runs the next time those pages load");
+};
+
+/* ---------------------------------------------------------------- password leak check
+   k-anonymity: the password's SHA-1 is computed here; only its first 5 hex
+   characters go to api.pwnedpasswords.com, which answers with every leaked
+   hash that starts that way. The match is found on this computer. */
+async function pwLeaked(pw) {
+  const buf = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(pw));
+  const hex = [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("").toUpperCase();
+  const r = await fetch("https://api.pwnedpasswords.com/range/" + hex.slice(0, 5), { headers:{ "Add-Padding":"true" } });
+  if (!r.ok) throw new Error("service");
+  const line = (await r.text()).split(/\r?\n/).find(l => l.slice(0, 35) === hex.slice(5));
+  return line ? +line.split(":")[1] || 0 : 0;
+}
+$("#pwGo").onclick = async () => {
+  const pw = $("#pwCheck").value, out = $("#pwOut");
+  if (!pw) { out.textContent = "Type a password first."; return; }
+  out.style.color = "var(--dim)"; out.textContent = "Checking…";
+  try {
+    const n = await pwLeaked(pw);
+    out.style.color = n ? "var(--accent)" : "var(--good, #4ec98a)";
+    out.textContent = n ? "This password has appeared in " + n.toLocaleString() + " data breaches. Stop using it anywhere you do." : "Good news: this password is not in any known breach.";
+  } catch (e) { out.style.color = "var(--dim)"; out.textContent = "The check could not reach the service. Try again later."; }
+  $("#pwCheck").value = "";
+};
+$("#pwCheck").onkeydown = e => { if (e.key === "Enter") $("#pwGo").click(); };
+
+/* ---------------------------------------------------------------- keywords */
+function keywords() { return Array.isArray(cfg.keywords) ? cfg.keywords : KEYWORDS.slice(); }
+function renderKw() {
+  const box = $("#kwRows");
+  box.innerHTML = "";
+  const list = keywords();
+  chipList(box, list.map(k => [k.k + "  →  " + k.n, k.k]), key => {
+    cfg.keywords = keywords().filter(x => x.k !== key); commit(); renderKw();
+  }, "No keywords.");
+  box.classList.add("chips");
+}
+renderKw();
+$("#kwAdd").onclick = () => {
+  const k = $("#kwK").value.trim().toLowerCase(), n = $("#kwN").value.trim(), u = $("#kwU").value.trim();
+  if (!/^[a-z0-9!]{1,12}$/.test(k)) { flash("A keyword is one short word"); return; }
+  if (!/^https?:\/\/.+%s/.test(u)) { flash("The address must start with https:// and contain %s"); return; }
+  cfg.keywords = keywords().filter(x => x.k !== k).concat([{ k, n:n || k, u }]);
+  $("#kwK").value = $("#kwN").value = $("#kwU").value = "";
+  commit(); renderKw();
+};
+$("#kwReset").onclick = () => { cfg.keywords = null; commit(); renderKw(); };
+
+/* ---------------------------------------------------------------- VPN */
+const COUNTRIES = [["", "Fastest (any country)"], ["us", "United States"], ["ca", "Canada"], ["gb", "United Kingdom"],
+  ["de", "Germany"], ["nl", "Netherlands"], ["fr", "France"], ["se", "Sweden"], ["ch", "Switzerland"], ["no", "Norway"],
+  ["fi", "Finland"], ["at", "Austria"], ["ro", "Romania"], ["pl", "Poland"], ["es", "Spain"], ["it", "Italy"],
+  ["ie", "Ireland"], ["jp", "Japan"], ["sg", "Singapore"], ["au", "Australia"], ["br", "Brazil"], ["in", "India"]];
+const PRESETS = {
+  "nord-us": { ptype:"socks5", phost:"us.socks.nordhold.net", pport:1080 },
+  "nord-nl": { ptype:"socks5", phost:"nl.socks.nordhold.net", pport:1080 },
+  "nord-se": { ptype:"socks5", phost:"se.socks.nordhold.net", pport:1080 },
+  "pia-nl":  { ptype:"socks5", phost:"proxy-nl.privateinternetaccess.com", pport:1080 }
+};
+function countryName(cc) {
+  if (!cc) return "";
+  const c = COUNTRIES.find(x => x[0] === cc.toLowerCase());
+  if (c) return c[1];
+  try { return new Intl.DisplayNames(["en"], { type:"region" }).of(cc.toUpperCase()); } catch (e) { return cc.toUpperCase(); }
+}
+$("#vpnCountry").innerHTML = COUNTRIES.map(c => '<option value="' + c[0] + '">' + esc(c[1]) + '</option>').join("");
+bindSelect("vpnCountry", "country", null, () => vcfg);
+bindSelect("vpnMode", "mode", paintVpnForm, () => vcfg);
+bindSwitch("vpnKill", () => vcfg, "kill");
+bindSwitch("vpnAuto", () => vcfg, "auto");
+$("#vpnSplit").value = vcfg.onlyMode ? "only" : "all";
+$("#vpnSplit").onchange = () => { vcfg.onlyMode = $("#vpnSplit").value === "only"; commitVpn(); renderVpnList(); };
+function fillProvider() {
+  $("#vpnType").value = vcfg.ptype || "socks5";
+  $("#vpnHost").value = vcfg.phost || "";
+  $("#vpnPort").value = vcfg.pport || 1080;
+  $("#vpnUser").value = vcfg.puser || "";
+}
+fillProvider();
+$("#vpnPreset").onchange = () => {
+  const p = PRESETS[$("#vpnPreset").value];
+  if (!p) return;
+  $("#vpnType").value = p.ptype; $("#vpnHost").value = p.phost; $("#vpnPort").value = p.pport;
+  flash("Now enter the username and password from your provider");
+};
+function saveProvider() {
+  const host = $("#vpnHost").value.trim().replace(/^[a-z]+:\/\//i, "").replace(/\/.*$/, "");
+  const port = +$("#vpnPort").value;
+  if (!host) { flash("Enter the server address"); return false; }
+  if (!(port > 0 && port < 65536)) { flash("The port is a number from 1 to 65535"); return false; }
+  vcfg.ptype = $("#vpnType").value; vcfg.phost = host; vcfg.pport = port; vcfg.puser = $("#vpnUser").value.trim();
+  vcfg.mode = "proxy";
+  $("#vpnMode").value = "proxy";
+  const pw = $("#vpnPass").value;
+  if (pw) { send("vpn-pass", pw); $("#vpnPass").value = ""; }
+  commitVpn(false);
+  paintVpnForm();
+  return true;
+}
+$("#vpnSave").onclick = () => { if (saveProvider()) flash("Saved"); };
+$("#vpnTest").onclick = () => { if (saveProvider()) { send("vpn-connect", "proxy"); flash("Connecting…"); } };
+function paintVpnForm() {
+  const proxy = vcfg.mode === "proxy";
+  $("#vpnProvider").classList.toggle("hidden", !proxy);
+  $("#vpnCountryRow").classList.toggle("hidden", proxy);
+}
+paintVpnForm();
+function listKey() { return vcfg.onlyMode ? "only" : "bypass"; }
+function renderVpnList() {
+  $("#vpnListNote").textContent = vcfg.onlyMode
+    ? "Only these sites (and their subdomains) go through the VPN. Everything else uses your normal connection."
+    : "These sites (and their subdomains) never use the VPN. Everything else does.";
+  const k = listKey();
+  chipList($("#vpnList"), (vcfg[k] || []).map(h => [h, h]), h => { vcfg[k] = vcfg[k].filter(x => x !== h); commitVpn(); renderVpnList(); });
+}
+renderVpnList();
+$("#vpnListAdd").onclick = () => {
+  let v = $("#vpnListIn").value.trim().toLowerCase();
+  try { if (/^[a-z]+:\/\//.test(v)) v = new URL(v).hostname; } catch (e) {}
+  v = v.replace(/^www\./, "").replace(/\/.*$/, "");
+  if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(v)) { flash("That is not a site address"); return; }
+  const k = listKey();
+  vcfg[k] = [...new Set([...(vcfg[k] || []), v])];
+  $("#vpnListIn").value = "";
+  commitVpn(); renderVpnList();
+};
+$("#vpnListIn").onkeydown = e => { if (e.key === "Enter") $("#vpnListAdd").click(); };
+let vst = { state:"off" };
+function fmt(b) { b = +b || 0; return b < 1048576 ? Math.round(b / 1024) + " KB" : b < 1073741824 ? (b / 1048576).toFixed(1) + " MB" : (b / 1073741824).toFixed(2) + " GB"; }
+function paintVpn() {
+  const on = vst.state === "on", busy = vst.state === "connecting";
+  $("#vpnState").className = "vstate " + (vst.state || "off");
+  $("#vpnTitle").textContent = on ? "VPN is on" : busy ? "Connecting… " + (vst.progress || 0) + "%" : vst.state === "error" ? "VPN is not connected" : "VPN is off";
+  $("#vpnNote").textContent = on ? "Sites see " + (vst.ip || "the VPN's address") + (vst.country ? " in " + countryName(vst.country) : "") + (vst.mode === "tor" ? " (through Tor)" : " (through " + (vst.phost || "your provider") + ")")
+    : busy ? (vst.msg || "Starting") : vst.state === "error" ? (vst.msg || "Could not connect.") : "Sites see your real address.";
+  $("#vpnGo").textContent = on || busy ? "Disconnect" : "Connect";
+  $("#vpnPassNote").textContent = vst.pass ? "A password is saved (encrypted with your Windows account). Type a new one to replace it."
+    : "The password is encrypted with your Windows account and never leaves this computer.";
+  $("#vpnPass").placeholder = vst.pass ? "Saved" : "Not saved";
+  $("#vpnFoot").innerHTML = "<span>" + (vst.tor ? "Tor is installed." : "Tor is downloaded the first time you use the free VPN.") +
+    (on ? " · <b>" + fmt(vst.down) + "</b> down, <b>" + fmt(vst.up) + "</b> up through the VPN" : "") + "</span>";
+}
+$("#vpnGo").onclick = () => {
+  if (vst.state === "on" || vst.state === "connecting") { send("vpn-connect", "off"); return; }
+  if (vcfg.mode === "proxy" && !vcfg.phost) { flash("Enter your provider's server first"); return; }
+  send("vpn-connect", vcfg.mode === "proxy" ? "proxy" : "tor");
+};
+send("vpn-status");
+setInterval(() => { if (!document.hidden) send("vpn-status"); }, 3000);
+
+/* ---------------------------------------------------------------- downloads */
+function paintDl(dir) { $("#dlDir").textContent = cfg.dldir || dir || "Your Downloads folder"; }
+paintDl();
+send("dl-folder");
+$("#dlPick").onclick = () => send("pick-folder", "dl", cfg.dldir || "");
+$("#dlReset").onclick = () => { cfg.dldir = ""; commit(); send("dl-folder"); };
+
+/* ---------------------------------------------------------------- extensions */
+let exts = [];
+function renderExt() {
+  const box = $("#extRows");
+  box.innerHTML = "";
+  exts.forEach(x => {
+    const r = document.createElement("div");
+    r.className = "ext";
+    r.innerHTML = '<div class="txt"><b></b><span></span></div>' +
+      (x.options ? '<button class="act" data-a="opt">Options</button>' : "") +
+      (x.popup ? '<button class="act" data-a="pop">Open</button>' : "") +
+      '<button class="act warn" data-a="rm">Remove</button><div class="sw' + (x.on ? " on" : "") + '"><i></i></div>';
+    r.querySelector("b").textContent = x.name;
+    r.querySelector("span").textContent = (x.version ? "Version " + x.version + " · " : "") + (x.on ? "On" : "Off");
+    r.querySelector(".sw").onclick = () => send("ext-toggle", x.id, x.on ? 0 : 1);
+    r.querySelector('[data-a="rm"]').onclick = () => { if (confirm("Remove " + x.name + "?")) send("ext-remove", x.id); };
+    const o = r.querySelector('[data-a="opt"]'); if (o) o.onclick = () => send("ext-open", x.id, x.options);
+    const pp = r.querySelector('[data-a="pop"]'); if (pp) pp.onclick = () => send("ext-open", x.id, x.popup);
+    box.appendChild(r);
+  });
+  if (!exts.length) box.innerHTML = '<div class="ext"><div class="txt"><span>No extensions yet.</span></div></div>';
+}
+renderExt();
+send("ext-list");
+$("#extAdd").onclick = () => {
+  const u = $("#extUrl").value.trim();
+  if (!u) { flash("Paste the Chrome Web Store address first"); return; }
+  $("#extNote").textContent = "Downloading from the Chrome Web Store…";
+  send("ext-add-store", u);
+};
+$("#extFolder").onclick = () => send("ext-add-folder");
+
+/* ---------------------------------------------------------------- theme editor
+   Eight colors: backgrounds from darkest to lightest, lines, text, and two quieter texts. */
+const CT_KEYS = [["bg", "Page background"], ["bg2", "Panels and toolbar"], ["bg3", "Buttons and fields"], ["bg4", "Hover"], ["line", "Lines"], ["fg", "Text"], ["dim", "Quieter text"], ["dim2", "Quietest text"]];
+const CT_DEF = ["#16131a", "#1e1a24", "#272230", "#302a3a", "#322c3c", "#f3eff1", "#9a91a3", "#6f6779"];
+const PACK_COLORS = { midnight:["#0e1220","#151a2c","#1d2338","#262d46","#28304a","#e8ecf6","#98a2bd","#6b7593"], forest:["#0f1612","#151f19","#1c2a21","#24352a","#26372c","#e6f0e8","#93a898","#6a7f6f"],
+  ocean:["#0b1519","#102026","#152a31","#1b353e","#1d3942","#e3f1f4","#8fb0b8","#658891"], rose:["#1a1216","#22181d","#2d2027","#382830","#3a2931","#f6ecf0","#b5979f","#85707a"],
+  mono:["#141414","#1c1c1c","#252525","#2e2e2e","#303030","#efefef","#a0a0a0","#707070"], coffee:["#17120e","#201913","#2a2119","#34291f","#372b21","#f3ebe3","#aa9886","#7d6d5e"],
+  amoled:["#000000","#0b0b0d","#151518","#1e1e22","#222226","#f2f2f2","#9a9aa2","#6a6a72"] };
+const goodCT = a => Array.isArray(a) && a.length === 8 && a.every(c => /^#[0-9a-f]{6}$/i.test(c));
+function ctColors() { return goodCT(cfg.customTheme) ? cfg.customTheme.slice() : (PACK_COLORS[cfg.pack] || CT_DEF).slice(); }
+function ctPreview(c) {
+  const p = $("#ctPrev"); p.style.background = c[0];
+  p.querySelector(".cp-tab").style.cssText += ";background:" + c[1] + ";color:" + c[5];
+  p.querySelector(".cp-tab2").style.color = c[6];
+  p.querySelector(".cp-bar").style.background = c[1];
+  p.querySelector(".cp-fg").style.color = c[5]; p.querySelector(".cp-dim").style.color = c[6]; p.querySelector(".cp-dim2").style.color = c[7];
+  const cd = p.querySelector(".cp-card"); cd.style.background = c[2]; cd.style.borderColor = c[4]; cd.style.color = c[5];
+}
+let ctT = 0;
+function ctApply(c) {
+  cfg.customTheme = c; cfg.pack = "custom"; $("#pack").value = "custom";
+  ctPreview(c);
+  clearTimeout(ctT); ctT = setTimeout(() => { commit(false); document.dispatchEvent(new Event("wsb-pack")); }, 250);
+}
+function ctRender() {
+  const c = ctColors(), g = $("#ctGrid"); g.innerHTML = "";
+  CT_KEYS.forEach(([k, label], i) => {
+    const l = document.createElement("label"); l.textContent = label;
+    const inp = document.createElement("input"); inp.type = "color"; inp.value = c[i]; inp.style.height = "34px";
+    inp.oninput = () => { const cc = ctColors(); cc[i] = inp.value; ctApply(cc); };
+    l.appendChild(inp); g.appendChild(l);
+  });
+  ctPreview(c);
+}
+$("#ctEdit").onclick = () => { const b = $("#ctBox"); b.classList.toggle("hidden"); if (!b.classList.contains("hidden")) ctRender(); };
+$("#ctFrom").onclick = () => { const c = (PACK_COLORS[cfg.pack] || CT_DEF).slice(); ctApply(c); ctRender(); };
+$("#ctSave").onclick = () => send("save-text", "webs-theme.json", JSON.stringify({ app:"Webs Browser theme", colors:ctColors(), accent:cfg.accent || "" }, null, 1));
+$("#ctOpen").onclick = () => send("open-text", "theme", "Webs Browser theme|*.json");
+function importTheme(text) {
+  let j = null; try { j = JSON.parse(text); } catch (e) {}
+  const c = j && (goodCT(j.colors) ? j.colors : goodCT(j) ? j : null);
+  if (!c) { flash("That file isn't a theme"); return; }
+  if (j.accent && /^#[0-9a-f]{6}$/i.test(j.accent)) cfg.accent = j.accent;
+  ctApply(c.map(x => x.toLowerCase())); ctRender(); $("#ctBox").classList.remove("hidden"); flash("Theme loaded");
+}
+document.querySelectorAll("[data-open]").forEach(b => b.onclick = () => send("go", "https://browser.example/" + b.dataset.open));
+
+/* ---------------------------------------------------------------- sunrise and sunset
+   The same sums as the browser's: where you are comes from the weather city
+   (Open-Meteo), otherwise 7:00 and 19:00. */
+function sunTimes(lat, lon, d) {
+  const rad = Math.PI / 180, n = Math.floor((d - new Date(d.getFullYear(), 0, 0)) / 864e5);
+  const g = 2 * Math.PI / 365 * (n - 1);
+  const eq = 229.18 * (0.000075 + 0.001868 * Math.cos(g) - 0.032077 * Math.sin(g) - 0.014615 * Math.cos(2 * g) - 0.040849 * Math.sin(2 * g));
+  const dec = 0.006918 - 0.399912 * Math.cos(g) + 0.070257 * Math.sin(g) - 0.006758 * Math.cos(2 * g) + 0.000907 * Math.sin(2 * g) - 0.002697 * Math.cos(3 * g) + 0.00148 * Math.sin(3 * g);
+  const c = (Math.cos(90.833 * rad) / (Math.cos(lat * rad) * Math.cos(dec))) - Math.tan(lat * rad) * Math.tan(dec);
+  if (c > 1) return null; if (c < -1) return { rise:0, set:1440 };
+  const ha = Math.acos(c) / rad, tz = -d.getTimezoneOffset();
+  return { rise:720 - 4 * (lon + ha) - eq + tz, set:720 - 4 * (lon - ha) - eq + tz };
+}
+function sunTheme() {
+  const loc = get("sunLoc", null), d = new Date(), m = d.getHours() * 60 + d.getMinutes();
+  const st = loc && typeof loc.lat === "number" ? sunTimes(loc.lat, loc.lon, d) : null;
+  const rise = st ? st.rise : 420, set = st ? st.set : 1140;
+  return m >= rise && m < set ? "light" : "dark";
+}
+
+/* ---------------------------------------------------------------- data saver sites */
+function renderSaver() {
+  chipList($("#saverList"), (cfg.saverAllow || []).map(h => [h, h]), h => { cfg.saverAllow = cfg.saverAllow.filter(x => x !== h); commit(); renderSaver(); }, "None. Add one from the command palette on that site.");
+}
+renderSaver();
+
+/* ---------------------------------------------------------------- family safety
+   The PIN is kept only as a salted SHA-256 hash. */
+let famOpen = false;
+async function pinHash(pin, salt) {
+  const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(salt + ":" + pin));
+  return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, "0")).join("");
+}
+function fam() { return cfg.family && cfg.family.on ? cfg.family : null; }
+function renderFamily() {
+  const f = fam();
+  $("#famOffRow").classList.toggle("hidden", !!f);
+  $("#famLocked").classList.toggle("hidden", !f || famOpen);
+  $("#famEdit").classList.toggle("hidden", !f || !famOpen);
+  if (f && famOpen) {
+    $("#famMins").value = String(f.mins || 0);
+    chipList($("#famList"), (f.sites || []).map(h => [h, h]), h => { f.sites = f.sites.filter(x => x !== h); commit(); renderFamily(); }, "No sites blocked.");
+  }
+}
+$("#famSetup").onclick = async () => {
+  const a = prompt("Choose a PIN (4 to 12 digits) for Family safety"); if (a == null) return;
+  if (!/^\d{4,12}$/.test(a)) { alert("The PIN must be 4 to 12 digits."); return; }
+  const b = prompt("Type the PIN again"); if (b !== a) { alert("The two PINs were different. Nothing was changed."); return; }
+  const salt = [...crypto.getRandomValues(new Uint8Array(8))].map(x => x.toString(16).padStart(2, "0")).join("");
+  cfg.family = { on:true, salt, pin:await pinHash(a, salt), sites:[], mins:0 };
+  famOpen = true; commit(); renderFamily();
+};
+$("#famUnlock").onclick = async () => {
+  const f = fam(); if (!f) return;
+  if (await pinHash($("#famPin").value, f.salt) === f.pin) { famOpen = true; $("#famPin").value = ""; renderFamily(); }
+  else { $("#famPin").value = ""; flash("Wrong PIN"); }
+};
+$("#famPin").onkeydown = e => { if (e.key === "Enter") $("#famUnlock").click(); };
+$("#famMins").onchange = () => { const f = fam(); if (f && famOpen) { f.mins = +$("#famMins").value; commit(); } };
+$("#famAddBtn").onclick = () => {
+  const f = fam(); if (!f || !famOpen) return;
+  let h = $("#famAdd").value.trim().toLowerCase(); try { if (/^https?:/.test(h)) h = new URL(h).hostname; } catch (e) {}
+  h = h.replace(/^www\./, "").replace(/\/.*$/, "");
+  if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(h)) { flash("Type a site like example.com"); return; }
+  f.sites = (f.sites || []).filter(x => x !== h).concat([h]); $("#famAdd").value = ""; commit(); renderFamily();
+};
+$("#famOff").onclick = () => { if (!confirm("Turn off Family safety?")) return; cfg.family = { on:false }; famOpen = false; commit(); renderFamily(); };
+renderFamily();
+
+/* ---------------------------------------------------------------- automatic backup */
+function paintBkAuto() {
+  $("#bkAuto").value = String(cfg.backupAuto || 0);
+  const last = get("backupLast", null);
+  $("#bkAutoNote").textContent = !cfg.backupDir ? "A backup file in a folder you choose, so nothing is lost if Windows is reinstalled. The last five are kept. Choose a folder first."
+    : "To " + cfg.backupDir + (last ? " · last " + (last.ok ? "backed up " : "tried ") + new Date(last.ts).toLocaleString() + (last.ok ? "" : " (" + last.msg + ")") : "");
+  $("#bkNow").disabled = !cfg.backupDir;
+}
+$("#bkAuto").onchange = () => { cfg.backupAuto = +$("#bkAuto").value; commit(); paintBkAuto(); if (cfg.backupAuto && !cfg.backupDir) send("pick-folder", "backup", ""); };
+$("#bkDir").onclick = () => send("pick-folder", "backup", cfg.backupDir || "");
+// the browser window writes it (a page cannot write files by itself)
+$("#bkNow").onclick = () => { put("backupReq", Date.now()); flash("Backing up…"); };
+paintBkAuto();
+
+/* ---------------------------------------------------------------- backup */
+const BACKUP_KEYS = ["settings","shield","vpn","bookmarks","history","sessions","notes","reading","panels","watch","zooms","tiles","hidden","stats","closed","todo","screentime","groups","workspaces","highlights","offline","watched","intros","rates","collections","game","games","follows","stickies","habits","events","ntpNote","scratch","ach","counts","watchHist"];
+function stamp() { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+$("#bkSave").onclick = () => {
+  const data = { app:"Webs Browser", version:1, saved:new Date().toISOString(), data:{} };
+  BACKUP_KEYS.forEach(k => { const v = localStorage.getItem("wsb." + k); if (v != null) data.data[k] = JSON.parse(v); });
+  send("save-text", "webs-browser-backup-" + stamp() + ".json", JSON.stringify(data, null, 1));
+};
+$("#bkLoad").onclick = () => send("open-text", "backup", "Webs Browser backup|*.json");
+$("#bmExport").onclick = () => {
+  const marks = get("bookmarks", []);
+  const lines = ["<!DOCTYPE NETSCAPE-Bookmark-file-1>", '<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">',
+    "<TITLE>Bookmarks</TITLE>", "<H1>Bookmarks</H1>", "<DL><p>",
+    '    <DT><H3 PERSONAL_TOOLBAR_FOLDER="true">Webs Browser</H3>', "    <DL><p>"];
+  marks.forEach(m => lines.push('        <DT><A HREF="' + esc(m.u) + '" ADD_DATE="' + Math.round((m.ts || Date.now()) / 1000) + '">' + esc(m.t || m.u) + "</A>"));
+  lines.push("    </DL><p>", "</DL><p>");
+  send("save-text", "bookmarks-" + stamp() + ".html", lines.join("\n"));
+};
+$("#bmImport").onclick = () => send("open-text", "bmhtml", "Bookmarks file|*.html;*.htm");
+function restoreBackup(text) {
+  let b;
+  try { b = JSON.parse(text); } catch (e) { flash("That file is not a Webs Browser backup"); return; }
+  if (!b || b.app !== "Webs Browser" || !b.data) { flash("That file is not a Webs Browser backup"); return; }
+  const keys = Object.keys(b.data).filter(k => BACKUP_KEYS.includes(k));
+  if (!confirm("Restore this backup from " + new Date(b.saved).toLocaleString() + "?\n\nIt replaces your current " + keys.join(", ") + ".")) return;
+  keys.forEach(k => put(k, b.data[k]));
+  send("settings-changed");
+  flash("Restored. Settings, bookmarks and history are back.");
+  setTimeout(() => location.reload(), 900);
+}
+function importBookmarkHtml(text) {
+  const doc = new DOMParser().parseFromString(text, "text/html");
+  const marks = get("bookmarks", []);
+  const have = new Set(marks.map(m => m.u));
+  let n = 0;
+  doc.querySelectorAll("a[href]").forEach(a => {
+    const u = a.getAttribute("href");
+    if (!/^https?:/i.test(u) || have.has(u)) return;
+    marks.push({ u, t:(a.textContent || "").trim() || u, ts:(+a.getAttribute("add_date") || 0) * 1000 || Date.now() });
+    have.add(u); n++;
+  });
+  put("bookmarks", marks);
+  send("settings-changed");
+  flash(n ? "Imported " + n + " bookmark" + (n === 1 ? "" : "s") : "No new bookmarks in that file");
+}
+
+/* ---------------------------------------------------------------- stats */
+function paintStats() {
+  const st = Object.assign({ blocked:0, popups:0, since:Date.now() }, get("stats", {}));
+  $("#shStats").innerHTML = "<span><b>" + st.blocked.toLocaleString() + "</b> ads and trackers and <b>" +
+    st.popups.toLocaleString() + "</b> popups blocked since " +
+    new Date(st.since).toLocaleDateString(undefined, { year:"numeric", month:"long", day:"numeric" }) + "</span>";
+}
+paintStats();
+
+/* ---------------------------------------------------------------- filter lists */
+let status = null;
+function ago(ms) {
+  if (!ms) return "";
+  const s = (Date.now() - ms) / 1000;
+  if (s < 90) return "just now";
+  if (s < 3600) return Math.round(s / 60) + " min ago";
+  if (s < 86400 * 2) return Math.round(s / 3600) + " h ago";
+  return Math.round(s / 86400) + " days ago";
+}
+function listOn(l) { return l.builtin ? true : (sh.lists && l.id in sh.lists ? !!sh.lists[l.id] : l.on); }
+function renderLists() {
+  const box = $("#listRows");
+  if (!status) { box.innerHTML = '<div class="list"><div class="txt"><span>Loading…</span></div></div>'; return; }
+  box.innerHTML = "";
+  let group = "";
+  status.lists.forEach(l => {
+    if (l.group !== group) { group = l.group; box.appendChild(Object.assign(document.createElement("div"), { className:"grp", textContent:group })); }
+    const r = document.createElement("div");
+    r.className = "list";
+    const on = listOn(l);
+    let meta = "", cls = "meta";
+    if (l.busy) { meta = "Downloading…"; cls += " busy"; }
+    else if (l.error && on) { meta = "Update failed"; cls += " err"; }
+    else if (on && l.rules) meta = l.rules.toLocaleString() + " rules" + (l.updated ? " · " + ago(l.updated) : "");
+    else if (on && !l.cached) meta = "Not downloaded yet";
+    r.innerHTML = '<div class="txt"><b>' + esc(l.title) + '</b><span>' + esc(l.about) + '</span></div>' +
+      '<div class="' + cls + '" title="' + esc(l.error || "") + '">' + esc(meta) + '</div>' +
+      '<div class="sw' + (on ? " on" : "") + (l.builtin ? " dis" : "") + '"><i></i></div>';
+    if (!l.builtin) r.querySelector(".sw").onclick = () => {
+      sh.lists = Object.assign({}, sh.lists, { [l.id]: !on });
+      if (l.id === "cookies") sh.cookies = !on;
+      commitShield();
+      renderLists();
+      bindCookieSwitch();
+    };
+    box.appendChild(r);
+  });
+  const total = status.net + status.cos;
+  $("#listSum").innerHTML = status.updating ? "Checking for updates…" :
+    "<b>" + total.toLocaleString() + "</b> rules active" + (status.ms ? " · compiled in " + status.ms + " ms" : "") +
+    (status.checked ? " · checked " + ago(status.checked) : "");
+  $("#updNow").disabled = !!status.updating;
+}
+function bindCookieSwitch() { $("#shCookies").classList.toggle("on", !!sh.cookies); }
+let poll = 0;
+if (wv) wv.addEventListener("message", e => {
+  const p = String(e.data).split(S);
+  switch (p[0]) {
+    case "shield-status":
+      try { status = JSON.parse(p[1]); } catch (x) { return; }
+      renderLists();
+      clearTimeout(poll);
+      if (status.updating || status.lists.some(l => l.busy)) poll = setTimeout(() => send("shield-status"), 1200);
+      break;
+    case "import-result": imported(p[1], p[2]); break;
+    case "default-status": defaultStatus(p[1] === "1", p[2] === "1"); break;
+    case "vpn-status": try { vst = JSON.parse(p[1]); } catch (x) {} paintVpn(); break;
+    case "ext-list": try { exts = JSON.parse(p[1]); } catch (x) { exts = []; } renderExt(); break;
+    case "ext-done": $("#extNote").textContent = "Added " + p[1] + "."; $("#extUrl").value = ""; break;
+    case "ext-error": $("#extNote").textContent = p[1]; break;
+    case "dl-folder": paintDl(p[1]); break;
+    case "folder-picked": if (p[1] === "dl") { cfg.dldir = p[2]; commit(); paintDl(); } else if (p[1] === "backup" && p[2]) { cfg.backupDir = p[2]; commit(); paintBkAuto(); } else if (p[1] === "sync" && p[2]) { cfg.syncDir = p[2]; commit(); paintSync(); put("syncReq", Date.now()); } break;
+    case "bg-picked": cfg.bg = p[1]; commit(); paintBg(); flash("Background set - open a new tab to see it"); break;
+    case "slides-added": {
+      const L = (Array.isArray(cfg.slides) ? cfg.slides : []).slice();
+      String(p[1] || "").split("\n").forEach(x => { if (/^user\/slides\/s\d+\.[a-z0-9]+$/.test(x) && L.indexOf(x) < 0) L.push(x); });
+      cfg.slides = L.slice(-200); commit(); paintBg(); flash("Added to the slideshow"); break;
+    }
+    case "file-text":
+      if (p[1] === "backup") restoreBackup(p[2]);
+      else if (p[1] === "bmhtml") importBookmarkHtml(p[2]);
+      else if (p[1] === "theme") importTheme(p[2]);
+      break;
+    case "file-error": flash("Could not read the file: " + p[2]); break;
+  }
+});
+
+/* ---------------------------------------------------------------- default browser
+   Windows lets no program make itself the default. The button registers this
+   browser with Windows and opens the Settings page where "Set default" is one
+   click away; the status is re-checked whenever this page is looked at again. */
+function defaultStatus(isDefault, registered) {
+  $("#defTitle").textContent = isDefault ? "Webs Browser is your default browser" : "Webs Browser is not your default browser";
+  $("#defNote").textContent = isDefault
+    ? "Links from other programs open here."
+    : "Links from other programs open in another browser. The button opens Windows Settings - press “Set default” at the top.";
+  $("#defBtn").textContent = isDefault ? "Open Windows settings" : "Make default";
+}
+$("#defNote").textContent = "Checking…";
+$("#defBtn").onclick = () => send("default-browser");
+send("default-status");
+document.addEventListener("visibilitychange", () => { if (!document.hidden) { send("default-status"); send("ext-list"); } });
+addEventListener("focus", () => send("default-status"));
+$("#updNow").onclick = () => { send("shield-update"); setTimeout(() => send("shield-status"), 300); flash("Checking for updates"); };
+send("shield-status");
+setInterval(() => { if (!document.hidden) send("shield-status"); }, 15000);
+
+/* ---------------------------------------------------------------- my filters */
+$("#custom").value = sh.custom || "";
+function customNote() {
+  const n = ($("#custom").value.split("\n").filter(l => l.trim() && !/^\s*!/.test(l))).length;
+  $("#customNote").textContent = n ? n + " rule" + (n === 1 ? "" : "s") : "";
+}
+customNote();
+$("#custom").oninput = customNote;
+$("#customSave").onclick = () => { sh.custom = $("#custom").value; commitShield(); flash("Filters saved"); };
+
+/* ---------------------------------------------------------------- allowlist */
+function renderAllow() {
+  chipList($("#allowList"), (sh.allow || []).map(h => [h, h]), h => { sh.allow = sh.allow.filter(x => x !== h); commitShield(); renderAllow(); });
+}
+$("#allowAdd").onclick = () => {
+  let v = $("#allowIn").value.trim().toLowerCase();
+  try { if (/^[a-z]+:\/\//.test(v)) v = new URL(v).hostname; } catch (e) {}
+  v = v.replace(/^www\./, "").replace(/\/.*$/, "");
+  if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(v)) { flash("That is not a site address"); return; }
+  sh.allow = [...new Set([...(sh.allow || []), v])];
+  $("#allowIn").value = "";
+  commitShield(); renderAllow();
+};
+$("#allowIn").onkeydown = e => { if (e.key === "Enter") $("#allowAdd").click(); };
+renderAllow();
+
+/* ---------------------------------------------------------------- privacy */
+$("#clearsite").onclick = () => {
+  if (!confirm("Clear cookies, cache and site storage?\n\nYou will be signed out of sites. History, bookmarks and settings are kept.")) return;
+  send("clear-data");
+  flash("Cleared");
+};
+$("#clearall").onclick = () => {
+  if (!confirm("Erase all history, bookmarks and download records?\n\nThis cannot be undone.")) return;
+  ["history","bookmarks","downloads","closed","session","icons","hidden","watch","art","screentime","clips"].forEach(k => localStorage.removeItem("wsb." + k));
+  send("settings-changed");
+  flash("Erased");
+};
+
+/* ---------------------------------------------------------------- import */
+document.querySelectorAll("[data-imp]").forEach(b => b.onclick = () => {
+  $("#impNote").textContent = "Reading " + b.textContent + " bookmarks…";
+  send("import", b.dataset.imp);
+});
+function imported(which, json) {
+  let r;
+  try { r = JSON.parse(json); } catch (e) { r = { error:"unreadable" }; }
+  const name = { chrome:"Chrome", edge:"Edge", brave:"Brave" }[which] || which;
+  if (r.error) {
+    $("#impNote").textContent = r.error === "not-found" ? name + " does not seem to be installed (no bookmarks file found)." :
+      "Could not read " + name + "'s bookmarks: " + r.error;
+    return;
+  }
+  const marks = get("bookmarks", []);
+  const have = new Set(marks.map(m => m.u));
+  let n = 0;
+  r.items.forEach(it => { if (!have.has(it.u)) { marks.push({ u:it.u, t:it.t, ts:Date.now() }); have.add(it.u); n++; } });
+  put("bookmarks", marks);
+  send("settings-changed");
+  $("#impNote").textContent = n ? "Imported " + n + " bookmark" + (n === 1 ? "" : "s") + " from " + name + "." :
+    "Nothing new to import from " + name + " (" + r.items.length + " already here).";
+}
+
+addEventListener("storage", e => {
+  if (e.key === "wsb.stats") paintStats();
+  if (e.key === "wsb.settings") { cfg = Object.assign({}, DEF, get("settings", {})); renderSiteLists(); paintBg(); renderSaver(); renderFamily(); paintBkAuto(); }
+  if (e.key === "wsb.backupLast") paintBkAuto();
+  if (e.key === "wsb.syncLast") paintSync();
+  if (e.key === "wsb.zooms") renderSiteLists();
+  if (e.key === "wsb.vpn") { vcfg = Object.assign({}, DEFVPN, get("vpn", {})); $("#vpnMode").value = vcfg.mode; $("#vpnCountry").value = vcfg.country; $("#dns").value = vcfg.dns; paintVpnForm(); renderVpnList(); }
+  if (e.key === "wsb.shield") {
+    sh = Object.assign({}, DEFSH, get("shield", {}));
+    if (document.activeElement !== $("#custom")) { $("#custom").value = sh.custom || ""; customNote(); }
+    renderAllow(); renderLists();
+    ["shOn","shPopups","shYt","shCosmetic","shClean","shGpc","shCookies"].forEach(id => {
+      const k = { shOn:"on", shPopups:"popups", shYt:"yt", shCosmetic:"cosmetic", shClean:"clean", shGpc:"gpc", shCookies:"cookies" }[id];
+      $("#" + id).classList.toggle("on", !!sh[k]);
+    });
+  }
+});
+if (location.hash) setTimeout(() => { const n = document.getElementById(location.hash.slice(1)); if (n) n.scrollIntoView(); }, 50);
+</script>

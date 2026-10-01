@@ -2,7 +2,7 @@
 
 Webs Browser comes in two versions:
 
-- **Windows**: the full browser, in `WebStudiosBrowser (1).zip` (open its `README.txt`).
+- **Windows**: the full browser, in `WebStudiosBrowser-3.0.zip` (open its `README.txt`). Version 3.0 adds 150 features: 32 address bar answers, 27 search bangs and 6 more engines, tab tools, over 40 page tools, 13 sidebar tools, new tab widgets and live wallpapers, and 8 more games. `windows/` shows how it was built. `WebStudiosBrowser (1).zip` is an older version.
 - **iPhone and iPad**: a web app that you add to your Home Screen. It opens full screen with its own icon, like a normal app, and keeps working offline. It runs from the files in this repository (`index.html` and the others listed below).
 
 ## Put the iPhone app online
