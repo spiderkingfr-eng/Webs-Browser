@@ -63,7 +63,7 @@ function resolve(q) {
     const kw = keywordFor(q);
     if (kw) return kw.k.u.replace("%s", encodeURIComponent(kw.rest));
   }
-  return eng.url + encodeURIComponent(q);
+  return eng.tpl ? eng.tpl.replace("%s", encodeURIComponent(q)) : eng.url + encodeURIComponent(q);   // tpl: your own engines with %s in the middle
 }
 const isSearchUrl = u => Object.keys(ENGINES).some(k => u.indexOf(ENGINES[k].url) === 0);
 
@@ -450,6 +450,7 @@ setInterval(() => {
   save("timers", list.filter(t => t.end > now));
   due.forEach(t => {
     ring();
+    if (typeof timerDone === "function") timerDone(t);   // a notification, achievements (extras.js)
     if (t.pomo) {
       // Pomodoro: 25 minutes of focus, then a 5 minute break (15 after every fourth).
       const brk = t.label === "Focus", n = t.pomo;

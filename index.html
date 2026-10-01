@@ -17,12 +17,17 @@
 <link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="fx.css">
 <script>
   // The theme is set before the first paint, so the page never flashes the wrong colors.
   (function () {
     var s = {}; try { s = JSON.parse(localStorage.getItem("wsb.settings") || "{}"); } catch (e) {}
     var t = s.theme === "light" || s.theme === "dark" ? s.theme : (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
-    document.documentElement.dataset.theme = t;
+    var r = document.documentElement;
+    r.dataset.theme = t; r.dataset.motion = s.motion || ""; r.dataset.font = s.font || ""; r.dataset.ts = s.textSize || "";
+    var P = { midnight:"#0e1220", forest:"#0f1612", ocean:"#0b1519", rose:"#1a1216", mono:"#141414", coffee:"#17120e", amoled:"#000000" };
+    if (t === "dark" && P[s.pack]) r.style.setProperty("--bg", P[s.pack]);
+    try { if (localStorage.getItem("wsb.mlock")) r.classList.add("locked"); } catch (e) {}
   })();
 </script>
 </head>
@@ -39,12 +44,15 @@
   </defs>
 </svg>
 
+<!-- the launch animation; it fades away on its own -->
+<div id="splash" aria-hidden="true"><div class="in"><svg class="mark"><use href="#logo"/></svg><b>Webs</b></div></div>
 <div id="app">
   <main id="view">
     <!-- the start page (a new tab) -->
     <section id="home" class="page" aria-label="Start page">
       <div id="bgl"></div>
       <div id="seam"><u></u><i></i></div>
+      <div id="ptr" aria-hidden="true"><span></span></div>
       <div class="wrap">
         <button id="wx" class="chip" type="button">+ Add weather</button>
         <div class="hero">
@@ -52,20 +60,28 @@
           <div id="clock" class="hide"></div>
           <h1 id="greet"></h1>
           <div id="date"></div>
+          <button type="button" id="streak" class="hide"></button>
           <p class="private-note hide" id="privNote">Private tab. Pages you open here are not saved to your history, and search suggestions are off.</p>
-          <button id="heroSearch" type="button" aria-label="Search the web, or type a URL">
-            <span class="eng" id="engBadge">D</span>
-            <span class="ph">Search or type a URL</span>
-            <span class="go"></span>
-          </button>
+          <div class="hsw">
+            <button id="heroSearch" type="button" aria-label="Search the web, or type a URL">
+              <span class="eng" id="engBadge" role="button" aria-label="Change search engine">D</span>
+              <span class="ph">Search or type a URL</span>
+              <span class="go"></span>
+            </button>
+            <button type="button" id="heroMic" aria-label="Search by voice"></button>
+          </div>
         </div>
 
         <section id="timerSec" class="hide"><div class="lbl"><span>Timers</span></div><div class="card" id="timers"></div></section>
+
+        <section id="focusSec" class="wsec"><div class="lbl"><span>Today's focus</span></div><div id="focusBox"></div></section>
 
         <section id="topSec">
           <div class="lbl"><span>Shortcuts</span><button type="button" id="tileEdit">Edit</button></div>
           <div id="grid"></div>
         </section>
+
+        <section id="contSec" class="wsec hide"><div class="lbl"><span>Continue where you left off</span></div><div class="card" id="cont"></div></section>
 
         <section id="recentSec" class="hide">
           <div class="lbl"><span>Jump back in</span><button type="button" data-open="history">History</button></div>
@@ -83,6 +99,17 @@
           <input id="todoNew" class="field" placeholder="Add a to-do" enterkeyhint="done" maxlength="200" autocomplete="off">
         </section>
 
+        <section id="cdSec" class="wsec hide"><div id="cdBox" class="wcard"></div></section>
+        <section id="quoteSec" class="wsec hide"><div class="lbl"><span>Quote of the day</span></div><div id="quoteBox" class="wcard"></div></section>
+        <section id="habitSec" class="wsec hide"><div class="lbl"><span>Habits</span></div><div id="habitBox" class="wcard"></div></section>
+        <section id="noteSec" class="wsec hide"><div class="lbl"><span>Quick note</span><button type="button" id="noteToNotes">Save to Notes</button></div>
+          <textarea id="quickNote" class="field" placeholder="Jot something down…" maxlength="5000"></textarea></section>
+        <section id="calSec" class="wsec hide"><div class="lbl"><span id="calTitle">Calendar</span></div><div id="calBox" class="wcard"></div></section>
+        <section id="wclockSec" class="wsec hide"><div class="lbl"><span>World clocks</span><button type="button" data-open="customize">Edit</button></div><div id="wclockBox" class="wcard"></div></section>
+        <section id="yearSec" class="wsec hide"><div id="yearBox" class="wcard"></div></section>
+        <section id="skySec" class="wsec hide"><div class="lbl"><span>Sky today</span></div><div id="skyBox" class="wcard"></div></section>
+        <section id="otdSec" class="wsec hide"><div class="lbl"><span>On this day</span><button type="button" id="otdMore">More</button></div><div id="otdBox" class="wcard"></div></section>
+
         <div id="tip" class="hide"><span class="tl">TIP</span><span id="tipT"></span><button type="button" id="tipNext">Next</button><button type="button" id="tipX" aria-label="Hide tips">&times;</button></div>
 
         <footer id="homeFoot">
@@ -90,6 +117,8 @@
           <button type="button" data-open="history">History</button>
           <button type="button" data-open="notes">Notes</button>
           <button type="button" data-act="games">Games</button>
+          <button type="button" data-open="tools">Tools</button>
+          <button type="button" data-open="insights">Insights</button>
           <button type="button" data-open="settings">Settings</button>
           <button type="button" data-open="customize">Customize</button>
         </footer>
@@ -100,6 +129,7 @@
     <div id="frames" class="page hide"></div>
     <div id="progress"></div>
     <div id="hint" class="hide" role="status"></div>
+    <button type="button" id="fsExit" class="hide" aria-label="Leave full screen"></button>
   </main>
 
   <nav id="bar" aria-label="Toolbar">
@@ -136,7 +166,10 @@
   <header>
     <h2 id="tabsTitle">Tabs</h2>
     <div class="seg" id="tabMode"><button type="button" data-v="0">Tabs</button><button type="button" data-v="1">Private</button></div>
+    <button type="button" class="hbtn plain" id="tabsMore" aria-label="More"></button>
   </header>
+  <div class="tsearch"><div class="search"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM16 16l4 4"/></svg>
+    <input type="search" id="tabQ" placeholder="Search tabs" autocomplete="off" autocapitalize="off" enterkeyhint="search"></div></div>
   <div id="tabGrid"></div>
   <footer>
     <button type="button" class="hbtn plain" id="closeAll">Close all</button>
@@ -153,10 +186,19 @@
 </div>
 
 <div id="toast" role="status" aria-live="polite"></div>
+<div id="offline" class="hide" role="status">You're offline. Webs, your notes and games still work.</div>
 <input type="file" id="fileIn" class="hide">
 
 <script src="js/core.js"></script>
 <script src="js/answers.js"></script>
 <script src="js/app.js"></script>
+<script src="js/qrcode.js"></script>
+<script src="js/fx.js"></script>
+<script src="js/widgets.js"></script>
+<script src="js/answers2.js"></script>
+<script src="js/library.js"></script>
+<script src="js/tools.js"></script>
+<script src="js/extras.js"></script>
+<script src="js/whatsnew.js"></script>
 </body>
 </html>

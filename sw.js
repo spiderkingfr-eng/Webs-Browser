@@ -4,8 +4,9 @@
    time; a new VERSION is picked up as a whole and the app offers to switch.
    Requests to other sites (weather, suggestions...) are never touched. */
 "use strict";
-const VERSION = "webs-1.0.0";
-const SHELL = ["./", "index.html", "app.css", "js/core.js", "js/answers.js", "js/app.js", "games.html", "manifest.webmanifest",
+const VERSION = "webs-2.0.0";
+const SHELL = ["./", "index.html", "app.css", "fx.css", "js/core.js", "js/answers.js", "js/app.js", "js/qrcode.js", "js/fx.js", "js/widgets.js", "js/answers2.js",
+  "js/library.js", "js/tools.js", "js/extras.js", "js/whatsnew.js", "games.html", "manifest.webmanifest",
   "icons/favicon.svg", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png", "icons/icon-maskable-192.png", "icons/icon-maskable-512.png"];
 
 self.addEventListener("install", e => {
@@ -16,6 +17,11 @@ self.addEventListener("activate", e => {
     .then(() => self.clients.claim()));
 });
 self.addEventListener("message", e => { if (e.data === "skip") self.skipWaiting(); });
+// a timer notification brings Webs back to the front
+self.addEventListener("notificationclick", e => {
+  e.notification.close();
+  e.waitUntil(self.clients.matchAll({ type:"window", includeUncontrolled:true }).then(list => list.length ? list[0].focus() : self.clients.openWindow("./")));
+});
 
 const shellPath = url => {
   const scope = self.registration.scope;

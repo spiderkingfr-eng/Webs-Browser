@@ -26,14 +26,33 @@ The app also shows these steps when you first open it in Safari.
 
 ## What it does
 
-- **Start page**: clock, greeting, weather, shortcuts (tap and hold one to edit it), "Jump back in", reading list, to-do, tip of the day, a seasonal effect, and your own background picture.
-- **Smart address bar**: the same instant answers as on Windows, including a calculator, units, currencies, time zones, dates, weather, word definitions, crypto prices, dice and passwords. Typing something like `timer 10 min` starts a timer. Bangs (`!g`, `!w`, `!br`…) and keywords (`yt`, `w`, `gh`…) work too, and search suggestions appear as you type.
-- **Tabs and private tabs**: private tabs keep no history.
-- **Library**: bookmarks, history and the reading list.
-- **Notes and games**: notes, plus the offline games (Web Runner, Snake, 2048, Daily word) with touch controls.
-- **Clean links and HTTPS first**: tracking parameters like `utm_`, `fbclid` and `gclid` are removed, and `http://` links are upgraded, before anything opens.
-- **Backups**: these use the same file format as the Windows version, so bookmarks, history, notes, to-dos and shortcuts can move either way. Make one in *Settings → Backup*, send it with AirDrop, iCloud Drive or email, and restore it on the other device.
-- **Looks**: dark, light or automatic theme, accent colors, and the address bar at the bottom or the top. It's laid out for iPhone screens, with a one-row toolbar on iPad and larger screens.
+Version 2.0 adds 150 new things. They're all listed in the app under *Menu → What's new*.
+
+- **Start page**: four clock styles (Classic, Big, Flip, Analog), the greeting and weather, today's focus, shortcuts (drag to reorder, emoji icons), "continue where you left off", "Jump back in", the reading list, to-do (star, edit, drag), and a countdown. Optional parts include a quote of the day, habits, a quick note, a calendar, world clocks, the year's progress, sunrise/sunset/moon, and Wikipedia's "On this day". Rearrange it all in *Customize*.
+- **Looks**: 8 live wallpapers, Wikipedia's picture of the day or your own picture (with parallax), seasonal effects, 7 dark color themes, any accent color, text size, fonts and a compact layout. Springy animations throughout; turn them off in *Settings → Appearance*.
+- **Smart address bar**: the instant answers from Windows (calculator, units, currencies, time zones, dates, weather, definitions, crypto, dice, passwords, timers) plus many more:
+  - Health and money: BMI, age, loans, compound interest, percent change.
+  - Text: word counts, change case, base64/URL encoding, roman numerals, Unix time, SHA hashes, lorem ipsum.
+  - Lookups: emoji, Wikipedia summaries, translation, your IP, a 7-day forecast.
+  - Quick actions: `note:` and `todo:` capture, "pick for me", days between dates, numbers in words, QR codes.
+  - Search: voice input, completion of sites you visit, recent searches, calculator history, your own search engines and keywords, and 40+ more bangs (`!yt`, `!gh`, `!wa`…).
+- **Tabs**:
+  - Normal and private tabs.
+  - Search, grid or list view, pin, duplicate, undo close, reopen closed, close others, sort by site.
+  - Saved tab groups. Swipe the address bar to switch tabs.
+  - Page info with a rule for each site (inside Webs or in Safari), a QR code for any page, full screen, and a reader view for Wikipedia.
+- **Library**: bookmarks with folders and HTML import/export (Chrome, Safari, Edge, Firefox), history by time or by site, and the reading list. *Search everything*, Insights, 22 achievements, and a copy history.
+- **Notes**: checklists, pins, colors, search, word counts, and saving a note as a text file.
+- **Tools**: a calculator, a unit converter, a QR code maker (text, links, Wi-Fi), a password and passphrase maker, a stopwatch, a focus timer, colors and palettes, text tools, a breathing exercise, a decision wheel and a bill splitter.
+- **Games**: Web Runner, Snake, 2048, Daily word, Tic-tac-toe, Memory and Minesweeper, all with touch controls and best scores.
+- **Privacy**:
+  - A passcode lock.
+  - History that can delete itself after a set time.
+  - A storage manager.
+  - Clean links and HTTPS first: tracking parameters like `utm_`, `fbclid` and `gclid` are removed, and `http://` links are upgraded, before anything opens.
+- **Alerts**: timer notifications and keeping the screen on (on iOS 16.4 or later, with Webs on the Home Screen), plus the reading list count on the app icon.
+- **Backups**: these use the same file format as the Windows version, so bookmarks, history, notes, to-dos, habits and shortcuts can move either way. Make one in *Settings → Storage and backup*, send it with AirDrop, iCloud Drive or email, and restore it on the other device.
+- **Keyboard shortcuts on iPad**: press `?` to see them.
 
 ### What's different on iPhone
 
@@ -49,10 +68,19 @@ On an iPhone, an app can only show a website inside itself when that website all
 | File | What it is |
 | --- | --- |
 | `index.html`, `app.css` | The app's page and layout |
-| `js/core.js` | Storage, settings and icons |
+| `fx.css` | Animations, live wallpapers, widgets, tools and everything new in 2.0 |
+| `js/core.js` | Storage, settings, icons, toasts and drag-to-reorder |
 | `js/answers.js` | The address bar's instant answers (taken from the Windows browser) |
-| `js/app.js` | Tabs, the start page, the library, notes, settings, backups and the install prompt |
-| `games.html` | The offline games (from the Windows browser, with touch controls added) |
+| `js/answers2.js` | More answers, bangs, your own engines and keywords, voice input and completion |
+| `js/app.js` | Tabs, the start page, the menu, settings, backups and the install prompt |
+| `js/fx.js` | Motion: the splash, ripples, sheets, the theme reveal, pull to refresh, confetti and live wallpapers |
+| `js/widgets.js` | The start page's widgets |
+| `js/library.js` | Bookmarks, history, the reading list, notes, Search everything, Insights and Achievements |
+| `js/tools.js` | The Tools |
+| `js/extras.js` | The passcode lock, storage, alerts, page info, the reader view and keyboard shortcuts |
+| `js/whatsnew.js` | The list of what's new |
+| `js/qrcode.js` | [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) by Kazuhiko Arase (MIT license), for QR codes |
+| `games.html` | The offline games |
 | `manifest.webmanifest`, `icons/` | What iOS and Android use to install the app and draw its icon |
 | `sw.js` | Offline support. Raise `VERSION` in this file when you publish changes, and the installed app will offer to update. |
 

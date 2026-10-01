@@ -15,10 +15,16 @@
    games, settings and backups - lives here and works offline. */
 "use strict";
 
-const VERSION = "1.0.0";
+const VERSION = "2.0.0";
 
 /* ---------------------------------------------------------------- look */
 const ACCENTS = ["#e8342a", "#ff7a1a", "#e0a100", "#2fa35f", "#1f9bd1", "#3d6cf0", "#8a5cf5", "#e0408a"];
+// Color themes for the dark look, the same ones the Windows browser has (cfg.pack).
+const PACKS = { midnight:["#0e1220","#151a2c","#1d2338","#262d46","#28304a","#e8ecf6","#98a2bd","#6b7593"], forest:["#0f1612","#151f19","#1c2a21","#24352a","#26372c","#e6f0e8","#93a898","#6a7f6f"],
+  ocean:["#0b1519","#102026","#152a31","#1b353e","#1d3942","#e3f1f4","#8fb0b8","#658891"], rose:["#1a1216","#22181d","#2d2027","#382830","#3a2931","#f6ecf0","#b5979f","#85707a"],
+  mono:["#141414","#1c1c1c","#252525","#2e2e2e","#303030","#efefef","#a0a0a0","#707070"], coffee:["#17120e","#201913","#2a2119","#34291f","#372b21","#f3ebe3","#aa9886","#7d6d5e"],
+  amoled:["#000000","#0b0b0d","#151518","#1e1e22","#222226","#f2f2f2","#9a9aa2","#6a6a72"] };
+const PACK_KEYS = ["bg", "bg2", "bg3", "bg4", "line", "fg", "dim", "dim2"];
 function themeNow() {
   return cfg.theme === "light" || cfg.theme === "dark" ? cfg.theme : matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
 }
@@ -36,6 +42,12 @@ function applyLook() {
   if (PRIVATE) { root.style.removeProperty("--accent"); root.style.removeProperty("--soft"); }
   else { root.style.setProperty("--accent", cfg.accent || "#e8342a"); root.style.setProperty("--soft", hexA(cfg.accent, .15)); }
   document.body.classList.toggle("bartop", cfg.barPos === "top");
+  const pk = themeNow() === "dark" && PACKS[cfg.pack];
+  PACK_KEYS.forEach((k, i) => { if (pk) root.style.setProperty("--" + k, pk[i]); else root.style.removeProperty("--" + k); });
+  root.dataset.font = cfg.font || "";
+  root.dataset.ts = cfg.textSize || "";
+  document.body.classList.toggle("compact", !!cfg.compact);
+  runHooks(LOOK_HOOKS);
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.content = getComputedStyle(root).getPropertyValue("--bg").trim() || "#16131a";
 }
@@ -54,7 +66,7 @@ function iconURL(u) {
 function letterColor(s) { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) % 360; return "hsl(" + h + ",52%,46%)"; }
 function favHTML(u, name, cls) {
   const host = hostOf(u) || "?";
-  const letter = esc(((name || host).replace(/^www\./, "")[0] || "?").toUpperCase());
+  const letter = esc(((name && !/^[a-z]+:\/\//i.test(name) ? name : host).replace(/^www\./, "")[0] || "?").toUpperCase());
   return '<img class="' + (cls || "") + '" src="' + esc(iconURL(u)) + '" alt="" loading="lazy" referrerpolicy="no-referrer" data-l="' + letter +
          '" data-c="' + letterColor(host) + '">';
 }
@@ -139,11 +151,17 @@ function refusesFrames(u) {
   const h = hostOf(u);
   return listed(NOFRAME, h) || /(^|\.)google\.[a-z.]+$/.test(h) || /(^|\.)amazon\.[a-z.]+$/.test(h);
 }
+// Your own rule for a site (Page info → Open this site) beats the general setting.
+function siteRule(u) {
+  const r = cfg.siteRules || {}, h = hostOf(u);
+  for (const k in r) if (h === k || h.endsWith("." + k)) return r[k];
+  return "";
+}
 function route(u, force) {
-  const em = embedFor(u), mode = force || cfg.openMode;
+  const em = embedFor(u), rule = !force && siteRule(u), mode = force || rule || cfg.openMode;
   if (mode === "outside") return { inside:false };
   if (em) return Object.assign({ inside:true, embed:true }, em);
-  if (force === "inside" || (mode === "inside" && !refusesFrames(u))) return { inside:true, src:u, title:hostOf(u) };
+  if (force === "inside" || rule === "inside" || (mode === "inside" && !refusesFrames(u))) return { inside:true, src:u, title:hostOf(u) };
   return { inside:false };
 }
 function searchOf(u) {
@@ -227,13 +245,13 @@ const curTab = () => S().list.find(t => t.id === S().active) || null;
 (function restoreTabs() {
   const saved = load("mtabs", null);
   if (saved && Array.isArray(saved.list) && saved.list.length) {
-    T.n.list = saved.list.filter(t => t && t.id).map(t => ({ id:t.id, u:t.u || "", src:t.src || "", t:t.t || "", embed:!!t.embed, internal:!!t.internal }));
+    T.n.list = saved.list.filter(t => t && t.id).map(t => ({ id:t.id, u:t.u || "", src:t.src || "", t:t.t || "", embed:!!t.embed, internal:!!t.internal, pin:!!t.pin, seen:t.seen || 0 }));
     T.n.active = T.n.list.some(t => t.id === saved.active) ? saved.active : T.n.list[T.n.list.length - 1].id;
   }
   if (!T.n.list.length) { const t = { id:uid(), u:"", src:"", t:"" }; T.n.list.push(t); T.n.active = t.id; }
 })();
 function saveTabs() {
-  save("mtabs", { list:T.n.list.map(t => ({ id:t.id, u:t.u, src:t.src, t:t.t, embed:t.embed, internal:t.internal })), active:T.n.active });
+  save("mtabs", { list:T.n.list.map(t => ({ id:t.id, u:t.u, src:t.src, t:t.t, embed:t.embed, internal:t.internal, pin:t.pin || undefined, seen:t.seen || undefined })), active:T.n.active });
 }
 function addTab() {
   const t = { id:uid(), u:"", src:"", t:"" };
@@ -243,6 +261,7 @@ function addTab() {
 }
 function activate(id) {
   S().active = id;
+  const t = S().list.find(x => x.id === id); if (t) t.seen = Date.now();
   saveTabs();
   render();
 }
@@ -257,9 +276,22 @@ function closeTab(id) {
   }
   dropFrame(id);
   s.list.splice(i, 1);
+  lastClosed = { tab:t, at:i, priv:PRIVATE };
   if (!s.list.length) s.list.push({ id:uid(), u:"", src:"", t:"" });
   if (s.active === id) s.active = s.list[Math.min(i, s.list.length - 1)].id;
   saveTabs();
+}
+let lastClosed = null;
+// Puts the tab you just closed back where it was.
+function undoClose() {
+  const c = lastClosed; lastClosed = null;
+  if (!c || c.priv !== PRIVATE) return;
+  const s = S();
+  if (s.list.length === 1 && !s.list[0].u && c.tab.u) s.list.length = 0;   // the empty tab that replaced it
+  s.list.splice(Math.min(c.at, s.list.length), 0, c.tab);
+  if (!PRIVATE && c.tab.u) save("closed", load("closed", []).filter(x => x.u !== c.tab.u));
+  activate(c.tab.id);
+  if (!$("#tabsv").classList.contains("hide")) renderTabs();
 }
 function toHome(t) {
   if (!t) return;
@@ -379,6 +411,7 @@ function render() {
     renderHome();
   }
   updateBar();
+  runHooks(RENDER_HOOKS, web);
 }
 function updateBar() {
   const t = curTab(), web = !!(t && t.u);
@@ -398,11 +431,25 @@ function updateBar() {
   $("#relBtn").classList.toggle("hide", !web);
   $("#backBtn").disabled = !web;
   $("#fwdBtn").disabled = fwdLog[fwdLog.length - 1] !== S().active;
-  $("#homeBtn").innerHTML = ico(web ? "home" : "glass");
-  $("#homeBtn").setAttribute("aria-label", web ? "Start page" : "Search");
-  $("#tabsN").textContent = S().list.length > 99 ? ":)" : S().list.length;
+  const mid = MIDBTN[cfg.midBtn] || MIDBTN.home, mi = mid.icon(web);
+  if ($("#homeBtn").dataset.ic !== mi) { $("#homeBtn").innerHTML = ico(mi); $("#homeBtn").dataset.ic = mi; }
+  $("#homeBtn").setAttribute("aria-label", mid.label(web));
+  const n = S().list.length > 99 ? ":)" : String(S().list.length), tn = $("#tabsN");
+  if (tn.textContent !== n) {
+    tn.textContent = n;
+    tn.classList.remove("bump"); void tn.offsetWidth; tn.classList.add("bump");   // the count hops when it changes
+  }
   document.title = web ? (t.t || hostOf(t.u)) + " - Webs" : "Webs Browser";
 }
+// The toolbar's middle button (Settings → Appearance → Middle button).
+const MIDBTN = {
+  home:{ icon:web => web ? "home" : "glass", label:web => web ? "Start page" : "Search",
+         fn:() => { const t = curTab(); if (t && t.u) toHome(t); else openOmni(""); } },
+  bookmarks:{ icon:() => "star", label:() => "Bookmarks", fn:() => ACTIONS.bookmarks() },
+  notes:{ icon:() => "note", label:() => "Notes", fn:() => ACTIONS.notes() },
+  tools:{ icon:() => "tools", label:() => "Tools", fn:() => ACTIONS.tools() },
+  newtab:{ icon:() => "plus", label:() => "New tab", fn:() => ACTIONS.newtab() }
+};
 
 /* ---------------------------------------------------------------- start page */
 const TIPS = [
@@ -412,7 +459,7 @@ const TIPS = [
   "Type “yt lofi” to search YouTube, or “w octopus” to search Wikipedia.",
   "YouTube and Vimeo videos, Wikipedia, maps and Spotify open right inside Webs.",
   "Press and hold a shortcut to rename or remove it.",
-  "Settings → Backup moves bookmarks, history and notes between your iPhone and Webs Browser on Windows.",
+  "Settings → Storage and backup moves bookmarks, history and notes between your iPhone and Webs Browser on Windows.",
   "Private tabs (in the tab switcher) keep nothing in your history.",
   "Tracking junk like utm_ and fbclid is removed from links before they open.",
   "Type “define serendipity” to see what a word means.",
@@ -424,11 +471,22 @@ const TIPS = [
   "Type “days until christmas” or “what day is 7/4/2030”.",
   "Notes and the to-do list are saved on this iPhone and come along in a backup."
 ];
-const HIDE_KEYS = [["clock", "Clock"], ["greet", "Greeting and date"], ["weather", "Weather"], ["shortcuts", "Shortcuts"], ["recent", "Jump back in"],
-                   ["reading", "Reading list"], ["todo", "To-do list"], ["tip", "Tip of the day"], ["fx", "Seasonal effects"]];
-const hidden = k => k === "clock" ? cfg.clock === false : (cfg.ntpHide || []).indexOf(k) >= 0;
+const HIDE_KEYS = [["clock", "Clock"], ["greet", "Greeting and date"], ["weather", "Weather"], ["focus", "Today's focus"], ["shortcuts", "Shortcuts"],
+                   ["streak", "Daily streak"], ["cont", "Continue where you left off"], ["recent", "Jump back in"], ["reading", "Reading list"],
+                   ["todo", "To-do list"], ["quote", "Quote of the day"], ["cd", "Countdown"], ["habits", "Habit tracker"], ["notew", "Quick note"],
+                   ["cal", "Calendar"], ["wclock", "World clocks"], ["year", "Year progress"], ["sky", "Sunrise, sunset and moon"],
+                   ["otd", "On this day (Wikipedia)"], ["tip", "Tip of the day"], ["fx", "Seasonal effects"]];
+// Like on Windows, a few parts stay off until you turn them on.
+const DEFAULT_OFF = ["habits", "cal", "notew", "wclock", "year", "sky", "otd"];
+const hidden = k => k === "clock" ? cfg.clock === false : DEFAULT_OFF.includes(k) ? !(cfg.ntpShow || []).includes(k) : (cfg.ntpHide || []).indexOf(k) >= 0;
 function setHidden(k, hide) {
   if (k === "clock") { setCfg("clock", !hide); return; }
+  if (DEFAULT_OFF.includes(k)) {
+    const sh = (cfg.ntpShow || []).filter(x => x !== k);
+    if (!hide) sh.push(k);
+    setCfg("ntpShow", sh);
+    return;
+  }
   const h = (cfg.ntpHide || []).filter(x => x !== k);
   if (hide) h.push(k);
   setCfg("ntpHide", h);
@@ -448,6 +506,7 @@ function renderHome() {
   weather();
   background();
   fxStart();
+  runHooks(HOME_HOOKS);
 }
 function tick() {
   const now = new Date();
@@ -460,10 +519,11 @@ function tick() {
     const parts = new Intl.DateTimeFormat([], o).formatToParts(now);
     const main = parts.filter(p => p.type !== "dayPeriod").map(p => p.value).join("").trim();
     const ap = (parts.find(p => p.type === "dayPeriod") || {}).value;
-    $("#clock").innerHTML = esc(main) + (ap ? "<small>" + esc(ap) + "</small>" : "");
+    if (typeof drawClock === "function") drawClock(now, main, ap);
+    else $("#clock").innerHTML = esc(main) + (ap ? "<small>" + esc(ap) + "</small>" : "");
   }
   const h = now.getHours();
-  const hi = h < 5 ? "Good night" : h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+  const hi = (typeof specialDay === "function" && specialDay(now)) || (h < 5 ? "Good night" : h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening");
   const name = String(cfg.ntpName || "").trim();
   $("#greet").innerHTML = PRIVATE ? "Private browsing" : esc(hi) + (name ? ", <b>" + esc(name) + "</b>" : "");
   $("#date").textContent = now.toLocaleDateString([], { weekday:"long", month:"long", day:"numeric" });
@@ -487,14 +547,15 @@ function tiles() {
   const top = [...byHost.values()].sort((a, b) => b.visits - a.visits).slice(0, Math.max(0, 11 - mine.length));
   tileList = mine.map(t => Object.assign({ pinned:true }, t)).concat(top).slice(0, 11);
   $("#grid").innerHTML = tileList.map((t, i) =>
-    '<button type="button" class="tile" data-i="' + i + '"><span class="fv">' + favHTML(t.u, t.n) + '<i class="del">' + ico("minus") + '</i></span><span class="nm">' +
+    '<button type="button" class="tile" data-i="' + i + '"><span class="fv">' + (t.e ? '<em class="emo">' + esc(t.e) + "</em>" : favHTML(t.u, t.n)) + '<i class="del">' + ico("minus") + '</i></span><span class="nm">' +
     esc(t.n || hostOf(t.u)) + "</span></button>").join("") +
     '<button type="button" class="tile add" data-i="add"><span class="fv">' + ico("plus") + '</span><span class="nm">Add</span></button>';
 }
 function editTile(t) {
   ask({ title:t ? "Edit shortcut" : "Add shortcut",
     fields:[{ k:"n", label:"Name", value:t ? t.n || "" : "", ph:"e.g. Weather" },
-            { k:"u", label:"Address", value:t ? t.u : "", ph:"example.com", type:"url" }],
+            { k:"u", label:"Address", value:t ? t.u : "", ph:"example.com", type:"url" },
+            { k:"e", label:"Emoji icon (optional)", value:t ? t.e || "" : "", ph:"e.g. 🎮" }],
     ok:t ? "Save" : "Add" }, v => {
     let u = v.u.trim();
     if (!u) return false;
@@ -502,11 +563,19 @@ function editTile(t) {
     try { new URL(u); } catch (e) { toast("That address doesn't look right"); return false; }
     const list = load("tiles", []).filter(x => x.u !== u && (!t || x.u !== t.u));
     const at = t && t.pinned ? load("tiles", []).findIndex(x => x.u === t.u) : -1;
-    const item = { u, n:v.n.trim() || hostOf(u) };
+    const item = { u, n:v.n.trim() || hostOf(u) }, e = firstEmoji(v.e);
+    if (e) item.e = e;
     if (at >= 0) list.splice(Math.min(at, list.length), 0, item); else list.push(item);
     save("tiles", list.slice(0, 11));
     tiles();
   });
+}
+// The first character you typed, emoji sequences included.
+function firstEmoji(s) {
+  s = String(s || "").trim();
+  if (!s) return "";
+  if (window.Intl && Intl.Segmenter) { const it = new Intl.Segmenter().segment(s)[Symbol.iterator]().next(); return it.done ? "" : it.value.segment; }
+  return [...s][0];
 }
 function removeTile(t) {
   if (t.pinned) save("tiles", load("tiles", []).filter(x => x.u !== t.u));
@@ -524,13 +593,15 @@ function tileMenu(t) {
 (function tileEvents() {
   const grid = $("#grid");
   let lp = 0, lpFired = false, start = null;
+  let lift = 0, pressed = null;
   grid.addEventListener("pointerdown", e => {
     const el = e.target.closest(".tile");
     if (!el || el.dataset.i === "add" || grid.classList.contains("editing")) return;
-    lpFired = false; start = [e.clientX, e.clientY];
-    lp = setTimeout(() => { lpFired = true; tileMenu(tileList[+el.dataset.i]); }, 480);
+    lpFired = false; start = [e.clientX, e.clientY]; pressed = el;
+    lift = setTimeout(() => el.classList.add("lift"), 160);     // it rises under your finger before the menu opens
+    lp = setTimeout(() => { lpFired = true; el.classList.remove("lift"); tileMenu(tileList[+el.dataset.i]); }, 480);
   });
-  const cancel = () => clearTimeout(lp);
+  const cancel = () => { clearTimeout(lp); clearTimeout(lift); if (pressed) { pressed.classList.remove("lift"); pressed = null; } };
   grid.addEventListener("pointerup", cancel);
   grid.addEventListener("pointercancel", cancel);
   grid.addEventListener("pointermove", e => { if (start && Math.hypot(e.clientX - start[0], e.clientY - start[1]) > 10) cancel(); });
@@ -539,6 +610,7 @@ function tileMenu(t) {
     const el = e.target.closest(".tile");
     if (!el) return;
     if (lpFired) { lpFired = false; return; }
+    if (grid.dataset.dragged) return;
     if (el.dataset.i === "add") { editTile(null); return; }
     const t = tileList[+el.dataset.i];
     if (grid.classList.contains("editing")) {
@@ -550,7 +622,18 @@ function tileMenu(t) {
   $("#tileEdit").onclick = () => {
     const on = grid.classList.toggle("editing");
     $("#tileEdit").textContent = on ? "Done" : "Edit";
+    if (on && tileList.filter(t => t.pinned).length > 1) toast("Drag your shortcuts to reorder them");
   };
+  // in Edit mode your own shortcuts can be dragged into a new order
+  dragSort(grid, ".tile", {
+    can:el => grid.classList.contains("editing") && el.dataset.i !== "add" && tileList[+el.dataset.i] && tileList[+el.dataset.i].pinned,
+    drop:(from, to) => {
+      const mine = load("tiles", []), n = mine.length;
+      if (from >= n) return;
+      const [m] = mine.splice(from, 1); mine.splice(Math.min(to, n - 1), 0, m);
+      save("tiles", mine); tiles();
+    }
+  });
 })();
 
 function ago(ts) {
@@ -592,24 +675,47 @@ document.addEventListener("click", e => {
 });
 function markRead(u) { save("reading", load("reading", []).map(x => x.u === u ? Object.assign(x, { done:true }) : x)); }
 
-// To-do, shared with the Windows browser through backups.
+// To-do, shared with the Windows browser through backups. Tap a to-do to
+// edit it, star the important ones, press and hold to drag it somewhere else.
 function todos() {
   const list = load("todo", []), box = $("#todos");
-  box.innerHTML = list.map(it => '<div class="todo' + (it.done ? " done" : "") + '" data-id="' + esc(it.id) + '"><button type="button" class="box" role="checkbox" aria-checked="' +
-    !!it.done + '" aria-label="Done"><svg viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg></button><div class="tx">' + esc(it.t) +
-    '</div><button type="button" class="rm" aria-label="Delete">' + ico("x") + "</button></div>").join("");
+  box.innerHTML = list.map(it => '<div class="todo' + (it.done ? " done" : "") + (it.star ? " star" : "") + '" data-id="' + esc(it.id) + '"><button type="button" class="box" role="checkbox" aria-checked="' +
+    !!it.done + '" aria-label="Done"><svg viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg></button><div class="tx" role="button" tabindex="0">' + esc(it.t) +
+    '</div><button type="button" class="st" aria-label="' + (it.star ? "Unstar" : "Star") + '">' + ico("star") + '</button><button type="button" class="rm" aria-label="Delete">' + ico("x") + "</button></div>").join("");
   box.classList.toggle("hide", !list.length);
   $("#todoClear").classList.toggle("hide", !list.some(x => x.done));
 }
 $("#todos").addEventListener("click", e => {
   const row = e.target.closest(".todo");
-  if (!row) return;
-  const id = row.dataset.id;
-  if (e.target.closest(".box")) save("todo", load("todo", []).map(x => x.id === id ? Object.assign(x, { done:!x.done }) : x));
-  else if (e.target.closest(".rm")) save("todo", load("todo", []).filter(x => x.id !== id));
-  else return;
+  if (!row || $("#todos").dataset.dragged) return;
+  const id = row.dataset.id, list = load("todo", []), it = list.find(x => x.id === id);
+  if (!it) return;
+  if (e.target.closest(".box")) {
+    it.done = !it.done; save("todo", list);
+    if (it.done && typeof stat === "function") stat("todosDone");
+    if (it.done) { row.classList.add("done", "pop"); if (list.length > 1 && list.every(x => x.done) && typeof confetti === "function") confetti(row); }
+    setTimeout(todos, it.done ? 260 : 0);
+    return;
+  }
+  if (e.target.closest(".st")) {
+    it.star = !it.star;
+    if (it.star) { list.splice(list.indexOf(it), 1); list.unshift(it); }   // a starred to-do goes to the top
+    save("todo", list);
+  } else if (e.target.closest(".rm")) {
+    save("todo", list.filter(x => x.id !== id));
+    toast("To-do deleted", { label:"Undo", fn:() => { save("todo", list); todos(); } });
+  } else if (e.target.closest(".tx")) {
+    ask({ title:"Edit to-do", fields:[{ k:"t", label:"To-do", value:it.t }], ok:"Save" }, v => {
+      const t = v.t.trim(); if (!t) return false;
+      const all = load("todo", []), x = all.find(y => y.id === id); if (x) { x.t = t.slice(0, 200); save("todo", all); todos(); }
+    });
+    return;
+  } else return;
   todos();
 });
+dragSort($("#todos"), ".todo", { hold:350, can:el => !el.closest(".editing"), drop:(from, to) => {
+  const list = load("todo", []); const [m] = list.splice(from, 1); list.splice(to, 0, m); save("todo", list); todos();
+} });
 $("#todoNew").addEventListener("keydown", e => {
   if (e.key !== "Enter") return;
   e.preventDefault();
@@ -620,6 +726,7 @@ $("#todoNew").addEventListener("keydown", e => {
   save("todo", list.slice(-50));
   e.target.value = "";
   todos();
+  const last = $("#todos").lastElementChild; if (last) last.classList.add("born");
 });
 $("#todoClear").onclick = () => { save("todo", load("todo", []).filter(x => !x.done)); todos(); };
 
@@ -678,7 +785,7 @@ async function weather() {
   const key = (here ? cfg.wxLat + "," + cfg.wxLon : city.toLowerCase()) + "|" + unit;
   const c = load("weather", null);
   const show = d => {
-    box.className = "";
+    box.className = "k-" + wxKind(d.code, d.day);   // each kind of weather icon moves in its own way (fx.css)
     box.innerHTML = WXI[wxKind(d.code, d.day)] + '<span class="tt"></span><span class="ww"><span></span><span></span></span>';
     box.querySelector(".tt").textContent = Math.round(d.t) + "°";
     const s = box.querySelectorAll(".ww span");
@@ -689,6 +796,7 @@ async function weather() {
   if (c && c.key === key) { show(c); if (Date.now() - c.ts < 30 * 60000) return; }
   if (wxBusy === key) return;
   wxBusy = key;
+  if (!(c && c.key === key)) { box.className = "skel"; box.innerHTML = "<i></i><i></i>"; box.onclick = null; }
   try {
     let lat = cfg.wxLat, lon = cfg.wxLon, name = "Your location";
     if (!here) {
@@ -757,7 +865,11 @@ async function chooseBackground(file) {
 /* Seasonal effects: snow in winter, blossom in spring, fireflies in summer,
    leaves in autumn, drifting behind the start page. */
 const fx = { cv:null, parts:[], raf:0, kind:"" };
-function fxKind(d) { const m = (d || new Date()).getMonth(); return m === 11 || m <= 1 ? "snow" : m <= 4 ? "petals" : m <= 7 ? "fireflies" : "leaves"; }
+const FX_KINDS = ["snow", "petals", "fireflies", "leaves", "hearts", "stars"];
+function fxKind(d) {
+  if (FX_KINDS.indexOf(cfg.fxKind) >= 0) return cfg.fxKind;   // Customize → Seasonal effect
+  const m = (d || new Date()).getMonth(); return m === 11 || m <= 1 ? "snow" : m <= 4 ? "petals" : m <= 7 ? "fireflies" : "leaves";
+}
 function fxOn() {
   const t = curTab();
   return !PRIVATE && !hidden("fx") && cfg.motion !== "off" && !(t && t.u) && !document.hidden &&
@@ -765,11 +877,12 @@ function fxOn() {
 }
 function fxStart() {
   if (!fxOn()) { fxStop(); return; }
-  if (fx.raf) return;
+  if (fx.raf && fx.kind === fxKind()) return;
+  if (fx.raf) fxStop();
   const home = $("#home");
   if (!fx.cv) { fx.cv = Object.assign(document.createElement("canvas"), { id:"fx" }); fx.cv.setAttribute("aria-hidden", "true"); home.prepend(fx.cv); }
   fx.kind = fxKind();
-  const W = home.clientWidth, H = home.clientHeight, n = fx.kind === "fireflies" ? 18 : W < 600 ? 22 : 34;
+  const W = home.clientWidth, H = home.clientHeight, n = fx.kind === "fireflies" || fx.kind === "stars" ? 18 : W < 600 ? 22 : 34;
   fx.parts = Array.from({ length:n }, () => fxNew(W, H, true));
   const g = fx.cv.getContext("2d");
   let last = performance.now();
@@ -792,10 +905,19 @@ function fxStop() { cancelAnimationFrame(fx.raf); fx.raf = 0; if (fx.cv) { fx.cv
 function fxNew(W, H, anywhere) {
   const r = Math.random;
   return { x:r() * W, y:anywhere ? r() * H : -15, s:.5 + r() * 1, a:r() * 6.28, spin:(r() - .5) * .04, wob:r() * 6.28, hue:r(),
-    vy:fx.kind === "fireflies" ? 0 : .25 + r() * .5, vx:(r() - .5) * .3, ph:r() * 6.28 };
+    vy:fx.kind === "fireflies" || fx.kind === "stars" ? 0 : .25 + r() * .5, vx:(r() - .5) * .3, ph:r() * 6.28 };
 }
 function fxDraw(g, p, dt, now) {
   p.wob += .015 * dt; p.a += p.spin * dt;
+  if (fx.kind === "stars") {
+    // twinkling four-point stars that drift slowly
+    p.x += Math.cos(p.wob + p.ph) * .12 * dt; p.y += Math.sin(p.wob * .8 + p.ph) * .1 * dt;
+    const tw = .25 + .75 * Math.max(0, Math.sin(now / 500 + p.ph * 3)), z = (2 + p.s * 3) * (.6 + tw * .5);
+    g.save(); g.translate(p.x, p.y); g.rotate(p.a * .2); g.globalAlpha = tw; g.fillStyle = themeNow() === "light" ? "#e0a100" : "#fff6c8";
+    g.beginPath(); g.moveTo(0, -z * 2); g.quadraticCurveTo(0, 0, z * 2, 0); g.quadraticCurveTo(0, 0, 0, z * 2); g.quadraticCurveTo(0, 0, -z * 2, 0); g.quadraticCurveTo(0, 0, 0, -z * 2); g.fill();
+    g.restore();
+    return;
+  }
   if (fx.kind === "fireflies") {
     p.x += Math.cos(p.wob * 1.3 + p.ph) * .35 * dt; p.y += Math.sin(p.wob + p.ph) * .25 * dt;
     const glow = .35 + .65 * Math.max(0, Math.sin(now / 700 + p.ph));
@@ -807,6 +929,10 @@ function fxDraw(g, p, dt, now) {
   p.y += p.vy * p.s * dt; p.x += (p.vx + Math.sin(p.wob) * .35) * dt;
   g.save(); g.translate(p.x, p.y); g.rotate(p.a);
   if (fx.kind === "snow") { g.globalAlpha = .45 + p.s * .35; g.fillStyle = themeNow() === "light" ? "#b9c6d8" : "#fff"; g.beginPath(); g.arc(0, 0, 1.2 + p.s * 1.8, 0, 7); g.fill(); }
+  else if (fx.kind === "hearts") {
+    const z = 3 + p.s * 3; g.globalAlpha = .7; g.fillStyle = "hsl(" + (340 + p.hue * 25) + ",80%," + (62 + p.hue * 10) + "%)";
+    g.beginPath(); g.moveTo(0, z * .9); g.bezierCurveTo(-z * 2, -z * .4, -z * .9, -z * 1.9, 0, -z * .7); g.bezierCurveTo(z * .9, -z * 1.9, z * 2, -z * .4, 0, z * .9); g.fill();
+  }
   else if (fx.kind === "petals") { g.globalAlpha = .75; g.fillStyle = "hsl(" + (330 + p.hue * 25) + ",75%," + (82 - p.hue * 8) + "%)"; g.beginPath(); g.ellipse(0, 0, 3 + p.s * 3, 1.8 + p.s * 1.6, 0, 0, 7); g.fill(); }
   else {
     g.globalAlpha = .8; g.fillStyle = "hsl(" + (10 + p.hue * 35) + ",70%,45%)"; const z = 4 + p.s * 4;
@@ -857,7 +983,7 @@ function omniRender() {
   let html = "";
   const sec = (title, list) => { if (!list.length) return; html += '<div class="sec">' + esc(title) + "</div>" + rowsHTML(list, rows.length); rows = rows.concat(list); };
   if (!s) {
-    html += '<div class="sec">Search with</div><div class="chips" id="engChips">' + Object.keys(ENGINES).map(k =>
+    html += '<div class="sec">Search with</div><div class="chips" id="engChips">' + engineKeys().map(k =>
       '<button type="button" data-eng="' + k + '" class="' + (engine() === ENGINES[k] ? "on" : "") + '">' + esc(ENGINES[k].name) + "</button>").join("") + "</div>";
     html += '<div class="chips"><button type="button" id="pasteGo">' + ico("paste") + "Paste</button>" +
       '<button type="button" data-open="bookmarks">' + ico("star") + 'Bookmarks</button><button type="button" data-open="history">' + ico("history") + "History</button></div>";
@@ -866,6 +992,7 @@ function omniRender() {
       .map(h => { const sq = searchOf(h.u); return { u:h.u, t:sq ? sq.q : h.t || hostOf(h.u), s:sq ? "Search · " + sq.e.name : hostOf(h.u), icon:sq ? "history" : "", go:{ u:h.u } }; });
     if (!PRIVATE) sec("Recent", hist);
     sec("Bookmarks", load("bookmarks", []).slice(0, 5).map(b => ({ u:b.u, t:b.t || hostOf(b.u), s:hostOf(b.u), go:{ u:b.u } })));
+    OMNI_EMPTY.forEach(f => { try { html += f(); } catch (e) { console.error(e); } });
     box.innerHTML = html;
     return;
   }
@@ -970,34 +1097,79 @@ $("#qClear").onclick = () => { $("#q").value = ""; $("#q").focus(); omniRender()
 $("#omniCancel").onclick = closeOmni;
 
 /* ---------------------------------------------------------------- tab switcher */
+let tabQ = "";
 function openTabs() {
+  tabQ = ""; $("#tabQ").value = "";
   $("#tabsv").classList.remove("hide");
   renderTabs();
 }
+function tabCard(t, s) {
+  const web = !!t.u, host = web && !t.internal ? hostOf(t.u) : "";
+  return '<div class="tcard' + (t.id === s.active ? " on" : "") + (t.pin ? " pinned" : "") + '" data-id="' + esc(t.id) + '" role="button" tabindex="0"' +
+    (host ? ' style="--tint:' + letterColor(host) + '"' : "") + '><div class="th">' +
+    (web ? (t.internal ? ico("game") : favHTML(t.u, t.t)) : ico(PRIVATE ? "mask" : "home")) + "<span>" + esc(web ? t.t || hostOf(t.u) : "Start page") + "</span>" +
+    (t.pin ? '<i class="pinb" aria-label="Pinned">' + ico("pin") + "</i>" : "") +
+    '<button type="button" class="tclose" aria-label="Close tab">' + ico("x") + '</button></div><div class="tb">' +
+    (web ? '<span class="big">' + (t.internal ? ico("game") : favHTML(t.u, t.t)) + "</span><small>" + esc(t.internal ? "Games" : hostOf(t.u)) + "</small>"
+         : '<svg class="mark"><use href="#logo"/></svg><small>' + (PRIVATE ? "Private" : "New tab") + "</small>") +
+    (t.seen && t.id !== s.active ? '<em class="seen">' + esc(ago(t.seen)) + "</em>" : "") + "</div></div>";
+}
 function renderTabs() {
-  const s = S(), grid = $("#tabGrid");
+  const s = S(), grid = $("#tabGrid"), q = tabQ.toLowerCase();
   $$("#tabMode button").forEach(b => b.classList.toggle("on", (b.dataset.v === "1") === PRIVATE));
   $("#tabsTitle").textContent = s.list.length + (PRIVATE ? " private tab" : " tab") + (s.list.length === 1 ? "" : "s");
-  grid.innerHTML = s.list.map(t => {
-    const web = !!t.u;
-    return '<div class="tcard' + (t.id === s.active ? " on" : "") + '" data-id="' + esc(t.id) + '" role="button" tabindex="0"><div class="th">' +
-      (web ? (t.internal ? ico("game") : favHTML(t.u, t.t)) : ico(PRIVATE ? "mask" : "home")) + "<span>" + esc(web ? t.t || hostOf(t.u) : "Start page") +
-      '</span><button type="button" class="tclose" aria-label="Close tab">' + ico("x") + '</button></div><div class="tb">' +
-      (web ? '<span class="big">' + (t.internal ? ico("game") : favHTML(t.u, t.t)) + "</span><small>" + esc(t.internal ? "Games" : hostOf(t.u)) + "</small>"
-           : '<svg class="mark"><use href="#logo"/></svg><small>' + (PRIVATE ? "Private" : "New tab") + "</small>") + "</div></div>";
-  }).join("");
-  const closed = PRIVATE ? [] : load("closed", []).slice(0, 5);
+  grid.classList.toggle("list", cfg.tabView === "list");
+  const shown = s.list.filter(t => !q || (t.t || "").toLowerCase().includes(q) || (t.u || "").toLowerCase().includes(q) || (!t.u && "start page new tab".includes(q)));
+  const order = shown.filter(t => t.pin).concat(shown.filter(t => !t.pin));
+  grid.innerHTML = order.map(t => tabCard(t, s)).join("") || '<div class="empty">' + ico("glass") + "No tabs match “" + esc(tabQ) + "”.</div>";
+  const closed = PRIVATE || q ? [] : load("closed", []).slice(0, 5);
   if (closed.length) grid.insertAdjacentHTML("beforeend", '<section id="closedSec"><div class="lbl"><span>Recently closed</span></div><div class="card">' +
     closed.map(c => rowHTML({ u:c.u, t:c.t, end:ago(c.ts) })).join("") + "</div></section>");
 }
+function closeTabUndo(id) {
+  closeTab(id);
+  toast("Tab closed", { label:"Undo", fn:undoClose });
+}
+$("#tabQ").addEventListener("input", e => { tabQ = e.target.value.trim(); renderTabs(); });
 $("#tabGrid").addEventListener("click", e => {
   const c = e.target.closest(".tcard"), r = e.target.closest("#closedSec .row");
   if (r) { const u = r.dataset.u; save("closed", load("closed", []).filter(x => x.u !== u)); go({ u }, { newTab:true, mode:"inside" }); return; }
-  if (!c) return;
-  if (e.target.closest(".tclose")) { closeTab(c.dataset.id); renderTabs(); updateBar(); return; }
+  if (!c || tabLP) { tabLP = false; return; }
+  if (e.target.closest(".tclose")) { c.classList.add("closing"); setTimeout(() => { closeTabUndo(c.dataset.id); renderTabs(); updateBar(); }, 170); return; }
   closeOverlays();
   activate(c.dataset.id);
 });
+// press and hold a tab for more
+let tabLP = false;
+(function tabHold() {
+  const grid = $("#tabGrid");
+  let t0 = 0, at = null;
+  grid.addEventListener("pointerdown", e => {
+    const c = e.target.closest(".tcard"); if (!c || e.target.closest(".tclose")) return;
+    at = [e.clientX, e.clientY]; tabLP = false;
+    t0 = setTimeout(() => { tabLP = true; c.classList.add("lifted"); setTimeout(() => c.classList.remove("lifted"), 400); tabMenu(c.dataset.id); }, 500);
+  });
+  const stop = () => clearTimeout(t0);
+  grid.addEventListener("pointerup", stop); grid.addEventListener("pointercancel", stop);
+  grid.addEventListener("pointermove", e => { if (at && Math.hypot(e.clientX - at[0], e.clientY - at[1]) > 10) stop(); });
+  grid.addEventListener("contextmenu", e => { if (e.target.closest(".tcard")) e.preventDefault(); });
+})();
+function tabMenu(id) {
+  const s = S(), t = s.list.find(x => x.id === id); if (!t) return;
+  const web = !!t.u && !t.internal;
+  pick(t.u ? t.t || hostOf(t.u) : "Start page", [
+    { label:t.pin ? "Unpin tab" : "Pin tab", fn:() => { t.pin = !t.pin; s.list = s.list.filter(x => x.pin).concat(s.list.filter(x => !x.pin)); saveTabs(); renderTabs(); toast(t.pin ? "Pinned - it stays open when you close all tabs" : "Unpinned"); } },
+    { label:"Duplicate tab", fn:() => { const d = Object.assign({}, t, { id:uid(), pin:false, seen:Date.now() }); s.list.splice(s.list.indexOf(t) + 1, 0, d); saveTabs(); renderTabs(); updateBar(); } },
+    web && { label:"Copy link", fn:() => copyText(t.u) },
+    web && !PRIVATE && { label:"Bookmark", fn:() => { const l = load("bookmarks", []).filter(b => b.u !== t.u); l.unshift({ u:t.u, t:t.t || hostOf(t.u), ts:Date.now() }); save("bookmarks", l); toast("Bookmarked"); } },
+    s.list.length > 1 && { label:"Close other tabs", fn:() => closeOthers(id) },
+    { label:"Close tab", danger:true, fn:() => { closeTabUndo(id); renderTabs(); updateBar(); } }
+  ].filter(Boolean));
+}
+function closeOthers(keep) {
+  S().list.filter(x => x.id !== keep && !x.pin).forEach(x => closeTab(x.id));
+  activate(keep); renderTabs();
+}
 // swipe a card sideways to close it
 (function swipeClose() {
   let card = null, x0 = 0, y0 = 0, dx = 0, lock = "";
@@ -1011,15 +1183,15 @@ $("#tabGrid").addEventListener("click", e => {
     const mx = e.touches[0].clientX - x0, my = e.touches[0].clientY - y0;
     if (!lock) lock = Math.abs(mx) > Math.abs(my) + 4 ? "x" : Math.abs(my) > 8 ? "y" : "";
     if (lock !== "x") return;
-    dx = mx; card.style.transition = "none"; card.style.transform = "translateX(" + dx + "px)"; card.style.opacity = String(1 - Math.min(.7, Math.abs(dx) / 300));
+    dx = mx; card.style.transition = "none"; card.style.transform = "translateX(" + dx + "px) rotate(" + dx / 40 + "deg)"; card.style.opacity = String(1 - Math.min(.7, Math.abs(dx) / 300));
   }, { passive:true });
   grid.addEventListener("touchend", () => {
     if (!card) return;
     const c = card; card = null;
     c.style.transition = "";
     if (lock === "x" && Math.abs(dx) > 90) {
-      c.style.transform = "translateX(" + (dx > 0 ? 120 : -120) + "%)"; c.style.opacity = "0";
-      setTimeout(() => { closeTab(c.dataset.id); renderTabs(); updateBar(); }, 180);
+      c.style.transform = "translateX(" + (dx > 0 ? 120 : -120) + "%) rotate(" + (dx > 0 ? 12 : -12) + "deg)"; c.style.opacity = "0";
+      setTimeout(() => { closeTabUndo(c.dataset.id); renderTabs(); updateBar(); }, 180);
     } else { c.style.transform = ""; c.style.opacity = ""; }
   });
 })();
@@ -1032,6 +1204,7 @@ $("#tabMode").addEventListener("click", e => {
 function setPrivate(on) {
   if (PRIVATE === on) return;
   frames.forEach((f, id) => dropFrame(id));
+  if (on) { const st = load("mstats", {}); st.private = 1; save("mstats", st); }
   PRIVATE = on;
   if (on && !T.p.list.length) { const t = { id:uid(), u:"", src:"", t:"" }; T.p.list.push(t); T.p.active = t.id; }
   applyLook();
@@ -1040,13 +1213,49 @@ function setPrivate(on) {
 $("#newTab").onclick = () => { const t = addTab(); closeOverlays(); activate(t.id); };
 $("#tabsDone").onclick = () => { closeOverlays(); render(); };
 $("#closeAll").onclick = () => {
-  const n = S().list.length;
+  const n = S().list.length, pins = S().list.filter(t => t.pin).length;
   pick("Close " + (n === 1 ? "this tab" : "all " + n + (PRIVATE ? " private" : "") + " tabs") + "?", [{ label:"Close " + (n === 1 ? "tab" : "all tabs"), danger:true, fn:() => {
-    S().list.slice().forEach(t => closeTab(t.id));
+    S().list.filter(t => !t.pin).forEach(t => closeTab(t.id));
     if (PRIVATE) { T.p.list = []; T.p.active = null; setPrivate(false); }
     closeOverlays(); render();
-  } }]);
+  } }], pins ? pins + (pins === 1 ? " pinned tab stays" : " pinned tabs stay") + " open." : "");
 };
+$("#tabsMore").onclick = () => {
+  const groups = load("msessions", []), s = S();
+  pick("Tabs", [
+    { label:cfg.tabView === "list" ? "Show as a grid" : "Show as a list", fn:() => { setCfg("tabView", cfg.tabView === "list" ? "grid" : "list"); renderTabs(); } },
+    s.list.length > 1 && { label:"Sort by website", fn:() => {
+      const key = t => (t.pin ? "0" : "1") + (t.u ? (t.internal ? "~" : hostOf(t.u)) : "~~");
+      s.list.sort((a, b) => key(a).localeCompare(key(b))); saveTabs(); renderTabs(); } },
+    s.list.length > 1 && { label:"Close other tabs", fn:() => closeOthers(s.active) },
+    !PRIVATE && s.list.some(t => t.u) && { label:"Save these tabs as a group", fn:saveGroup },
+    !PRIVATE && groups.length && { label:"Open a saved group (" + groups.length + ")", fn:openGroups },
+    lastClosed && lastClosed.priv === PRIVATE && { label:"Reopen closed tab", fn:undoClose }
+  ].filter(Boolean));
+};
+// Tab groups: the tabs you have open now, saved under a name to bring back later.
+function saveGroup() {
+  const tabs = T.n.list.filter(t => t.u).map(t => ({ u:t.u, src:t.src, t:t.t, embed:t.embed, internal:t.internal }));
+  ask({ title:"Save tabs as a group", fields:[{ k:"n", label:"Name", ph:"e.g. Homework", value:new Date().toLocaleDateString([], { month:"short", day:"numeric" }) + " tabs" }], ok:"Save" }, v => {
+    const g = load("msessions", []);
+    g.unshift({ id:uid(), name:v.n.trim().slice(0, 40) || "Tabs", ts:Date.now(), tabs });
+    save("msessions", g.slice(0, 20));
+    toast("Saved " + tabs.length + " tab" + (tabs.length === 1 ? "" : "s"));
+  });
+}
+function openGroups() {
+  const g = load("msessions", []);
+  pick("Saved groups", g.map(x => ({ label:x.name + " · " + x.tabs.length, fn:() => pick(x.name, [
+    { label:"Open " + x.tabs.length + " tab" + (x.tabs.length === 1 ? "" : "s"), fn:() => {
+      if (PRIVATE) setPrivate(false);
+      let last = null;
+      x.tabs.forEach(t => { last = addTab(); Object.assign(last, t, { seen:Date.now() }); });
+      if (last) activate(last.id);
+      renderTabs();
+    } },
+    { label:"Delete this group", danger:true, fn:() => { save("msessions", load("msessions", []).filter(y => y.id !== x.id)); toast("Group deleted"); } }
+  ]) })));
+}
 
 /* ---------------------------------------------------------------- sheets */
 let sheetBackFn = null;
@@ -1089,23 +1298,29 @@ function openMenu() {
   const t = curTab(), web = !!(t && t.u) && !t.internal;
   const marked = web && load("bookmarks", []).some(b => b.u === t.u);
   const qa = web ? [["mark", marked ? "Saved" : "Bookmark", "star", marked], ["read", "Read later", "read"], ["share", "Share", "share"], ["copy", "Copy link", "copy"], ["safari", "Safari", "other"]]
-                 : [["newtab", "New tab", "plus"], ["private", PRIVATE ? "Normal" : "Private", "mask"], ["games", "Games", "game"], ["notes", "Notes", "note"], ["customize", "Customize", "edit"]];
+                 : [["newtab", "New tab", "plus"], ["private", PRIVATE ? "Normal" : "Private", "mask"], ["tools", "Tools", "tools"], ["notes", "Notes", "note"], ["customize", "Customize", "edit"]];
   const m = (act, label, icon, em) => '<button type="button" class="mrow" data-act="' + act + '">' + ico(icon) + "<span>" + esc(label) + "</span>" + (em ? "<em>" + esc(em) + "</em>" : "") + "</button>";
+  const wiki = web && /\.wikipedia\.org$/.test(hostOf(t.u)) && /\/wiki\/./.test(t.u);
   const html = '<div class="qa">' + qa.map(([a, l, i, on]) => '<button type="button" data-act="' + a + '" class="' + (on ? "on" : "") + '">' + ico(i) + esc(l) + "</button>").join("") + "</div>" +
+    (web ? '<div class="card">' + m("inside2", "Open in a new tab", "tabs") + m("newtab", "New tab", "plus") + (wiki ? m("reader", "Reader view", "book") : "") +
+      m("fullscreen", "Full screen", "expand") + m("pageinfo", "Page info", "info") + m("pageqr", "QR code for this page", "qr") + "</div>" : "") +
     '<div class="card">' +
-    (web ? m("inside2", "Open in a new tab", "tabs") : "") +
-    (web ? m("newtab", "New tab", "plus") : "") +
     m("private", PRIVATE ? "Leave private browsing" : "New private tab", "mask") +
     m("bookmarks", "Bookmarks", "star", load("bookmarks", []).length || "") +
     m("history", "History", "history") +
     m("reading", "Reading list", "read", load("reading", []).filter(r => !r.done).length || "") +
-    (web ? m("notes", "Notes", "note") + m("games", "Games", "game") : "") +
+    (web ? m("notes", "Notes", "note") : "") + m("games", "Games", "game") +
+    m("tools", "Tools", "tools") + m("searchAll", "Search everything", "glass") +
+    m("insights", "Insights", "chart") + m("achievements", "Achievements", "trophy", achCount()) +
     m("settings", "Settings", "gear") +
-    "</div>" + '<div class="card" style="margin-top:12px">' +
+    "</div>" + '<div class="card">' +
     (!isStandalone() ? m("install", "Add Webs to your Home Screen", "phone") : "") +
+    m("whatsnew", "What's new in " + VERSION.replace(/\.0$/, ""), "sparkle") +
     m("help", "Help - what works on iPhone", "info") + "</div>";
   openSheet(web ? t.t || hostOf(t.u) : "Webs Browser", html, { kind:"menu" });
 }
+// "3/24" once achievements are loaded
+const achCount = () => typeof achievements === "function" ? achievements().filter(a => a.got).length + "/" + achievements().length : "";
 const ACTIONS = {
   mark() {
     const t = curTab(); if (!t || !t.u) return;
@@ -1152,138 +1367,7 @@ document.addEventListener("click", e => {
   if (a && ACTIONS[a.dataset.act]) ACTIONS[a.dataset.act]();
 });
 
-/* ---------------------------------------------------------------- library */
-let libKind = "bookmarks", libQ = "";
-function openLibrary(kind) {
-  libKind = kind; libQ = "";
-  openSheet("Library", '<div class="seg" id="libSeg"><button type="button" data-v="bookmarks">Bookmarks</button><button type="button" data-v="history">History</button>' +
-    '<button type="button" data-v="reading">Reading list</button></div><div class="search">' + ico("glass") +
-    '<input type="search" id="libQ" placeholder="Search" autocomplete="off" autocapitalize="off" enterkeyhint="search"></div><div id="libList"></div>', { kind:"lib", full:true });
-  $("#libSeg").onclick = e => { const b = e.target.closest("button"); if (b) { libKind = b.dataset.v; renderLib(); } };
-  $("#libQ").oninput = e => { libQ = e.target.value.trim().toLowerCase(); renderLib(); };
-  $("#libList").onclick = libClick;
-  renderLib();
-}
-function dayLabel(ts) {
-  const d = new Date(ts), now = new Date(), a = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const diff = Math.round((a - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 864e5);
-  return diff === 0 ? "Today" : diff === 1 ? "Yesterday" : d.toLocaleDateString([], { weekday:"long", month:"long", day:"numeric", year:d.getFullYear() === now.getFullYear() ? undefined : "numeric" });
-}
-function renderLib() {
-  $$("#libSeg button").forEach(b => b.classList.toggle("on", b.dataset.v === libKind));
-  const match = x => !libQ || (x.t || "").toLowerCase().includes(libQ) || (x.u || "").toLowerCase().includes(libQ);
-  const box = $("#libList");
-  const empty = (icon, text) => '<div class="empty">' + ico(icon) + esc(text) + "</div>";
-  let html = "";
-  if (libKind === "history") {
-    const list = load("history", []).filter(match).slice(0, libQ ? 400 : 250);
-    let day = "";
-    list.forEach(h => {
-      const d = dayLabel(h.ts);
-      if (d !== day) { html += (day ? "</div>" : "") + '<div class="day">' + esc(d) + '</div><div class="card">'; day = d; }
-      const s = searchOf(h.u);
-      html += rowHTML({ u:h.u, t:s ? s.q : h.t, sub:(s ? "Search · " + s.e.name : hostOf(h.u)), end:new Date(h.ts).toLocaleTimeString([], { hour:"numeric", minute:"2-digit" }),
-                        icon:s ? "glass" : "", x:1, data:' data-ts="' + h.ts + '"' });
-    });
-    if (day) html += "</div>";
-    html = html || empty("history", libQ ? "Nothing in your history matches." : PRIVATE ? "Private tabs don't keep history." : "Pages you open will be listed here.");
-    if (!libQ && load("history", []).length) html += '<div class="acts"><button type="button" class="btnx" id="histClear">' + ico("trash") + "Clear history…</button></div>";
-  } else if (libKind === "bookmarks") {
-    const list = load("bookmarks", []).filter(match);
-    html = list.length ? '<div class="card">' + list.map(b => rowHTML({ u:b.u, t:b.t, x:1 })).join("") + "</div>"
-                       : empty("star", libQ ? "No bookmarks match." : "Tap Bookmark in the menu while a page is open, or add one here.");
-    if (!libQ) html += '<div class="acts"><button type="button" class="btnx" id="bmAdd">' + ico("plus") + "Add bookmark</button></div>";
-  } else {
-    const list = load("reading", []).filter(match).reverse();
-    html = list.length ? '<div class="card">' + list.map(r => rowHTML({ u:r.u, t:r.t, sub:(r.done ? "Read · " : "") + hostOf(r.u), x:1, data:r.done ? ' style="opacity:.6"' : "" })).join("") + "</div>"
-                       : empty("read", "Save pages to read later from the menu.");
-  }
-  box.innerHTML = html;
-}
-function libClick(e) {
-  if (e.target.closest("#histClear")) { clearHistory(); return; }
-  if (e.target.closest("#bmAdd")) {
-    ask({ title:"Add bookmark", fields:[{ k:"t", label:"Name", ph:"Optional" }, { k:"u", label:"Address", ph:"example.com", type:"url" }], ok:"Add" }, v => {
-      let u = v.u.trim(); if (!u) return false;
-      if (!/^https?:\/\//i.test(u)) u = "https://" + u;
-      try { new URL(u); } catch (x) { toast("That address doesn't look right"); return false; }
-      const list = load("bookmarks", []).filter(b => b.u !== u);
-      list.unshift({ u, t:v.t.trim() || hostOf(u), ts:Date.now() }); save("bookmarks", list); renderLib();
-    });
-    return;
-  }
-  const r = e.target.closest(".row");
-  if (!r) return;
-  const u = r.dataset.u;
-  if (e.target.closest("[data-x]")) {
-    if (libKind === "history") save("history", load("history", []).filter(h => !(h.u === u && String(h.ts) === r.dataset.ts)));
-    else if (libKind === "bookmarks") {
-      const old = load("bookmarks", []);
-      save("bookmarks", old.filter(b => b.u !== u));
-      toast("Bookmark removed", { label:"Undo", fn:() => { save("bookmarks", old); if ($("#libList")) renderLib(); } });
-    }
-    else save("reading", load("reading", []).filter(x => x.u !== u));
-    renderLib();
-    return;
-  }
-  if (libKind === "reading") markRead(u);
-  go({ u });
-}
-function clearHistory() {
-  const cut = ms => { const t = Date.now() - ms; save("history", load("history", []).filter(h => h.ts < t)); renderLib(); toast("History cleared"); };
-  pick("Clear history", [
-    { label:"The last hour", fn:() => cut(3600e3) },
-    { label:"Today", fn:() => { const d = new Date(); cut(Date.now() - new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()); } },
-    { label:"Everything", danger:true, fn:() => { save("history", []); save("closed", []); save("weather", null); renderLib(); toast("History cleared"); } }
-  ]);
-}
-
-/* ---------------------------------------------------------------- notes
-   The same notes as the Windows sidebar: { id, title, text, ts }. */
-let noteId = null, noteT = 0;
-function openNotes() {
-  noteId = null;
-  const list = load("notes", []).slice().sort((a, b) => (b.ts || 0) - (a.ts || 0));
-  const html = '<div class="acts" style="margin:0 0 14px"><button type="button" class="btnx m" id="noteNew">' + ico("plus") + "New note</button></div>" +
-    (list.length ? '<div class="card">' + list.map(n => '<button type="button" class="row" data-note="' + esc(n.id) + '"><span class="fav">' + ico("note") +
-      '</span><span class="tx"><b>' + esc(n.title || (n.text || "").split("\n")[0] || "Untitled") + "</b><i>" + esc(new Date(n.ts || Date.now()).toLocaleDateString([], { month:"short", day:"numeric" }) +
-      " · " + ((n.text || "").replace(/\s+/g, " ").slice(0, 80) || "Empty")) + "</i></span></button>").join("") + "</div>"
-                 : '<div class="empty">' + ico("note") + "Jot things down here. Notes stay on this iPhone and come along in backups.</div>");
-  openSheet("Notes", html, { kind:"notes", full:true });
-  $("#noteNew").onclick = () => {
-    const n = { id:uid(), title:"", text:"", ts:Date.now(), site:"" };
-    const all = load("notes", []); all.push(n); save("notes", all);
-    openNote(n.id);
-  };
-  $("#sheetBody").onclick = e => { const r = e.target.closest("[data-note]"); if (r) openNote(r.dataset.note); };
-}
-function openNote(id) {
-  const n = load("notes", []).find(x => x.id === id);
-  if (!n) { openNotes(); return; }
-  noteId = id;
-  openSheet("Note", '<input id="noteTitle" placeholder="Title" maxlength="120"><textarea id="noteText" placeholder="Write something…"></textarea>' +
-    '<div class="acts"><button type="button" class="btnx" id="noteShare">' + ico("share") + 'Share</button><button type="button" class="btnx" id="noteDel">' + ico("trash") + "Delete</button></div>",
-    { kind:"note", full:true, back:() => { flushNote(); openNotes(); } });
-  $("#sheetBody").onclick = null;
-  $("#noteTitle").value = n.title || ""; $("#noteText").value = n.text || "";
-  const saveSoon = () => { clearTimeout(noteT); noteT = setTimeout(flushNote, 500); };
-  $("#noteTitle").oninput = saveSoon; $("#noteText").oninput = saveSoon;
-  $("#noteDel").onclick = () => { save("notes", load("notes", []).filter(x => x.id !== id)); noteId = null; openNotes(); toast("Note deleted"); };
-  $("#noteShare").onclick = () => {
-    const text = ($("#noteTitle").value ? $("#noteTitle").value + "\n\n" : "") + $("#noteText").value;
-    if (navigator.share) navigator.share({ text }).catch(() => {}); else copyText(text);
-  };
-  if (!n.text && !n.title) $("#noteText").focus();
-}
-function flushNote() {
-  clearTimeout(noteT);
-  if (!noteId || !$("#noteText")) return;
-  const all = load("notes", []), n = all.find(x => x.id === noteId);
-  if (!n) return;
-  const title = $("#noteTitle").value, text = $("#noteText").value;
-  if (!title.trim() && !text.trim()) { save("notes", all.filter(x => x.id !== noteId)); return; }
-  if (n.title !== title || n.text !== text) { n.title = title; n.text = text; n.ts = Date.now(); save("notes", all); }
-}
+/* The library (bookmarks, history, reading list) and notes are in library.js. */
 
 /* ---------------------------------------------------------------- settings */
 const SW = (k, label, sub, on) => '<label class="srow"><span class="k">' + esc(label) + (sub ? "<i>" + esc(sub) + "</i>" : "") +
@@ -1296,60 +1380,105 @@ const SEG = (k, opts, cur) => '<div class="seg" data-seg="' + k + '">' + opts.ma
 const ROW = (label, inner) => '<div class="srow"><span class="k">' + esc(label) + "</span>" + inner + "</div>";
 const GROUP = (title, rowsHtml, note) => '<div class="group">' + (title ? "<h3>" + esc(title) + "</h3>" : "") + '<div class="card">' + rowsHtml + "</div>" + (note ? '<p class="note">' + note + "</p>" : "") + "</div>";
 
+const CHIPS = (k, opts, cur) => '<div class="chips wrapc" data-seg="' + k + '">' + opts.map(([v, l, sw]) => '<button type="button" data-v="' + v + '" class="' + (String(cur) === v ? "on" : "") + '">' +
+  (sw ? '<i class="sw8" style="background:' + sw + '"></i>' : "") + esc(l) + "</button>").join("") + "</div>";
+const TEXT = (k, label, ph, value, type) => '<div class="srow"><span class="k">' + esc(label) + '</span><input type="' + (type || "text") + '" data-text="' + k + '" maxlength="80" placeholder="' + esc(ph || "") +
+  '" value="' + esc(value || "") + '" enterkeyhint="done"></div>';
+
 let setPage = "";
 function openSettings(page) {
   setPage = page || "";
   const html = page === "customize" ? customizeHTML() : settingsHTML();
   openSheet(page === "customize" ? "Customize start page" : "Settings", html, { kind:"settings", full:true, back:page === "customize" && $("#sheet").dataset.kind === "settings" ? () => openSettings() : null });
 }
+const MID_NAMES = { home:"Start page", bookmarks:"Bookmarks", notes:"Notes", tools:"Tools", newtab:"New tab" };
 function settingsHTML() {
   const themeV = cfg.theme === "light" || cfg.theme === "dark" ? cfg.theme : "auto";
+  const acc = (cfg.accent || "#e8342a").toLowerCase();
+  const custom = ACCENTS.indexOf(acc) < 0;
+  const engines = engineKeys().map(k => RADIO("search", k, ENGINES[k].name, ENGINES[k].mine ? ENGINES[k].url.replace(/^https?:\/\//, "").slice(0, 40) : "", engine() === ENGINES[k])).join("");
+  const rules = Object.keys(cfg.siteRules || {}).length;
   return GROUP("Appearance",
       ROW("Theme", SEG("theme", [["auto", "Auto"], ["light", "Light"], ["dark", "Dark"]], themeV)) +
+      '<div class="srow col"><span class="k">Dark theme colors</span>' + CHIPS("pack", [["", "Classic", "#16131a"]].concat(Object.keys(PACKS).map(k => [k, k[0].toUpperCase() + k.slice(1), PACKS[k][0] + ";box-shadow:inset 0 0 0 4px " + PACKS[k][3]])), cfg.pack || "") + "</div>" +
       '<div class="swatches" role="radiogroup" aria-label="Accent color">' + ACCENTS.map(c => '<button type="button" data-accent="' + c + '" style="--c:' + c + '" class="' +
-        ((cfg.accent || "#e8342a").toLowerCase() === c ? "on" : "") + '" aria-label="Accent ' + c + '"></button>').join("") + "</div>" +
+        (acc === c ? "on" : "") + '" aria-label="Accent ' + c + '"></button>').join("") +
+        '<label class="swc' + (custom ? " on" : "") + '" style="--c:' + (custom ? acc : "conic-gradient(red,orange,yellow,lime,cyan,blue,magenta,red)") + '" aria-label="Any color"><input type="color" data-color="accent" value="' + esc(/^#[0-9a-f]{6}$/.test(acc) ? acc : "#e8342a") + '"></label></div>' +
+      ROW("Text size", SEG("textSize", [["", "Default"], ["l", "Large"], ["xl", "Larger"]], cfg.textSize || "")) +
+      '<div class="srow col"><span class="k">Font</span>' + CHIPS("font", [["", "System"], ["rounded", "Rounded"], ["serif", "Serif"], ["mono", "Mono"]], cfg.font || "") + "</div>" +
+      SW("compact", "Compact layout", "Smaller spacing so more fits on the screen", !!cfg.compact) +
       ROW("Address bar", SEG("barPos", [["bottom", "Bottom"], ["top", "Top"]], cfg.barPos === "top" ? "top" : "bottom")) +
+      BTN("midBtn", "Middle toolbar button", MID_NAMES[cfg.midBtn] || "Start page") +
       SW("motion", "Animations", "", cfg.motion !== "off")) +
-    GROUP("Search engine", Object.keys(ENGINES).map(k => RADIO("search", k, ENGINES[k].name, "", engine() === ENGINES[k])).join("") +
-      SW("suggest", "Search suggestions", "Sent to DuckDuckGo as you type. Never in private tabs.", cfg.suggest !== false),
-      "Start with <b>!g</b>, <b>!d</b>, <b>!b</b>, <b>!w</b>, <b>!br</b>, <b>!s</b> or <b>!e</b> to pick an engine for one search. Keywords: " +
-      keywords().map(k => "<b>" + esc(k.k) + "</b> " + esc(k.n)).join(", ") + ".") +
+    GROUP("Search engine", engines + BTN("addEngine", "Your search engines", (cfg.myEngines || []).length ? String(cfg.myEngines.length) : "Add", "", "plus") +
+      SW("suggest", "Search suggestions", "Sent to DuckDuckGo as you type. Never in private tabs.", cfg.suggest !== false) +
+      BTN("keywords", "Keywords", keywords().length + " shortcuts") + BTN("bangs", "Bangs", Object.keys(BANGS).length + " shortcuts"),
+      "Start with a bang like <b>!g</b>, <b>!yt</b> or <b>!w</b> to search one site just once, or a keyword like <b>yt lofi</b>.") +
     GROUP("Opening websites",
       RADIO("openMode", "smart", "Smart", "Videos, Wikipedia, maps and Spotify inside Webs; everything else in Safari", cfg.openMode !== "inside" && cfg.openMode !== "outside") +
       RADIO("openMode", "inside", "Inside Webs when possible", "Tries every site here. Sites that refuse show a blank page with a way out.", cfg.openMode === "inside") +
       RADIO("openMode", "outside", "Always in Safari", "", cfg.openMode === "outside") +
+      BTN("siteRules", "Rules for single sites", rules ? String(rules) : "None") +
       SW("https", "HTTPS first", "Upgrade http:// links to a secure connection", cfg.https !== false) +
       SW("clean", "Clean links", "Remove utm_, fbclid, gclid and other trackers from links", cfg.clean !== false),
-      "iPhone only lets an app show a site inside itself when the site allows it. Safari opens on top of Webs; tap <b>Done</b> to come back.") +
+      "iPhone only lets an app show a site inside itself when the site allows it. Safari opens on top of Webs; tap <b>Done</b> to come back. Set a rule for one site from <b>Page info</b> in the menu.") +
     GROUP("Start page", BTN("customize", "Customize start page", "", "", "edit")) +
-    GROUP("Privacy",
+    GROUP("Privacy and security",
       SW("saveHistory", "Save history", "", cfg.saveHistory !== false) +
-      BTN("clearHist", "Clear history…", "", "", "trash")) +
-    GROUP("Backup",
+      ROW("Keep history", SEG("histKeep", [["0", "Always"], ["1", "1 day"], ["7", "1 week"], ["30", "1 month"]], String(+cfg.histKeep || 0))) +
+      BTN("passcode", load("mlock", null) ? "Passcode lock" : "Set a passcode", load("mlock", null) ? "On" : "", "", "lock") +
+      BTN("clearHist", "Clear history…", "", "", "trash"),
+      "The passcode keeps people who pick up your phone out of Webs. It is stored on this iPhone only.") +
+    GROUP("Alerts",
+      SW("notify", "Timer notifications", "Get a notification when a timer or focus round ends", !!cfg.notify) +
+      SW("awake", "Keep the screen on during timers", "", cfg.awake !== false) +
+      SW("badge", "Reading list count on the app icon", "Works when Webs is on your Home Screen", !!cfg.badge)) +
+    GROUP("Storage and backup",
+      BTN("storage", "Storage", "", "", "db") +
       BTN("export", "Save a backup", "", "", "dl") +
-      BTN("import", "Restore from a backup", "", "", "ul"),
-      "One file with your bookmarks, history, reading list, notes, to-do, shortcuts and settings. It works both ways with Webs Browser on Windows " +
-      "(Settings → Backup there): send the file to your iPhone with AirDrop, iCloud Drive or email and restore it here.") +
+      BTN("import", "Restore from a backup", "", "", "ul") +
+      BTN("bmImport", "Import bookmarks from another browser", "", "", "folder") +
+      BTN("bmExport", "Export bookmarks", "", "", "share"),
+      "A backup is one file with your bookmarks, history, reading list, notes, to-do, shortcuts and settings. It works both ways with Webs Browser on Windows " +
+      "(Settings → Backup there): send the file to your iPhone with AirDrop, iCloud Drive or email and restore it here. Bookmarks import from the HTML file Chrome, Safari, Edge or Firefox export.") +
     GROUP("About",
       ROW("Version", '<span class="v">' + VERSION + (isStandalone() ? " · installed" : "") + "</span>") +
+      BTN("whatsnew", "What's new", "150 new things", "", "sparkle") +
       BTN("help", "What works on iPhone") +
       (!isStandalone() ? BTN("install", "Add Webs to your Home Screen") : "") +
-      BTN("eraseAll", "Erase all Webs data", "", "danger")) ;
+      BTN("eraseAll", "Erase all Webs data", "", "danger"));
 }
 function customizeHTML() {
-  return GROUP("Greeting",
-      '<div class="srow"><span class="k">Your name</span><input type="text" data-text="ntpName" maxlength="30" placeholder="Optional" value="' + esc(cfg.ntpName || "") + '" autocomplete="given-name"></div>' +
-      SW("clock24", "24-hour clock", "", !!cfg.clock24) + SW("clockSec", "Show seconds", "", !!cfg.clockSec)) +
+  const LIVE = [["", "None"], ["gradient", "Gradient"], ["stars", "Stars"], ["aurora", "Aurora"], ["rain", "Rain"], ["snow", "Snow"], ["embers", "Embers"], ["fireflies", "Fireflies"], ["waves", "Waves"]];
+  return GROUP("Greeting and clock",
+      TEXT("ntpName", "Your name", "Optional", cfg.ntpName) +
+      TEXT("birthday", "Birthday", "", cfg.birthday, "date") +
+      '<div class="srow col"><span class="k">Clock style</span>' + CHIPS("clockStyle", [["", "Classic"], ["big", "Big"], ["flip", "Flip"], ["analog", "Analog"]], cfg.clockStyle || "") + "</div>" +
+      SW("clock24", "24-hour clock", "", !!cfg.clock24) + SW("clockSec", "Show seconds", "", !!cfg.clockSec),
+      "On your birthday the start page celebrates with you.") +
     GROUP("Weather",
-      '<div class="srow"><span class="k">City</span><input type="text" data-text="wxCity" maxlength="60" placeholder="e.g. Chicago" value="' + esc(cfg.wxCity === "@here" ? "" : cfg.wxCity || "") + '" enterkeyhint="done"></div>' +
+      TEXT("wxCity", "City", "e.g. Chicago", cfg.wxCity === "@here" ? "" : cfg.wxCity) +
       BTN("wxHere", cfg.wxCity === "@here" ? "Using your location" : "Use my location", "", "", "pin") +
       ROW("Units", SEG("wxUnit", [["c", "°C"], ["f", "°F"]], wxUnit())),
-      "From Open-Meteo. Only the city (or your rough location, if you choose it) is sent.") +
+      "From Open-Meteo. Only the city (or your rough location, if you choose it) is sent. It is also used for sunrise and sunset.") +
+    GROUP("Countdown",
+      TEXT("cdLabel", "Counting down to", "e.g. Graduation", cfg.cdLabel) +
+      TEXT("cdDate", "Date", "", cfg.cdDate, "date")) +
+    GROUP("World clocks",
+      TEXT("wclocks", "Cities", "London, Tokyo, New York", cfg.wclocks),
+      "Separate cities with commas. Turn on <b>World clocks</b> below to see them.") +
     GROUP("Show on the start page", HIDE_KEYS.map(([k, l]) => SW("show:" + k, l, "", !hidden(k))).join("") +
-      SW("freq", "Frequently visited sites in shortcuts", "", cfg.freq !== false)) +
+      SW("freq", "Frequently visited sites in shortcuts", "", cfg.freq !== false) +
+      BTN("order", "Rearrange the start page", "", "", "list")) +
+    GROUP("Effects",
+      '<div class="srow col"><span class="k">Seasonal effect</span>' + CHIPS("fxKind", [["", "By season"], ["snow", "Snow"], ["petals", "Petals"], ["fireflies", "Fireflies"], ["leaves", "Leaves"], ["hearts", "Hearts"], ["stars", "Stars"]], cfg.fxKind || "") + "</div>" +
+      '<div class="srow col"><span class="k">Live wallpaper</span>' + CHIPS("liveBg", LIVE, cfg.liveBg || "") + "</div>") +
     GROUP("Background",
-      BTN("bgPick", cfg.mbg ? "Choose another picture" : "Choose a picture", "", "", "edit") +
-      (cfg.mbg ? ROW("Dim", SEG("bgDim", [["0", "None"], ["20", "Light"], ["40", "Strong"]], String(+cfg.bgDim || 0))) + BTN("bgRemove", "Remove picture", "", "danger") : ""));
+      SW("potd", "Wikipedia picture of the day", "A new picture every day", !!cfg.potd) +
+      BTN("bgPick", cfg.mbg ? "Choose another picture" : "Choose your own picture", "", "", "edit") +
+      (cfg.mbg || cfg.potd ? ROW("Dim", SEG("bgDim", [["0", "None"], ["20", "Light"], ["40", "Strong"]], String(+cfg.bgDim || 0))) : "") +
+      (cfg.mbg ? BTN("bgRemove", "Remove picture", "", "danger") : ""),
+      "Your picture moves gently as you scroll.");
 }
 function refreshSettings() {
   const y = $("#sheetBody").scrollTop;
@@ -1365,12 +1494,16 @@ $("#sheetBody").addEventListener("change", e => {
     if (k.startsWith("show:")) setHidden(k.slice(5), !on);
     else if (k === "motion") setCfg("motion", on ? "" : "off");
     else setCfg(k, on);
+    if (SETACTIONS["sw:" + k]) SETACTIONS["sw:" + k](on, el);
     afterSetting();
+    if (k === "potd") refreshSettings();
   } else if (el.dataset.text) {
     const k = el.dataset.text, v = el.value.trim();
     if (k === "wxCity") { setCfg("wxCity", v); save("weather", null); }
     else setCfg(k, v);
     afterSetting();
+  } else if (el.dataset.color) {
+    setCfg(el.dataset.color, el.value.toLowerCase()); afterSetting(); refreshSettings();
   }
 });
 $("#sheetBody").addEventListener("keydown", e => { if (e.key === "Enter" && e.target.dataset && e.target.dataset.text) e.target.blur(); });
@@ -1379,12 +1512,15 @@ $("#sheetBody").addEventListener("click", e => {
   const seg = e.target.closest("[data-seg] button");
   if (seg) {
     const k = seg.parentNode.dataset.seg, v = seg.dataset.v;
-    setCfg(k, k === "bgDim" ? +v : v);
-    if (k === "wxUnit") save("weather", null);
-    afterSetting(); refreshSettings(); return;
+    const apply = () => { setCfg(k, k === "bgDim" || k === "histKeep" ? +v : v); if (k === "wxUnit") save("weather", null); afterSetting(); refreshSettings(); };
+    // a new theme spreads out from where you tapped
+    if ((k === "theme" || k === "pack") && typeof themeSwap === "function") themeSwap(apply, e.clientX, e.clientY); else apply();
+    if (SETACTIONS["seg:" + k]) SETACTIONS["seg:" + k](v);
+    return;
   }
   const acc = e.target.closest("[data-accent]");
   if (acc) { setCfg("accent", acc.dataset.accent); afterSetting(); refreshSettings(); return; }
+  if (e.target.closest("[data-color]")) return;
   const r = e.target.closest("[data-radio]");
   if (r) { setCfg(r.dataset.radio, r.dataset.v); afterSetting(); refreshSettings(); return; }
   const b = e.target.closest("[data-set]");
@@ -1394,6 +1530,8 @@ $("#sheetBody").addEventListener("click", e => {
     clearHist:clearHistory,
     export:exportBackup,
     import:() => pickFile(".json,application/json", importBackup),
+    midBtn:() => pick("Middle toolbar button", Object.keys(MID_NAMES).map(k => ({ label:MID_NAMES[k] + (cfg.midBtn === k || (!cfg.midBtn && k === "home") ? " ✓" : ""),
+      fn:() => { setCfg("midBtn", k); afterSetting(); refreshSettings(); } }))),
     help:() => openHelp(false),
     install:() => openHelp(true),
     eraseAll:eraseAll,
@@ -1408,7 +1546,8 @@ $("#sheetBody").addEventListener("click", e => {
     bgPick:() => pickFile("image/*", chooseBackground),
     bgRemove:() => { setCfg("mbg", false); idb.del("bg").catch(() => {}); if (bgURL) URL.revokeObjectURL(bgURL); bgURL = ""; afterSetting(); refreshSettings(); }
   };
-  if (SET[b.dataset.set]) SET[b.dataset.set]();
+  const fn = SET[b.dataset.set] || SETACTIONS[b.dataset.set];
+  if (fn) fn();
 });
 function pickFile(accept, fn) {
   const inp = $("#fileIn");
@@ -1421,7 +1560,9 @@ function pickFile(accept, fn) {
    The Windows browser's format: { app:"Webs Browser", version:1, saved, data:{ key:value } }. */
 const BACKUP_KEYS = ["settings", "shield", "vpn", "bookmarks", "history", "sessions", "notes", "reading", "panels", "watch", "zooms", "tiles", "hidden", "stats",
   "closed", "todo", "screentime", "groups", "workspaces", "highlights", "offline", "watched", "intros", "rates", "collections", "game", "games", "follows",
-  "stickies", "habits", "events", "ntpNote", "scratch", "ach", "counts", "watchHist", "icons"];
+  "stickies", "habits", "events", "ntpNote", "scratch", "ach", "counts", "watchHist", "icons",
+  // phone only
+  "msessions", "mach", "mdays", "calcs", "focus", "clips", "wheel"];
 function exportBackup() {
   flushNote();
   const data = { app:"Webs Browser", version:1, saved:new Date().toISOString(), device:"iPhone", data:{} };
@@ -1462,7 +1603,7 @@ async function importBackup(file) {
   if (Array.isArray(x.hidden)) save("hidden", [...new Set(load("hidden", []).concat(x.hidden))]);
   if (x.icons && typeof x.icons === "object") { save("icons", Object.assign({}, x.icons, load("icons", {}))); iconCache = null; }
   if (x.settings && typeof x.settings === "object") {
-    const keep = ["openMode", "barPos", "saveHistory", "clean", "theme", "mbg", "bgDim", "wxLat", "wxLon"];
+    const keep = ["openMode", "barPos", "saveHistory", "clean", "theme", "mbg", "bgDim", "wxLat", "wxLon", "notify", "badge"];
     const merged = Object.assign({}, cfg, x.settings);
     keep.forEach(k => { if (k in cfg) merged[k] = cfg[k]; else delete merged[k]; });
     cfg = Object.assign({}, DEF, merged);
@@ -1496,9 +1637,9 @@ function openHelp(install) {
       "<p>In Chrome or Edge, open the browser menu and choose <b>Install app</b> or <b>Add to Home screen</b>.</p>" +
       (deferredInstall ? '<div class="acts"><button type="button" class="btnx m" id="doInstall">' + ico("dl") + "Install Webs</button></div>" : "")) : "") +
     "<h4>Works just like on Windows</h4><ul>" +
-    "<li><b>Start page</b>: clock, greeting, weather, shortcuts, to-do, reading list, tips and seasonal effects.</li>" +
-    "<li><b>Smart address bar</b>: calculator, units, currencies, time zones, dates, weather, word definitions, crypto prices, dice, passwords and timers. Bangs (<b>!g</b>, <b>!w</b>…) and keywords (<b>yt</b>, <b>w</b>, <b>gh</b>…).</li>" +
-    "<li><b>Tabs</b> and <b>private tabs</b>, <b>bookmarks</b>, <b>history</b>, <b>reading list</b>, <b>notes</b> and <b>games</b>.</li>" +
+    "<li><b>Start page</b>: clock styles, greeting, weather, today's focus, shortcuts, to-do, habits, a countdown, a calendar, world clocks, quotes, Wikipedia, live wallpapers and seasonal effects. Rearrange it in <b>Customize</b>.</li>" +
+    "<li><b>Smart address bar</b>: calculator, units, currencies, time zones, dates, weather, definitions, Wikipedia, translation, crypto prices, text tools, QR codes, dice, passwords and timers. Bangs (<b>!g</b>, <b>!yt</b>, <b>!wa</b>…) and keywords (<b>yt</b>, <b>w</b>, <b>gh</b>…). Tap the microphone to talk.</li>" +
+    "<li><b>Tabs</b> (pin, duplicate, groups, search) and <b>private tabs</b>, <b>bookmarks</b> with folders, <b>history</b>, <b>reading list</b>, <b>notes</b> with checklists, <b>Tools</b> and <b>games</b>.</li>" +
     "<li><b>Clean links</b> and <b>HTTPS first</b>: trackers are stripped from links before they open.</li>" +
     "<li><b>Backups</b> in the same format as the Windows version, so your bookmarks and history move both ways.</li>" +
     "<li>Works <b>offline</b> once it has been opened.</li></ul>" +
@@ -1507,7 +1648,7 @@ function openHelp(install) {
     "<li>Settings → Opening websites can try every site inside Webs. Sites that refuse show a blank page, with an <b>Open in Safari</b> button.</li></ul>" +
     "<h4>Only on Windows</h4><ul>" +
     "<li><b>Shield</b> (the ad blocker), the <b>VPN</b> and Tor, extensions, the download manager and developer tools. iOS doesn't allow web apps to do these.</li></ul>" +
-    "<p style=\"margin-top:16px\">Version " + VERSION + ". Your data stays on this iPhone.</p></div>";
+    "<p style=\"margin-top:16px\">Version " + VERSION + ". Your data stays on this iPhone. <a href=\"#\" data-open=\"whatsnew\" style=\"color:var(--accent)\">See what's new</a>.</p></div>";
   openSheet(install ? "Install Webs" : "Help", html, { kind:"help", full:!install });
   const b = $("#doInstall");
   if (b) b.onclick = () => { deferredInstall.prompt(); deferredInstall = null; closeSheet(); };
@@ -1536,7 +1677,11 @@ function dlg(inner, onSubmit) {
   document.body.appendChild(d);
   const f = d.querySelector("form");
   d.addEventListener("click", e => { if (e.target === d) closeDlg(); });
-  f.addEventListener("submit", e => { e.preventDefault(); if (onSubmit && onSubmit() === false) return; closeDlg(); });
+  f.addEventListener("submit", e => {
+    e.preventDefault();
+    if (onSubmit && onSubmit() === false) { f.classList.remove("shake"); void f.offsetWidth; f.classList.add("shake"); return; }   // a little no-shake
+    closeDlg();
+  });
   return d;
 }
 // A list of choices, like iOS's action sheets.
@@ -1552,8 +1697,10 @@ function pick(title, opts, msg) {
 }
 // A small form. fn gets { key:value }; returning false keeps it open.
 function ask(o, fn) {
-  const d = dlg("<h3>" + esc(o.title) + "</h3>" + o.fields.map(f => '<label for="f_' + f.k + '">' + esc(f.label) + '</label><input id="f_' + f.k + '" name="' + f.k + '" value="' +
-    esc(f.value || "") + '" placeholder="' + esc(f.ph || "") + '"' + (f.type === "url" ? ' inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false"' : "") + ">").join("") +
+  const d = dlg("<h3>" + esc(o.title) + "</h3>" + (o.msg ? "<p>" + esc(o.msg) + "</p>" : "") + o.fields.map(f => '<label for="f_' + f.k + '">' + esc(f.label) + '</label><input id="f_' + f.k + '" name="' + f.k + '" value="' +
+    esc(f.value || "") + '" placeholder="' + esc(f.ph || "") + '"' + (f.type === "url" ? ' inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false"' :
+    f.type ? ' type="' + f.type + '"' + (f.type === "password" || f.type === "tel" ? ' inputmode="numeric" maxlength="8" autocomplete="off"' : "") : "") +
+    (f.list ? ' list="l_' + f.k + '"' : "") + ">" + (f.list ? '<datalist id="l_' + f.k + '">' + f.list.map(x => '<option value="' + esc(x) + '">').join("") + "</datalist>" : "")).join("") +
     '<div class="b"><button type="button" id="dlgCancel">Cancel</button><button type="submit" class="m">' + esc(o.ok || "OK") + "</button></div>", () => {
     const v = {};
     o.fields.forEach(f => { v[f.k] = d.querySelector('[name="' + f.k + '"]').value; });
@@ -1576,12 +1723,31 @@ $("#backBtn").innerHTML = ico("back");
 $("#fwdBtn").innerHTML = ico("fwd");
 $("#menuBtn").innerHTML = ico("menu");
 $("#newTab").innerHTML = ico("plus");
+$("#tabsMore").innerHTML = ico("more");
 $("#qClear").innerHTML = ico("x");
 $("#heroSearch .go").innerHTML = ico("fwd");
 $("#backBtn").onclick = goBack;
 $("#fwdBtn").onclick = goFwd;
-$("#homeBtn").onclick = () => { const t = curTab(); if (t && t.u) toHome(t); else openOmni(""); };
-$("#tabsBtn").onclick = openTabs;
+$("#homeBtn").onclick = () => (MIDBTN[cfg.midBtn] || MIDBTN.home).fn();
+$("#tabsBtn").onclick = () => { if (tabsHeld) { tabsHeld = false; return; } openTabs(); };
+// press and hold the tabs button for a quick menu
+let tabsHeld = false;
+(function holdTabs() {
+  const b = $("#tabsBtn"); let t0 = 0;
+  b.addEventListener("pointerdown", () => { tabsHeld = false; t0 = setTimeout(() => { tabsHeld = true; tabsQuick(); }, 480); });
+  ["pointerup", "pointercancel", "pointerleave"].forEach(ev => b.addEventListener(ev, () => clearTimeout(t0)));
+  b.addEventListener("contextmenu", e => e.preventDefault());
+})();
+function tabsQuick() {
+  const t = curTab();
+  pick("Tabs", [
+    { label:"New tab", fn:ACTIONS.newtab },
+    { label:PRIVATE ? "Leave private browsing" : "New private tab", fn:ACTIONS.private },
+    t && t.u && { label:"Close this tab", danger:true, fn:() => { closeTabUndo(t.id); render(); } },
+    (lastClosed && lastClosed.priv === PRIVATE) && { label:"Reopen closed tab", fn:undoClose },
+    { label:"Show all tabs", fn:openTabs }
+  ].filter(Boolean));
+}
 $("#menuBtn").onclick = openMenu;
 $("#wx").onclick = () => openSettings("customize");
 
@@ -1590,9 +1756,24 @@ addEventListener("keydown", e => {
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test((e.target.tagName || ""));
   if (e.key === "Escape") { if (!$("#dlg") && $("#sheet").classList.contains("hide") && $("#tabsv").classList.contains("hide")) closeOmni(); else closeOverlays(); return; }
   const mod = e.metaKey || e.ctrlKey, key = String(e.key || "").toLowerCase();
-  if (mod && key === "l") { e.preventDefault(); openOmni(); }
+  if (mod && e.shiftKey && key === "t") { e.preventDefault(); undoClose(); }
+  else if (mod && e.shiftKey && key === "n") { e.preventDefault(); ACTIONS.private(); }
+  else if (mod && key === "l") { e.preventDefault(); openOmni(); }
   else if (mod && key === "t") { e.preventDefault(); ACTIONS.newtab(); }
-  else if (mod && key === "w") { e.preventDefault(); const t = curTab(); if (t) { closeTab(t.id); render(); } }
+  else if (mod && key === "w") { e.preventDefault(); const t = curTab(); if (t) { closeTabUndo(t.id); render(); } }
+  else if (mod && key === "r") { e.preventDefault(); reload(); }
+  else if (mod && key === "d") { e.preventDefault(); ACTIONS.mark(); }
+  else if (mod && key === "k") { e.preventDefault(); ACTIONS.searchAll(); }
+  else if (mod && key === ",") { e.preventDefault(); ACTIONS.settings(); }
+  else if (mod && (key === "[" || key === "arrowleft")) { e.preventDefault(); goBack(); }
+  else if (mod && (key === "]" || key === "arrowright")) { e.preventDefault(); goFwd(); }
+  else if (mod && /^[1-9]$/.test(key)) {
+    e.preventDefault();
+    const l = S().list, t = key === "9" ? l[l.length - 1] : l[+key - 1];
+    if (t) { closeOverlays(); activate(t.id); }
+  }
+  else if (mod && key === "/") { e.preventDefault(); ACTIONS.keys(); }
+  else if (!typing && e.key === "?" && !mod) { e.preventDefault(); ACTIONS.keys(); }
   else if (!typing && e.key === "/" && $("#omni").classList.contains("hide")) { e.preventDefault(); openOmni(""); }
 });
 
@@ -1615,14 +1796,15 @@ if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
   navigator.serviceWorker.addEventListener("controllerchange", () => { if (updating) { updating = false; location.reload(); } });
 }
 
-/* ---------------------------------------------------------------- start */
-applyLook();
-render();
-setTimeout(installNudge, 1500);
-// a link shared to Webs (?q=...) or opened from the Home Screen shortcut list
-(function launch() {
+/* ---------------------------------------------------------------- start
+   Once every script has loaded, since the others add to the start page. */
+document.addEventListener("DOMContentLoaded", () => {
+  applyLook();
+  render();
+  setTimeout(installNudge, 1500);
+  // a link shared to Webs (?q=...) or opened from the Home Screen shortcut list
   const p = new URLSearchParams(location.search);
   const q = p.get("q") || p.get("url") || p.get("text");
   if (q) { history.replaceState(null, "", location.pathname); setTimeout(() => openOmni(q), 50); }
   else if (p.get("go") && ACTIONS[p.get("go")]) { const k = p.get("go"); history.replaceState(null, "", location.pathname); setTimeout(() => ACTIONS[k](), 50); }
-})();
+});
