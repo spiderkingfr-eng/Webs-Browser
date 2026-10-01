@@ -1,0 +1,27 @@
+{
+  "name": "Webs Browser",
+  "short_name": "Webs",
+  "description": "Your start page, smart address bar, tabs, bookmarks, history, notes and games - fast, private, and yours.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#16131a",
+  "theme_color": "#16131a",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ],
+  "shortcuts": [
+    { "name": "Bookmarks", "url": "./?go=bookmarks" },
+    { "name": "History", "url": "./?go=history" },
+    { "name": "New private tab", "url": "./?go=private" },
+    { "name": "Games", "url": "./?go=games" }
+  ],
+  "share_target": { "action": "./", "method": "GET", "params": { "title": "title", "text": "text", "url": "url" } }
+}

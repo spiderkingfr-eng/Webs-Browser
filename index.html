@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Webs Browser</title>
+<meta name="description" content="Webs Browser for iPhone: your start page, smart address bar, bookmarks, history, notes and games - fast, private, and yours.">
+<meta name="theme-color" content="#16131a">
+<meta name="color-scheme" content="dark light">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Webs">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="format-detection" content="telephone=no">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="app.css">
+<script>
+  // The theme is set before the first paint, so the page never flashes the wrong colors.
+  (function () {
+    var s = {}; try { s = JSON.parse(localStorage.getItem("wsb.settings") || "{}"); } catch (e) {}
+    var t = s.theme === "light" || s.theme === "dark" ? s.theme : (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+    document.documentElement.dataset.theme = t;
+  })();
+</script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <clipPath id="logoL"><polygon points="139.5,28.5 104.7,225.4 -190.7,173.3 -155.9,-23.6"/></clipPath>
+    <clipPath id="logoR"><polygon points="151.3,30.6 116.5,227.5 411.9,279.6 446.7,82.7"/></clipPath>
+    <symbol id="logo" viewBox="0 0 256 256">
+      <circle cx="128" cy="128" r="128" style="fill:var(--accent)"/>
+      <g transform="translate(-2.6,14.8)"><g clip-path="url(#logoL)"><rect x="50" y="76" width="156" height="104" rx="17" fill="#f7f3ea"/></g></g>
+      <g transform="translate(2.6,-14.8)"><g clip-path="url(#logoR)"><rect x="50" y="76" width="156" height="104" rx="17" fill="#f7f3ea"/></g></g>
+    </symbol>
+  </defs>
+</svg>
+
+<div id="app">
+  <main id="view">
+    <!-- the start page (a new tab) -->
+    <section id="home" class="page" aria-label="Start page">
+      <div id="bgl"></div>
+      <div id="seam"><u></u><i></i></div>
+      <div class="wrap">
+        <button id="wx" class="chip" type="button">+ Add weather</button>
+        <div class="hero">
+          <svg class="mark" id="mark"><use href="#logo"/></svg>
+          <div id="clock" class="hide"></div>
+          <h1 id="greet"></h1>
+          <div id="date"></div>
+          <p class="private-note hide" id="privNote">Private tab. Pages you open here are not saved to your history, and search suggestions are off.</p>
+          <button id="heroSearch" type="button" aria-label="Search the web, or type a URL">
+            <span class="eng" id="engBadge">D</span>
+            <span class="ph">Search or type a URL</span>
+            <span class="go"></span>
+          </button>
+        </div>
+
+        <section id="timerSec" class="hide"><div class="lbl"><span>Timers</span></div><div class="card" id="timers"></div></section>
+
+        <section id="topSec">
+          <div class="lbl"><span>Shortcuts</span><button type="button" id="tileEdit">Edit</button></div>
+          <div id="grid"></div>
+        </section>
+
+        <section id="recentSec" class="hide">
+          <div class="lbl"><span>Jump back in</span><button type="button" data-open="history">History</button></div>
+          <div class="card" id="recent"></div>
+        </section>
+
+        <section id="readSec" class="hide">
+          <div class="lbl"><span>Reading list</span><button type="button" data-open="reading">See all</button></div>
+          <div class="card" id="reads"></div>
+        </section>
+
+        <section id="todoSec">
+          <div class="lbl"><span>To-do</span><button type="button" id="todoClear" class="hide">Clear done</button></div>
+          <div class="card" id="todos"></div>
+          <input id="todoNew" class="field" placeholder="Add a to-do" enterkeyhint="done" maxlength="200" autocomplete="off">
+        </section>
+
+        <div id="tip" class="hide"><span class="tl">TIP</span><span id="tipT"></span><button type="button" id="tipNext">Next</button><button type="button" id="tipX" aria-label="Hide tips">&times;</button></div>
+
+        <footer id="homeFoot">
+          <button type="button" data-open="bookmarks">Bookmarks</button>
+          <button type="button" data-open="history">History</button>
+          <button type="button" data-open="notes">Notes</button>
+          <button type="button" data-act="games">Games</button>
+          <button type="button" data-open="settings">Settings</button>
+          <button type="button" data-open="customize">Customize</button>
+        </footer>
+      </div>
+    </section>
+
+    <!-- web pages that can be shown inside the app -->
+    <div id="frames" class="page hide"></div>
+    <div id="progress"></div>
+    <div id="hint" class="hide" role="status"></div>
+  </main>
+
+  <nav id="bar" aria-label="Toolbar">
+    <div id="addr">
+      <span class="site" id="siteIc"></span>
+      <button type="button" id="urlbtn" class="ph">Search or enter website</button>
+      <button type="button" class="ab" id="extBtn" aria-label="Open in Safari"></button>
+      <button type="button" class="ab" id="relBtn" aria-label="Reload"></button>
+    </div>
+    <div id="btns">
+      <button type="button" id="backBtn" aria-label="Back"></button>
+      <button type="button" id="fwdBtn" aria-label="Forward"></button>
+      <button type="button" id="homeBtn" aria-label="Start page"></button>
+      <button type="button" id="tabsBtn" aria-label="Tabs"><span class="tabsq" id="tabsN">1</span></button>
+      <button type="button" id="menuBtn" aria-label="Menu"></button>
+    </div>
+  </nav>
+</div>
+
+<!-- the address bar, focused -->
+<div id="omni" class="ov hide" role="dialog" aria-label="Search or enter website">
+  <form id="omniForm" autocomplete="off" action="#">
+    <div class="inp"><span id="omniIc"></span>
+      <input id="q" type="search" placeholder="Search or enter website" enterkeyhint="go" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Search or enter website">
+      <button type="button" id="qClear" aria-label="Clear"></button>
+    </div>
+    <button type="button" id="omniCancel">Cancel</button>
+  </form>
+  <div id="omniList"></div>
+</div>
+
+<!-- tabs -->
+<div id="tabsv" class="ov hide" role="dialog" aria-label="Tabs">
+  <header>
+    <h2 id="tabsTitle">Tabs</h2>
+    <div class="seg" id="tabMode"><button type="button" data-v="0">Tabs</button><button type="button" data-v="1">Private</button></div>
+  </header>
+  <div id="tabGrid"></div>
+  <footer>
+    <button type="button" class="hbtn plain" id="closeAll">Close all</button>
+    <button type="button" class="newt" id="newTab" aria-label="New tab"></button>
+    <button type="button" class="hbtn" id="tabsDone">Done</button>
+  </footer>
+</div>
+
+<div id="scrim" class="hide"></div>
+<div id="sheet" class="sheet hide" role="dialog">
+  <div class="grab"></div>
+  <header><button type="button" class="hbtn plain hide" id="sheetBack" aria-label="Back"></button><h2 id="sheetTitle"></h2><button type="button" class="hbtn" id="sheetDone">Done</button></header>
+  <div class="body" id="sheetBody"></div>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+<input type="file" id="fileIn" class="hide">
+
+<script src="js/core.js"></script>
+<script src="js/answers.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

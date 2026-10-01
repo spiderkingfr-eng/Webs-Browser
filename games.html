@@ -1,0 +1,380 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Games</title>
+<!-- Offline games: Web Runner, Snake, 2048 and a daily word. Best scores in wsb.game (runner) and wsb.games.
+     From the Windows browser, with touch controls added: tap to jump, swipe to steer the snake. -->
+<style>
+:root{--bg:#16131a;--bg2:#1e1a24;--bg3:#272230;--bg4:#302a3a;--line:#322c3c;--fg:#f3eff1;--dim:#9a91a3;--dim2:#6f6779;--accent:#e8342a}
+:root[data-theme="light"]{--bg:#efebe3;--bg2:#f9f6ef;--bg3:#e6e0d6;--bg4:#ddd6ca;--line:#d9d2c6;--fg:#1d1a20;--dim:#6b6560;--dim2:#928b83}
+*{box-sizing:border-box;margin:0;padding:0}
+@keyframes up{from{opacity:0;transform:translateY(12px)}}
+@keyframes fadeIn{from{opacity:0}}
+:root[data-motion="reduced"] *{animation-name:fadeIn!important;animation-duration:.15s!important;animation-delay:0s!important}
+:root[data-motion="off"] *,:root[data-motion="off"] *::before,:root[data-motion="off"] *::after{animation:none!important;transition:none!important}
+@media (prefers-reduced-motion:reduce){*{animation-name:fadeIn!important;animation-duration:.15s!important;animation-delay:0s!important}}
+
+body{background:var(--bg);color:var(--fg);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI Variable Text",-apple-system,"Segoe UI",system-ui,sans-serif;padding:calc(20px + env(safe-area-inset-top,0px)) calc(14px + env(safe-area-inset-right,0px)) calc(40px + env(safe-area-inset-bottom,0px)) calc(14px + env(safe-area-inset-left,0px));min-height:100vh;-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+button{touch-action:manipulation}
+.tabs{overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}.tabs::-webkit-scrollbar{display:none}
+.tabs button{flex:none}
+@media (max-width:520px){h1{font-size:24px}.tabs button{padding:0 12px}.hud{flex-direction:column;gap:2px}#wkeys{width:100%}#wkeys div{width:100%;justify-content:center}#wkeys button{flex:1 1 0;min-width:0;max-width:42px;padding:0}}
+main{max-width:780px;margin:0 auto}
+h1{font-size:28px;font-weight:700;letter-spacing:-.02em;margin-bottom:4px;animation:up .45s both}
+.sub{color:var(--dim);margin-bottom:18px;animation:up .45s .05s both}
+.tabs{display:flex;gap:8px;margin-bottom:16px;animation:up .45s .1s both}
+.tabs button{display:flex;align-items:center;gap:8px;height:40px;padding:0 16px;border-radius:12px;border:1px solid var(--line);background:var(--bg2);color:var(--dim);cursor:pointer;font:600 13px inherit;font-family:inherit;transition:all .15s}
+.tabs button:hover{color:var(--fg);transform:translateY(-1px)}
+.tabs button.on{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 6px 18px color-mix(in srgb,var(--accent) 40%,transparent)}
+.tabs em{font-style:normal;font-weight:400;opacity:.8;font-size:12px}
+.g{display:none;animation:up .35s both}
+.g.on{display:block}
+canvas{display:block;width:100%;border-radius:16px;background:var(--bg2);box-shadow:0 18px 44px rgba(0,0,0,.28);cursor:pointer;touch-action:none}
+.hud{display:flex;justify-content:space-between;color:var(--dim);font-size:12.5px;padding:8px 4px 0}
+#board{position:relative;width:min(420px,100%);aspect-ratio:1;margin:0 auto;background:var(--bg3);border-radius:14px;padding:10px;display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(4,1fr);gap:10px;touch-action:none}
+#board .c{background:var(--bg2);border-radius:9px}
+#tiles{position:absolute;inset:10px}
+.t{position:absolute;display:grid;place-items:center;border-radius:9px;font:700 28px -apple-system,"Segoe UI",system-ui,sans-serif;transition:left .11s ease-out,top .11s ease-out;animation:pop .16s ease-out}
+.t.new{animation:pop .2s .08s ease-out both}
+.t.merged{animation:bump .2s ease-out}
+@keyframes pop{from{transform:scale(0)}}
+@keyframes bump{50%{transform:scale(1.15)}}
+.b2048{display:flex;justify-content:space-between;align-items:center;width:min(420px,100%);margin:0 auto 10px}
+.b2048 b{font-size:22px}
+button.act{height:32px;padding:0 14px;border-radius:9px;border:1px solid var(--line);background:var(--bg2);color:var(--fg);cursor:pointer;font:600 12.5px inherit;font-family:inherit}
+#wboard{display:grid;grid-template-rows:repeat(6,1fr);gap:6px;width:min(330px,100%);margin:0 auto 12px}
+.wr{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.wc{aspect-ratio:1;display:grid;place-items:center;border:2px solid var(--line);border-radius:8px;font:700 26px -apple-system,"Segoe UI",system-ui,sans-serif;text-transform:uppercase;background:var(--bg2)}
+.wc.f{border-color:var(--dim2);animation:bump .12s}
+.wc.lg,.wc.ly,.wc.lx{color:#fff;border-color:transparent}
+.wc.flip{animation:turn .5s both}
+.wc.lg{background:#3fa55b}.wc.ly{background:#c9a227}.wc.lx{background:#57515f}
+@keyframes turn{0%{transform:rotateX(0)}50%{transform:rotateX(90deg)}100%{transform:rotateX(0)}}
+#wmsg{text-align:center;min-height:24px;color:var(--dim);margin-bottom:8px;font-weight:600}
+#wkeys{display:flex;flex-direction:column;gap:6px;align-items:center}
+#wkeys div{display:flex;gap:5px}
+#wkeys button{min-width:34px;height:46px;padding:0 8px;border:0;border-radius:7px;background:var(--bg3);color:var(--fg);font:700 13px inherit;font-family:inherit;cursor:pointer;text-transform:uppercase}
+#wkeys button.lg{background:#3fa55b;color:#fff}#wkeys button.ly{background:#c9a227;color:#fff}#wkeys button.lx{background:#2a2530;color:var(--dim2)}
+#over2048{position:absolute;inset:0;border-radius:14px;background:color-mix(in srgb,var(--bg) 70%,transparent);display:none;place-items:center;text-align:center;font:600 20px -apple-system,"Segoe UI",system-ui,sans-serif;z-index:5}
+
+</style>
+<main>
+  <h1>Games</h1>
+  <div class="sub">Small games that work without internet. Best scores stay on this device.</div>
+  <div class="tabs"><button data-g="runner" class="on">Web Runner <em id="bR"></em></button><button data-g="snake">Snake <em id="bS"></em></button><button data-g="g2048">2048 <em id="b2"></em></button><button data-g="word">Daily word <em id="bW"></em></button></div>
+  <section class="g on" id="runner"><canvas id="c" width="760" height="240"></canvas><div class="hud"><span>Tap (or Space) to jump · hold for a higher jump</span><span id="best"></span></div></section>
+  <section class="g" id="snake"><canvas id="sn" width="600" height="400"></canvas><div class="hud"><span>Swipe (or arrow keys) to steer · tap to pause</span><span id="snS"></span></div></section>
+  <section class="g" id="g2048"><div class="b2048"><span>Score <b id="sc2">0</b></span><button class="act" id="new2048">New game</button></div>
+    <div id="board"><div id="tiles"></div><div id="over2048"></div></div><div class="hud" style="justify-content:center"><span>Arrow keys or swipe</span></div></section>
+  <section class="g" id="word"><div id="wboard"></div><div id="wmsg"></div><div id="wkeys"></div></section>
+</main>
+<script>
+"use strict";
+/* Color themes (Settings → Appearance), for the dark theme. */
+(function () {
+  const P = { midnight:["#0e1220","#151a2c","#1d2338","#262d46","#28304a","#e8ecf6","#98a2bd","#6b7593"], forest:["#0f1612","#151f19","#1c2a21","#24352a","#26372c","#e6f0e8","#93a898","#6a7f6f"],
+    ocean:["#0b1519","#102026","#152a31","#1b353e","#1d3942","#e3f1f4","#8fb0b8","#658891"], rose:["#1a1216","#22181d","#2d2027","#382830","#3a2931","#f6ecf0","#b5979f","#85707a"],
+    mono:["#141414","#1c1c1c","#252525","#2e2e2e","#303030","#efefef","#a0a0a0","#707070"], coffee:["#17120e","#201913","#2a2119","#34291f","#372b21","#f3ebe3","#aa9886","#7d6d5e"],
+    amoled:["#000000","#0b0b0d","#151518","#1e1e22","#222226","#f2f2f2","#9a9aa2","#6a6a72"] };
+  const K = ["bg", "bg2", "bg3", "bg4", "line", "fg", "dim", "dim2"];
+  function apply() {
+    let s = {}; try { s = JSON.parse(localStorage.getItem("wsb.settings") || "{}"); } catch (e) {}
+    const light = s.theme === "light" || document.documentElement.dataset.theme === "light";
+    const pk = !light && (s.pack === "custom" && Array.isArray(s.customTheme) && s.customTheme.length === 8 && s.customTheme.every(c => /^#[0-9a-f]{6}$/i.test(c)) ? s.customTheme : P[s.pack]), r = document.documentElement.style;
+    K.forEach((k, i) => { if (pk) r.setProperty("--" + k, pk[i]); else r.removeProperty("--" + k); });
+  }
+  apply();
+  addEventListener("storage", e => { if (e.key === "wsb.settings") setTimeout(apply, 0); });
+  document.addEventListener("wsb-pack", apply);
+})();
+
+const S = "\u0001";
+const send = () => {};
+const get = (k, d) => { try { const v = localStorage.getItem("wsb." + k); return v ? JSON.parse(v) : d; } catch (e) { return d; } };
+const put = (k, v) => { try { localStorage.setItem("wsb." + k, JSON.stringify(v)); } catch (e) {} };
+const $ = s => document.getElementById(s);
+const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch (e) { return ""; } };
+const cfg = get("settings", {});
+document.documentElement.dataset.theme = cfg.theme === "light" || cfg.theme === "dark" ? cfg.theme : matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+document.documentElement.dataset.motion = cfg.motion || "";
+if (/^#[0-9a-f]{6}$/i.test(cfg.accent || "")) document.documentElement.style.setProperty("--accent", cfg.accent);
+
+let game = "runner";
+const bests = () => get("games", {});
+function showBest() {
+  const b = bests();
+  $("bR").textContent = get("game", 0) ? "· " + get("game", 0) : "";
+  $("bS").textContent = b.snake ? "· " + b.snake : "";
+  $("b2").textContent = b.g2048 ? "· " + b.g2048 : "";
+  $("bW").textContent = b.wordWins ? "· " + b.wordWins + " won" : "";
+  if ($("best")) $("best").textContent = get("game", 0) ? "Best " + get("game", 0) : "";
+}
+document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => {
+  game = b.dataset.g; document.querySelectorAll(".tabs button").forEach(x => x.classList.toggle("on", x === b));
+  document.querySelectorAll(".g").forEach(x => x.classList.toggle("on", x.id === game));
+  if (game !== "snake") snPause = true;
+  if (game === "g2048") requestAnimationFrame(() => draw2());
+});
+showBest();
+// ---------------------------------------------------------------- Web Runner (the same game as the offline page)
+(function () {
+/* ---------------------------------------------------------------- Web Runner */
+const cv = $("c"), g = cv.getContext("2d"), W = cv.width, H = cv.height, GROUND = H - 38;
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+let best = +get("game", 0) || 0, state = "ready", t = 0, speed, score, obs, drops, parts, stars, shake = 0;
+const P = { x:90, y:GROUND, vy:0, hold:false, legs:0 };
+function reset() { speed = 5.2; score = 0; obs = []; drops = []; parts = []; P.y = GROUND; P.vy = 0; shake = 0; }
+stars = Array.from({ length:40 }, () => ({ x:Math.random() * W, y:Math.random() * (GROUND - 40), r:Math.random() * 1.4 + .3, s:Math.random() * .3 + .1 }));
+reset();
+showBest();
+function jump() {
+  if (state !== "run") { reset(); state = "run"; return; }
+  if (P.y >= GROUND - .5) { P.vy = -10.6; burst(P.x, GROUND, 8, css("--dim")); }
+}
+function burst(x, y, n, col) { for (let i = 0; i < n; i++) parts.push({ x, y, vx:(Math.random() - .5) * 4, vy:-Math.random() * 3, life:1, col }); }
+addEventListener("keydown", e => { if (game !== "runner") return; if (e.key === " " || e.key === "ArrowUp") { e.preventDefault(); P.hold = true; jump(); } });
+addEventListener("keyup", e => { if (e.key === " " || e.key === "ArrowUp") P.hold = false; });
+cv.addEventListener("pointerdown", () => { P.hold = true; jump(); });
+addEventListener("pointerup", () => { P.hold = false; });
+
+function spider(x, y, hurt) {
+  const ac = css("--accent");
+  g.save(); g.translate(x, y - 14);
+  g.strokeStyle = css("--fg"); g.lineWidth = 2; g.lineCap = "round";
+  const k = state === "run" && y >= GROUND - .5 ? Math.sin(P.legs) * 4 : 2;
+  for (let i = 0; i < 4; i++) {           // legs
+    const s = i % 2 ? k : -k, dx = -9 + i * 6;
+    g.beginPath(); g.moveTo(dx * .5, 2); g.quadraticCurveTo(dx - 4, -6, dx - 7, 12 + s); g.stroke();
+    g.beginPath(); g.moveTo(dx * .5 + 3, 2); g.quadraticCurveTo(dx + 8, -6, dx + 11, 12 - s); g.stroke();
+  }
+  g.fillStyle = hurt ? "#888" : ac;
+  g.beginPath(); g.ellipse(-3, 0, 11, 9, 0, 0, 7); g.fill();
+  g.beginPath(); g.arc(9, -2, 6, 0, 7); g.fill();
+  g.fillStyle = "#fff"; g.beginPath(); g.arc(11, -4, 2.2, 0, 7); g.arc(7, -4, 1.8, 0, 7); g.fill();
+  g.fillStyle = "#111"; g.beginPath(); g.arc(11.6, -4, 1, 0, 7); g.arc(7.5, -4, .9, 0, 7); g.fill();
+  g.restore();
+}
+function bug(o) {
+  g.save(); g.translate(o.x, o.y);
+  if (o.fly) { g.fillStyle = "rgba(160,200,255,.55)"; const f = Math.sin(t * .6) * 4; g.beginPath(); g.ellipse(-3, -8 - f * .3, 7, 4 + f * .4, -.4, 0, 7); g.ellipse(5, -8 - f * .3, 7, 4 + f * .4, .4, 0, 7); g.fill(); }
+  g.fillStyle = o.fly ? "#6a7ad8" : "#3fb971"; g.beginPath(); g.ellipse(0, 0, o.w / 2, o.h / 2, 0, 0, 7); g.fill();
+  g.fillStyle = "#111"; g.beginPath(); g.arc(-o.w / 2 + 3, -2, 2, 0, 7); g.fill();
+  g.restore();
+}
+function frame() {
+  t++;
+  const fg = css("--fg"), dim = css("--dim2"), line = css("--line");
+  g.save();
+  if (shake > 0) { g.translate((Math.random() - .5) * shake, (Math.random() - .5) * shake); shake *= .85; if (shake < .5) shake = 0; }
+  g.clearRect(-10, -10, W + 20, H + 20);
+  // sky
+  g.fillStyle = dim; stars.forEach(s => { if (state === "run") s.x -= s.s * speed * .2; if (s.x < 0) s.x += W; g.globalAlpha = .35 + .3 * Math.sin((t + s.x) * .03); g.beginPath(); g.arc(s.x, s.y, s.r, 0, 7); g.fill(); });
+  g.globalAlpha = 1;
+  g.fillStyle = css("--bg3"); g.beginPath(); g.arc(W - 90, 52, 22, 0, 7); g.fill();
+  // web thread (the ground), gently swaying
+  g.strokeStyle = line; g.lineWidth = 2; g.beginPath();
+  for (let x = 0; x <= W; x += 20) g.lineTo(x, GROUND + 1 + Math.sin((x + t * speed) * .02) * 1.5);
+  g.stroke();
+  g.strokeStyle = line; g.lineWidth = 1; g.globalAlpha = .5;
+  for (let x = -((t * speed) % 80); x < W; x += 80) { g.beginPath(); g.moveTo(x, GROUND + 1); g.lineTo(x + 40, H); g.moveTo(x, GROUND + 1); g.lineTo(x - 40, H); g.stroke(); }
+  g.globalAlpha = 1;
+
+  if (state === "run") {
+    speed += .0016; score += speed * .02; P.legs += speed * .09;
+    P.vy += P.hold && P.vy < 0 ? .42 : .78; P.y = Math.min(GROUND, P.y + P.vy);
+    if (P.y >= GROUND) P.vy = 0;
+    const last = obs[obs.length - 1];
+    if (!last || last.x < W - (230 + Math.random() * 260) - speed * 12) {
+      const fly = score > 120 && Math.random() < .3;
+      obs.push({ x:W + 30, y:fly ? GROUND - 52 - Math.random() * 18 : GROUND - 9, w:fly ? 20 : 20 + Math.random() * 14, h:fly ? 13 : 16, fly });
+      if (Math.random() < .5) drops.push({ x:W + 140, y:GROUND - 70 - Math.random() * 40 });
+    }
+    obs.forEach(o => { o.x -= speed * (o.fly ? 1.15 : 1); });
+    drops.forEach(d => { d.x -= speed; });
+    obs = obs.filter(o => o.x > -40); drops = drops.filter(d => d.x > -20 && !d.got);
+    // hits (a little forgiving)
+    for (const o of obs) if (Math.abs(o.x - P.x) < o.w / 2 + 8 && Math.abs(o.y - (P.y - 12)) < o.h / 2 + 7) {
+      state = "over"; shake = 12; burst(P.x, P.y - 12, 26, css("--accent"));
+      const s = Math.floor(score);
+      if (s > best) { best = s; put("game", best); }
+      showBest();
+    }
+    drops.forEach(d => { if (Math.hypot(d.x - P.x, d.y - (P.y - 12)) < 18) { d.got = true; score += 25; burst(d.x, d.y, 12, "#7cc8ff"); } });
+  }
+  drops.forEach(d => { g.fillStyle = "#7cc8ff"; g.beginPath(); g.moveTo(d.x, d.y - 8); g.quadraticCurveTo(d.x + 7, d.y + 2, d.x, d.y + 5); g.quadraticCurveTo(d.x - 7, d.y + 2, d.x, d.y - 8); g.fill(); });
+  obs.forEach(bug);
+  spider(P.x, P.y, state === "over");
+  parts.forEach(p => { p.x += p.vx; p.y += p.vy; p.vy += .15; p.life -= .03; g.globalAlpha = Math.max(0, p.life); g.fillStyle = p.col; g.fillRect(p.x, p.y, 3, 3); });
+  parts = parts.filter(p => p.life > 0); g.globalAlpha = 1;
+  g.fillStyle = fg; g.font = "600 15px -apple-system, 'Segoe UI', system-ui, sans-serif"; g.textAlign = "right";
+  g.fillText(String(Math.floor(score)).padStart(5, "0"), W - 18, 28);
+  g.textAlign = "center";
+  if (state !== "run") {
+    g.fillStyle = fg; g.font = "600 20px -apple-system, 'Segoe UI', system-ui, sans-serif";
+    g.fillText(state === "over" ? "Caught! Score " + Math.floor(score) : "Web Runner", W / 2, 92);
+    g.fillStyle = dim; g.font = "13px -apple-system, 'Segoe UI', system-ui, sans-serif";
+    g.fillText(state === "over" ? "Tap to play again" : "Jump over the bugs, catch the dew drops. Tap to start.", W / 2, 116);
+  }
+  g.restore();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+})();
+// ---------------------------------------------------------------- Snake
+const sn = $("sn"), sg = sn.getContext("2d"), N = 24, CW = sn.width / N | 0, RH = sn.height / CW | 0;
+let snake, dir, nextDir, food, snScore, snDead, snPause = true, snT = 0, snSpeed;
+function snReset() { snake = [[8, 8], [7, 8], [6, 8]]; dir = [1, 0]; nextDir = dir; snScore = 0; snDead = false; snSpeed = 130; placeFood(); }
+function placeFood() { do { food = [Math.random() * N | 0, Math.random() * RH | 0]; } while (snake.some(p => p[0] === food[0] && p[1] === food[1])); }
+function snStep() {
+  dir = nextDir;
+  const h = [(snake[0][0] + dir[0] + N) % N, (snake[0][1] + dir[1] + RH) % RH];
+  if (snake.some(p => p[0] === h[0] && p[1] === h[1])) { snDead = true; const b = bests(); if (snScore > (b.snake || 0)) { b.snake = snScore; put("games", b); showBest(); } return; }
+  snake.unshift(h);
+  if (h[0] === food[0] && h[1] === food[1]) { snScore++; snSpeed = Math.max(60, snSpeed - 3); placeFood(); } else snake.pop();
+}
+function snDraw(now) {
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  sg.clearRect(0, 0, sn.width, sn.height);
+  sg.fillStyle = css("--bg3"); for (let x = 0; x < N; x++) for (let y = 0; y < RH; y++) if ((x + y) % 2) sg.fillRect(x * CW, y * CW, CW, CW);
+  const pulse = 1 + Math.sin(now / 200) * .12;
+  sg.fillStyle = "#3fb971"; sg.beginPath(); sg.arc(food[0] * CW + CW / 2, food[1] * CW + CW / 2, CW * .32 * pulse, 0, 7); sg.fill();
+  snake.forEach((p, i) => { sg.fillStyle = i ? css("--accent") : css("--fg"); const pad = i ? 2 : 1; sg.beginPath(); sg.roundRect(p[0] * CW + pad, p[1] * CW + pad, CW - pad * 2, CW - pad * 2, 5); sg.fill(); });
+  $("snS").textContent = "Score " + snScore + (bests().snake ? " · best " + bests().snake : "");
+  if (snPause || snDead) {
+    sg.fillStyle = "rgba(0,0,0,.45)"; sg.fillRect(0, 0, sn.width, sn.height);
+    sg.fillStyle = "#fff"; sg.textAlign = "center"; sg.font = "600 20px -apple-system, 'Segoe UI', system-ui, sans-serif";
+    sg.fillText(snDead ? "Game over - score " + snScore : "Snake", sn.width / 2, sn.height / 2 - 8);
+    sg.font = "13px -apple-system, 'Segoe UI', system-ui, sans-serif"; sg.fillText("Tap to " + (snDead ? "play again" : "start"), sn.width / 2, sn.height / 2 + 16);
+  }
+}
+function snLoop(now) {
+  if (game === "snake" && !snPause && !snDead && now - snT > snSpeed) { snT = now; snStep(); }
+  if (game === "snake") snDraw(now);
+  requestAnimationFrame(snLoop);
+}
+snReset(); requestAnimationFrame(snLoop);
+const DIRS = { ArrowUp:[0, -1], ArrowDown:[0, 1], ArrowLeft:[-1, 0], ArrowRight:[1, 0], w:[0, -1], s:[0, 1], a:[-1, 0], d:[1, 0] };
+addEventListener("keydown", e => {
+  if (game === "snake") {
+    const d = DIRS[e.key] || DIRS[e.key.toLowerCase()];
+    if (d) { e.preventDefault(); if (d[0] !== -dir[0] || d[1] !== -dir[1]) nextDir = d; if (snPause) snPause = false; }
+    if (e.key === " ") { e.preventDefault(); if (snDead) { snReset(); snPause = false; } else snPause = !snPause; }
+  } else if (game === "word") {
+    if (e.ctrlKey || e.altKey || e.metaKey) return;
+    if (e.key === "Enter") { e.preventDefault(); wordKey("enter"); } else if (e.key === "Backspace") wordKey("back"); else if (/^[a-z]$/i.test(e.key)) wordKey(e.key.toLowerCase());
+  } else if (game === "g2048") {
+    const m = { ArrowUp:"u", ArrowDown:"d", ArrowLeft:"l", ArrowRight:"r" }[e.key];
+    if (m) { e.preventDefault(); move(m); }
+  }
+});
+// a swipe steers, a tap starts or pauses
+let snSw = null;
+sn.addEventListener("pointerdown", e => { snSw = [e.clientX, e.clientY]; });
+sn.addEventListener("pointerup", e => {
+  if (!snSw) return;
+  const dx = e.clientX - snSw[0], dy = e.clientY - snSw[1]; snSw = null;
+  if (Math.max(Math.abs(dx), Math.abs(dy)) >= 24) {
+    const d = Math.abs(dx) > Math.abs(dy) ? [dx > 0 ? 1 : -1, 0] : [0, dy > 0 ? 1 : -1];
+    if (snDead) return;
+    if (d[0] !== -dir[0] || d[1] !== -dir[1]) nextDir = d;
+    snPause = false;
+    return;
+  }
+  if (snDead) { snReset(); snPause = false; } else snPause = !snPause;
+});
+// ---------------------------------------------------------------- 2048
+const COL = { 2:["#eee4da", "#776e65"], 4:["#ede0c8", "#776e65"], 8:["#f2b179", "#fff"], 16:["#f59563", "#fff"], 32:["#f67c5f", "#fff"], 64:["#f65e3b", "#fff"],
+  128:["#edcf72", "#fff"], 256:["#edcc61", "#fff"], 512:["#edc850", "#fff"], 1024:["#edc53f", "#fff"], 2048:["#edc22e", "#fff"] };
+let grid, score2, tid = 0, over2 = false;
+for (let i = 0; i < 16; i++) { const c = document.createElement("div"); c.className = "c"; $("board").insertBefore(c, $("tiles")); }
+function add2() { const e = []; for (let i = 0; i < 16; i++) if (!grid[i]) e.push(i); if (!e.length) return; const i = e[Math.random() * e.length | 0]; grid[i] = { v:Math.random() < .9 ? 2 : 4, id:++tid, isNew:true }; }
+function new2048() { grid = new Array(16).fill(null); score2 = 0; over2 = false; add2(); add2(); draw2(); }
+function draw2() {
+  const box = $("tiles"), size = box.clientWidth, cell = (size - 30) / 4;
+  const keep = new Set();
+  grid.forEach((t, i) => {
+    if (!t) return; keep.add(String(t.id));
+    let d = box.querySelector('[data-id="' + t.id + '"]');
+    if (!d) { d = document.createElement("div"); d.className = "t" + (t.isNew ? " new" : ""); d.dataset.id = t.id; box.appendChild(d); }
+    else if (t.merged) { d.classList.remove("merged"); void d.offsetWidth; d.classList.add("merged"); }
+    const x = i % 4, y = i / 4 | 0, c = COL[t.v] || ["#3c3a32", "#fff"];
+    d.style.cssText = "width:" + cell + "px;height:" + cell + "px;left:" + x * (cell + 10) + "px;top:" + y * (cell + 10) + "px;background:" + c[0] + ";color:" + c[1] + ";font-size:" + (t.v > 512 ? 22 : 28) + "px";
+    d.textContent = t.v; t.isNew = false; t.merged = false;
+  });
+  [...box.children].forEach(d => { if (!keep.has(d.dataset.id)) d.remove(); });
+  $("sc2").textContent = score2;
+  const o = $("over2048"); o.style.display = over2 ? "grid" : "none"; o.textContent = over2 ? "No more moves - score " + score2 : "";
+}
+function move(dirn) {
+  if (over2) return;
+  const lines = [];
+  for (let a = 0; a < 4; a++) { const l = []; for (let b = 0; b < 4; b++) l.push(dirn === "l" ? a * 4 + b : dirn === "r" ? a * 4 + 3 - b : dirn === "u" ? b * 4 + a : (3 - b) * 4 + a); lines.push(l); }
+  let moved = false;
+  lines.forEach(l => {
+    const ts = l.map(i => grid[i]).filter(Boolean), out = [];
+    for (let i = 0; i < ts.length; i++) {
+      if (ts[i + 1] && ts[i + 1].v === ts[i].v) { const m = { v:ts[i].v * 2, id:ts[i].id, merged:true }; score2 += m.v; out.push(m); i++; }
+      else out.push(ts[i]);
+    }
+    l.forEach((idx, k) => { const n = out[k] || null; if ((grid[idx] && grid[idx].id) !== (n && n.id) || (n && n.merged)) moved = true; grid[idx] = n; });
+  });
+  if (!moved) return;
+  add2();
+  const b = bests(); if (score2 > (b.g2048 || 0)) { b.g2048 = score2; put("games", b); showBest(); }
+  over2 = !grid.some(t => !t) && ![0, 1, 2, 3].some(y => [0, 1, 2].some(x => grid[y * 4 + x].v === grid[y * 4 + x + 1].v)) && ![0, 1, 2].some(y => [0, 1, 2, 3].some(x => grid[y * 4 + x].v === grid[(y + 1) * 4 + x].v));
+  draw2();
+}
+$("new2048").onclick = new2048;
+let sw0 = null;
+$("board").addEventListener("pointerdown", e => { sw0 = [e.clientX, e.clientY]; });
+$("board").addEventListener("pointerup", e => { if (!sw0) return; const dx = e.clientX - sw0[0], dy = e.clientY - sw0[1]; sw0 = null; if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) return; move(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "r" : "l") : (dy > 0 ? "d" : "u")); });
+addEventListener("resize", () => draw2());
+new2048();
+// ---------------------------------------------------------------- daily word: guess today's five-letter word in six tries
+const WORDS = "apple beach brave bread brick cabin candy chair chalk charm chess cloud clown coast coral crane crown dance delta diary dream eagle earth fable feast field flame flute frost fruit ghost giant glass globe grape grass heart honey horse house jelly jewel juice kayak knife koala lemon light lucky magic mango maple march metal model money moose mouse music night noble ocean olive onion orbit otter paint panda party peach pearl piano pilot pizza plant plaza polar queen quiet radio raven river robot rocky royal salad sauce scarf score shark sheep shelf shine skate sleep smile snack snake spark spice spoon sport squid stage storm story sugar sunny sweet table tiger toast torch tower train treat tulip uncle vapor video vivid voice water whale wheat witch world yacht young zebra".split(" ");
+const dayN = Math.floor((Date.now() - new Date().getTimezoneOffset() * 6e4) / 864e5), ANSWER = WORDS[(dayN * 7919) % WORDS.length];
+let ws = get("wordState", null);
+if (!ws || ws.day !== dayN) ws = { day:dayN, guesses:[], done:0 };
+let wcur = "";
+function wordPaint(flip) {
+  const b = $("wboard"); b.innerHTML = "";
+  const marks = {};
+  for (let r = 0; r < 6; r++) {
+    const row = document.createElement("div"); row.className = "wr";
+    const g = ws.guesses[r] || (r === ws.guesses.length ? wcur : ""), done = r < ws.guesses.length, res = done ? wordScore(g) : [];
+    for (let i = 0; i < 5; i++) {
+      const last = flip && r === ws.guesses.length - 1;
+      const c = document.createElement("div"); c.className = "wc" + (g[i] && !done ? " f" : "") + (done ? " l" + res[i] + (last ? " flip" : "") : ""); c.textContent = g[i] || "";
+      if (done) { if (last) c.style.animationDelay = i * 120 + "ms"; const m = marks[g[i]]; if (m !== "g" && !(m === "y" && res[i] === "x")) marks[g[i]] = res[i]; }
+      row.appendChild(c);
+    }
+    b.appendChild(row);
+  }
+  const k = $("wkeys"); k.innerHTML = "";
+  ["qwertyuiop", "asdfghjkl", "+zxcvbnm-"].forEach(line => { const d = document.createElement("div");
+    line.split("").forEach(ch => { const bt = document.createElement("button"); bt.textContent = ch === "+" ? "Enter" : ch === "-" ? "\u232b" : ch; if (marks[ch]) bt.className = "l" + marks[ch];
+      bt.onclick = () => wordKey(ch === "+" ? "enter" : ch === "-" ? "back" : ch); d.appendChild(bt); }); k.appendChild(d); });
+  $("wmsg").textContent = ws.done === 1 ? "Solved in " + ws.guesses.length + "! A new word tomorrow." : ws.done === 2 ? "The word was " + ANSWER.toUpperCase() + ". A new one tomorrow." : "Guess today's five-letter word. Green: right place. Yellow: in the word.";
+}
+function wordScore(g) {
+  const res = Array(5).fill("x"), left = {};
+  for (let i = 0; i < 5; i++) if (g[i] === ANSWER[i]) res[i] = "g"; else left[ANSWER[i]] = (left[ANSWER[i]] || 0) + 1;
+  for (let i = 0; i < 5; i++) if (res[i] !== "g" && left[g[i]]) { res[i] = "y"; left[g[i]]--; }
+  return res;
+}
+function wordKey(k) {
+  if (ws.done) return;
+  if (k === "back") wcur = wcur.slice(0, -1);
+  else if (k === "enter") {
+    if (wcur.length < 5) { $("wmsg").textContent = "Five letters, please"; return; }
+    ws.guesses.push(wcur); const won = wcur === ANSWER; wcur = "";
+    if (won) { ws.done = 1; const b = bests(); b.wordWins = (b.wordWins || 0) + 1; put("games", b); showBest(); }
+    else if (ws.guesses.length >= 6) ws.done = 2;
+    put("wordState", ws); wordPaint(true); return;
+  } else if (wcur.length < 5) wcur += k;
+  wordPaint(false);
+}
+wordPaint(false);
+
+</script>
