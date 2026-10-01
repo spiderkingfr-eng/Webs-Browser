@@ -21,7 +21,9 @@
     { "name": "Bookmarks", "url": "./?go=bookmarks" },
     { "name": "History", "url": "./?go=history" },
     { "name": "New private tab", "url": "./?go=private" },
-    { "name": "Games", "url": "./?go=games" }
+    { "name": "Games", "url": "./?go=games" },
+    { "name": "Tools", "url": "./?go=tools" },
+    { "name": "Notes", "url": "./?go=notes" }
   ],
   "share_target": { "action": "./", "method": "GET", "params": { "title": "title", "text": "text", "url": "url" } }
 }
