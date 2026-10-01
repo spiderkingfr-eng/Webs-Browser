@@ -8,7 +8,7 @@ const check = (c, w) => { if (c) ok++; else { bad++; console.log("  FAIL:", w); 
   const p = await ctx.newPage(); watch(p, errors, "side");
   await p.goto("https://browser.example/side.html#xtools"); await p.waitForTimeout(500);
   check(await p.evaluate(() => document.querySelectorAll("#xtools .xcard").length === 13 && $("xtools").classList.contains("on")), "tool hub");
-  await p.screenshot({ path:__dirname + "/shots/side-hub.png" });
+  await p.screenshot({ path:SHOTS + "side-hub.png" });
   const shots = ["xclocks", "xsketch", "xpass", "xjson", "xdiff", "xregex", "xmd", "xcolors", "xbreathe", "xmetro", "xdecide", "xtally", "xunit"];
   for (const id of shots) {
     await p.evaluate(id => { location.hash = id; }, id); await p.waitForTimeout(250);
@@ -20,7 +20,7 @@ const check = (c, w) => { if (c) ok++; else { bad++; console.log("  FAIL:", w); 
   check(await p.evaluate(() => document.querySelectorAll("#xclocks .xclk").length >= 4), "clocks listed");
   await p.fill("#xcAdd", "paris"); await p.press("#xcAdd", "Enter"); await p.waitForTimeout(100);
   check(await p.evaluate(() => [...document.querySelectorAll("#xclocks .xclk b")].some(b => b.textContent === "Paris")), "added Paris");
-  await p.screenshot({ path:__dirname + "/shots/side-clocks.png" });
+  await p.screenshot({ path:SHOTS + "side-clocks.png" });
   // passwords
   await p.evaluate(() => { location.hash = "xpass"; }); await p.waitForTimeout(100);
   const pw = await p.evaluate(() => $("xpOut").textContent);
@@ -29,7 +29,7 @@ const check = (c, w) => { if (c) ok++; else { bad++; console.log("  FAIL:", w); 
   check(/^([A-Z][a-z]+\d*-){6}[A-Z][a-z]+\d*$/.test(await p.evaluate(() => $("xpOut").textContent)), "passphrase: " + await p.evaluate(() => $("xpOut").textContent));
   await p.evaluate(() => { __sent.length = 0; $("xpCopy").click(); });
   check(await p.evaluate(() => __sent.some(m => m.indexOf("clip\u0001") === 0)), "copy password");
-  await p.screenshot({ path:__dirname + "/shots/side-pass.png" });
+  await p.screenshot({ path:SHOTS + "side-pass.png" });
   // JSON
   await p.evaluate(() => { location.hash = "xjson"; }); await p.waitForTimeout(100);
   await p.fill("#xjIn", '{"b":1,"a":[1,2,{"c":true}]}'); await p.check("#xjSort"); await p.click("#xjFmt");
@@ -53,19 +53,19 @@ const check = (c, w) => { if (c) ok++; else { bad++; console.log("  FAIL:", w); 
   // colors
   await p.evaluate(() => { location.hash = "xcolors"; }); await p.waitForTimeout(100);
   check(await p.evaluate(() => document.querySelectorAll("#xkP .xpal div").length === 25 && /Contrast/.test($("xkM").textContent)), "palettes");
-  await p.screenshot({ path:__dirname + "/shots/side-colors.png" });
+  await p.screenshot({ path:SHOTS + "side-colors.png" });
   // sketch
   await p.evaluate(() => { location.hash = "xsketch"; }); await p.waitForTimeout(200);
   const box = await p.evaluate(() => { const r = $("xsPad").getBoundingClientRect(); return [r.left, r.top]; });
   await p.mouse.move(box[0] + 30, box[1] + 30); await p.mouse.down(); await p.mouse.move(box[0] + 140, box[1] + 120, { steps:8 }); await p.mouse.up();
   check(await p.evaluate(() => (localStorage.getItem("wsb.xSketch") || "").length > 1000), "sketch saved");
-  await p.screenshot({ path:__dirname + "/shots/side-sketch.png" });
+  await p.screenshot({ path:SHOTS + "side-sketch.png" });
   // wheel
   await p.evaluate(() => { location.hash = "xdecide"; }); await p.waitForTimeout(100);
   await p.evaluate(() => { document.documentElement.dataset.motion = "off"; $("xwGo").click(); }); await p.waitForTimeout(150);
   const won = await p.evaluate(() => $("xwR").textContent);
   check(/🎉 (Pizza|Sushi|Tacos|Burgers|Pasta|Salad)/.test(won), "wheel picks: " + won);
-  await p.screenshot({ path:__dirname + "/shots/side-wheel.png" });
+  await p.screenshot({ path:SHOTS + "side-wheel.png" });
   // tally, unit price, breathe, metronome
   await p.evaluate(() => { location.hash = "xtally"; }); await p.waitForTimeout(100);
   await p.click('#xtally [data-d="1"]'); await p.click('#xtally [data-d="1"]');

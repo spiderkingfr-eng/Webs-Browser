@@ -72,12 +72,12 @@ const check = (c, w) => { if (c) ok++; else { bad++; console.log("  FAIL:", w); 
   await p.evaluate(() => X3.toolsPanel()); await p.waitForTimeout(300);
   const n = await p.evaluate(() => document.querySelectorAll("#xtp .xtg button").length);
   check(n >= 45, "page tools panel has " + n + " tools");
-  await p.screenshot({ path:__dirname + "/shots/pc-tools.png" });
+  await p.screenshot({ path:SHOTS + "pc-tools.png" });
   await p.evaluate(() => { __sent.length = 0; [...document.querySelectorAll("#xtp .xtg button")].find(b => /Reading guide/.test(b.textContent)).click(); });
   check(await p.evaluate(() => __sent.some(m => m === "page-tool\u00012\u0001x-ruler\u0001")), "tool button runs the page tool");
   await p.evaluate(() => mainMenu()); await p.waitForTimeout(250);
   check(await p.evaluate(() => [...document.querySelectorAll("#menu .mi span")].some(s => s.textContent === "More page tools (new)…") && [...document.querySelectorAll("#menu .mi span")].some(s => /437 features/.test(s.textContent))), "main menu rows");
-  await p.screenshot({ path:__dirname + "/shots/pc-menu.png" });
+  await p.screenshot({ path:SHOTS + "pc-menu.png" });
   await p.evaluate(() => closeOver());
   check(await p.evaluate(() => commands().length) > 230, "palette commands: " + await p.evaluate(() => commands().length));
   // palette finds a new command
@@ -89,7 +89,7 @@ const check = (c, w) => { if (c) ok++; else { bad++; console.log("  FAIL:", w); 
   await p.evaluate(() => { cfg.xClock = true; cfg.xTabNums = true; cfg.xGlow = true; cfg.xRainbow = true; cfg.xTabCount = true; applyLook(); renderTabs(); });
   await p.waitForTimeout(100);
   check(await p.evaluate(() => /\d/.test(document.querySelector(".xclock").textContent) && document.querySelectorAll(".tab .xnum").length === 3), "clock and tab numbers");
-  await p.screenshot({ path:__dirname + "/shots/pc-strip.png", clip:{ x:0, y:0, width:1280, height:90 } });
+  await p.screenshot({ path:SHOTS + "pc-strip.png", clip:{ x:0, y:0, width:1280, height:90 } });
   // tool results: markdown save and text copy
   await p.evaluate(() => { __sent.length = 0; pageTool("x-md"); onToolResult(active, JSON.stringify({ a:"x-md", md:"# Hi", title:"A/B: page" })); });
   check(await p.evaluate(() => __sent.some(m => m.indexOf("save-text\u0001A B page.md\u0001# Hi") === 0)), "markdown saved");

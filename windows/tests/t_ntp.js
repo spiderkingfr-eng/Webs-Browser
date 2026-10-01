@@ -19,14 +19,14 @@ const check = (c, w) => { if (c) ok++; else { bad++; console.log("  FAIL:", w); 
   await p.click('[data-w="xwater"] button[data-i="2"]');
   check(await p.evaluate(() => /3 of 8/.test(document.querySelector('[data-w="xwater"]').textContent)), "water tracker");
   check(await p.evaluate(() => !!document.querySelector("canvas#live")), "constellation wallpaper running");
-  await p.screenshot({ path:__dirname + "/shots/ntp-widgets.png", fullPage:false });
+  await p.screenshot({ path:SHOTS + "ntp-widgets.png", fullPage:false });
   await p.evaluate(() => window.scrollTo(0, 2000)); await p.waitForTimeout(300);
-  await p.screenshot({ path:__dirname + "/shots/ntp-widgets2.png" });
+  await p.screenshot({ path:SHOTS + "ntp-widgets2.png" });
   for (const k of ["matrix", "warp", "bubbles", "lava", "petals", "aurora", "", "net"]) {
     await p.evaluate(k => { const s = JSON.parse(localStorage.getItem("wsb.settings")); s.liveBg = k; localStorage.setItem("wsb.settings", JSON.stringify(s)); readCfg(); liveBg(); }, k);
     await p.waitForTimeout(500);
     check(await p.evaluate(() => document.querySelectorAll("canvas#live").length) === (k ? 1 : 0), "one wallpaper canvas for " + (k || "none"));
-    if (["matrix", "lava", "petals", "warp"].includes(k)) await p.screenshot({ path:__dirname + "/shots/ntp-" + k + ".png" });
+    if (["matrix", "lava", "petals", "warp"].includes(k)) await p.screenshot({ path:SHOTS + "ntp-" + k + ".png" });
   }
   check(await p.evaluate(() => [...document.querySelectorAll("#liveSeg button")].length === 16), "wallpaper buttons");
   check(await p.evaluate(() => ENGS.some(e => e[0] === "ecosia")), "new engines in the engine menu");
