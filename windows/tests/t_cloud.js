@@ -10,7 +10,7 @@ const drive = { file:null, mod:0, writes:0, revoked:[], refreshBad:new Set(), to
 async function fakeGoogle(ctx) {
   await ctx.route(/^https:\/\/raw\.githubusercontent\.com\/spiderkingfr-eng\/Webs-Browser\/main\/updates\/latest\.json/, r =>
     r.fulfill({ status:200, contentType:"application/json", headers:{ "access-control-allow-origin":"*" },
-      body:JSON.stringify({ version:"3.2.0", date:"2026-10-20", notes:["Faster tabs", "A new game"], updater:{ url:UPDATER }, google:{ clientId:CLIENT, clientSecret:"shh" } }) }));
+      body:JSON.stringify({ version:"9.2.0", date:"2026-10-20", notes:["Faster tabs", "A new game"], updater:{ url:UPDATER }, google:{ clientId:CLIENT, clientSecret:"shh" } }) }));
   const cors = { "access-control-allow-origin":"https://browser.example", "access-control-allow-headers":"authorization,content-type", "access-control-allow-methods":"GET,POST,PATCH,DELETE" };
   const json = (r, o, status) => r.fulfill({ status:status || 200, contentType:"application/json", headers:cors, body:JSON.stringify(o) });
   await ctx.route(/^https:\/\/(oauth2|openidconnect|www)\.googleapis\.com\//, async r => {
@@ -79,9 +79,9 @@ async function signIn(p, code) {
   // updates
   await pa.evaluate(() => X3.checkUpdate(true)); await pa.waitForTimeout(400);
   check(await pa.evaluate(() => !!document.querySelector(".xbox .xupd")), "update button in the tab strip");
-  check(/3\.2\.0 is ready/.test(await pa.evaluate(() => (document.querySelector("#xupdp") || {}).textContent || "")), "update panel says 3.2.0 is ready");
+  check(/9\.2\.0 is ready/.test(await pa.evaluate(() => (document.querySelector("#xupdp") || {}).textContent || "")), "update panel says 9.2.0 is ready");
   await pa.screenshot({ path:SHOTS + "cloud-update.png" });
-  await pa.evaluate(() => { __sent.length = 0; [...document.querySelectorAll("#xupdp button")].find(b => b.textContent === "Update now").click(); });
+  await pa.evaluate(() => { __sent.length = 0; [...document.querySelectorAll("#xupdp button")].find(b => b.textContent === "Update now").click(); }); await pa.waitForTimeout(300);
   check((await sent(pa, /^dl-retry/))[0] === "dl-retry\u0001webs-update\u0001" + UPDATER, "Update now downloads the updater");
   await pa.evaluate(u => { __sent.length = 0;
     __host("download", "d1", "progress", "WebsUpdate.exe", "C:\\Users\\sam\\Downloads\\Programs\\WebsUpdate.exe", 5000, 20480, "", u, 1);
@@ -152,7 +152,7 @@ async function signIn(p, code) {
   await ps.goto("https://browser.example/settings.html#account"); await ps.waitForTimeout(600);
   check(/sam@example\.com/.test(await ps.textContent("#xgNote")), "Settings shows the account");
   check(/synced with your Google account/.test(await ps.textContent(".sub")), "Settings subtitle mentions Google");
-  check(/3\.2\.0 is ready/.test(await ps.textContent("#xuNote")) && await ps.isVisible("#xuGo"), "Settings shows the update");
+  check(/9\.2\.0 is ready/.test(await ps.textContent("#xuNote")) && await ps.isVisible("#xuGo"), "Settings shows the update");
   await ps.screenshot({ path:SHOTS + "cloud-settings.png" });
   const w1 = drive.writes;
   await pa.evaluate(() => { save("xgPrefs", { layout:true, lists:true, extras:true }); });
