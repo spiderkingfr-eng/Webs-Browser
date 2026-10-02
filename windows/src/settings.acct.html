@@ -1,0 +1,23 @@
+  <h2 id="account">Google account and updates</h2>
+  <div class="card">
+    <div class="vstate" id="xgBox"><div class="xgpic" id="xgPic"></div>
+      <div class="txt"><b id="xgTitle">Save your layout to Google</b><span id="xgNote">Sign in once on each computer, and your layout, settings, bookmarks and notes follow you.</span></div>
+      <button class="act main" id="xgGo">Sign in with Google</button></div>
+    <div class="set xgOnly"><div class="txt"><b>Layout and settings</b><span>Look, new tab shortcuts and widgets, sidebar panels, Shield and site zoom. The newest copy wins. Things only on this computer, like its folders, background files and songs, stay here.</span></div><div class="sw" id="xgLayout"><i></i></div></div>
+    <div class="set xgOnly"><div class="txt"><b>Bookmarks, notes and to-dos</b><span>Also the reading list, collections and highlights. Computers add to each other; nothing is deleted by syncing.</span></div><div class="sw" id="xgLists"><i></i></div></div>
+    <div class="set xgOnly"><div class="txt"><b>Extras</b><span>Sticky notes, habits, calendar events, game scores and achievements.</span></div><div class="sw" id="xgExtras"><i></i></div></div>
+    <div class="set xgOnly"><div class="txt"><b>Sync</b><span id="xgLast">Every few minutes while the browser is open.</span></div>
+      <button class="act" id="xgSync">Sync now</button><button class="act" id="xgOut">Sign out</button><button class="act" id="xgDel">Delete saved data</button></div>
+  </div>
+  <h2>Updates</h2>
+  <div class="card">
+    <div class="set"><div class="txt"><b id="xuVer">Webs Browser</b><span id="xuNote"></span></div>
+      <button class="act" id="xuCheck">Check now</button><button class="act main" id="xuGo" style="display:none">Update now</button></div>
+    <div class="set"><div class="txt"><b>Check for updates by itself</b><span>Every few hours, from the browser's page on GitHub. Nothing is installed until you click Update now.</span></div><div class="sw" id="xUpdates"><i></i></div></div>
+  </div>
+<style>
+.xgpic{width:40px;height:40px;border-radius:50%;flex:none;display:grid;place-items:center;background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent);font-weight:700;font-size:17px;overflow:hidden}
+.xgpic img{width:100%;height:100%;object-fit:cover}
+#xgBox.on .xgpic{box-shadow:0 0 0 3px color-mix(in srgb,var(--good) 45%,transparent)}
+#xgBox.error .xgpic{box-shadow:0 0 0 3px color-mix(in srgb,var(--warn) 55%,transparent)}
+</style>

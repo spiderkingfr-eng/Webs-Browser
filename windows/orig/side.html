@@ -1,0 +1,780 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Sidebar</title>
+<!-- The sidebar's own page: notes (one per site if you like), the reading
+     list, a to-do list shared with the new tab page, and timers. Same origin as the chrome, so it shares its storage; links open in the
+     main page, not in this narrow panel. -->
+<style>
+:root{
+  --bg:#16131a; --bg2:#1e1a24; --bg3:#272230; --line:#322c3c;
+  --fg:#f3eff1; --dim:#9a91a3; --dim2:#6f6779; --accent:#e8342a;
+}
+:root[data-theme="light"]{
+  --bg:#efebe3; --bg2:#f9f6ef; --bg3:#e6e0d6; --line:#d9d2c6;
+  --fg:#1d1a20; --dim:#6b6560; --dim2:#928b83;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg2);color:var(--fg);display:flex;flex-direction:column;
+  font:13px/1.45 "Segoe UI Variable Text","Segoe UI",system-ui,sans-serif}
+nav{display:flex;gap:4px;padding:10px 10px 0;border-bottom:1px solid var(--line)}
+nav button{flex:1;padding:8px 6px 9px;border:0;background:none;color:var(--dim);font:inherit;cursor:pointer;border-bottom:2px solid transparent}
+nav button.on{color:var(--fg);border-bottom-color:var(--accent)}
+.pane{flex:1;min-height:0;display:none;flex-direction:column}
+.pane.on{display:flex}
+.bar{display:flex;gap:6px;padding:10px;align-items:center}
+.bar input{flex:1;min-width:0;height:32px;background:var(--bg3);border:1px solid var(--line);border-radius:8px;color:var(--fg);padding:0 10px;font:inherit;outline:0}
+.bar input:focus,textarea:focus{border-color:var(--accent)}
+button.b{height:32px;padding:0 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg3);color:var(--fg);font:inherit;cursor:pointer;white-space:nowrap}
+button.b:hover{border-color:var(--accent);color:var(--accent)}
+button.b.m{background:var(--accent);border-color:var(--accent);color:#fff}
+.list{flex:1;overflow-y:auto;padding:0 6px 10px}
+.item{position:relative;padding:9px 10px;border-radius:9px;cursor:pointer}
+.item:hover{background:var(--bg3)}
+.item.sel{background:var(--bg3)}
+.item b{display:block;font-weight:500;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding-right:44px}
+.item span{display:block;color:var(--dim);font-size:11.5px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.item.done b{color:var(--dim);text-decoration:line-through}
+.item .acts{position:absolute;top:7px;right:6px;display:none;gap:2px}
+.item:hover .acts{display:flex}
+.item .acts button{width:22px;height:22px;border:0;border-radius:6px;background:none;color:var(--dim);cursor:pointer;font-size:13px}
+.item .acts button:hover{background:var(--bg);color:var(--accent)}
+.empty{color:var(--dim2);padding:18px 12px;text-align:center}
+#editor{display:none;flex-direction:column;flex:1;min-height:0;padding:0 10px 10px;gap:6px}
+#editor.on{display:flex}
+#editor input{height:34px;background:none;border:0;border-bottom:1px solid var(--line);color:var(--fg);font:600 15px "Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;outline:0}
+textarea{flex:1;min-height:120px;resize:none;background:var(--bg3);border:1px solid var(--line);border-radius:9px;color:var(--fg);padding:10px;font:13px/1.55 "Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;outline:0}
+.meta{display:flex;align-items:center;gap:6px;color:var(--dim2);font-size:11.5px}
+.meta span{flex:1}
+.seg{display:flex;gap:4px;padding:0 10px 6px}
+.seg button{border:0;background:none;color:var(--dim);font:12px "Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;padding:3px 8px;border-radius:12px;cursor:pointer}
+.seg button.on{background:var(--bg3);color:var(--fg)}
+#reading .seg{flex-wrap:wrap}
+/* tabs */
+.tb{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:8px;cursor:pointer;position:relative}
+.tb:hover{background:var(--bg3)}
+.tb.on{background:var(--bg3);box-shadow:inset 3px 0 0 var(--accent)}
+.tb img,.tb .ph{width:16px;height:16px;border-radius:3px;flex:none}
+.tb .ph{background:var(--bg3)}
+.tb .tt{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.tb .au{color:var(--dim);font-size:11px}
+.tb .x{border:0;background:none;color:var(--dim);cursor:pointer;width:20px;height:20px;border-radius:5px;opacity:0}
+.tb:hover .x{opacity:1}
+.tb .x:hover{background:var(--bg);color:var(--accent)}
+.tg{display:flex;align-items:center;gap:6px;margin:8px 4px 2px;font-size:11px;font-weight:600;color:var(--dim)}
+.tg i{width:8px;height:8px;border-radius:4px;display:block}
+.tb.ing{padding-left:18px}
+.keys{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;padding:0 10px 10px}
+.keys button{height:36px;border-radius:8px;border:1px solid var(--line);background:var(--bg3);color:var(--fg);font:500 14px inherit;font-family:inherit;cursor:pointer;transition:transform .08s,background .12s}
+.keys button:hover{background:var(--bg)}
+.keys button:active{transform:scale(.92)}
+.keys button.op{color:var(--accent)}
+.keys button.eq{background:var(--accent);border-color:var(--accent);color:#fff}
+.tb .fold{width:14px;height:14px;flex:none;border:0;background:none;color:var(--dim);cursor:pointer;font-size:10px;padding:0;transition:transform .15s}
+.tb .fold.shut{transform:rotate(-90deg)}
+.tb .fold.none{visibility:hidden}
+button.b.on{border-color:var(--accent);color:var(--accent)}
+/* to-do */
+.todo{display:flex;align-items:flex-start;gap:9px;padding:8px 10px;border-radius:9px}
+.todo:hover{background:var(--bg3)}
+.todo .box{width:17px;height:17px;margin-top:1px;border-radius:5px;border:1.5px solid var(--dim2);flex:none;cursor:pointer;display:grid;place-items:center}
+.todo.done .box{background:var(--accent);border-color:var(--accent)}
+.todo .box::after{content:"";width:8px;height:4px;border:solid #fff;border-width:0 0 2px 2px;transform:rotate(-45deg) translate(1px,-1px);display:none}
+.todo.done .box::after{display:block}
+.todo .tx{flex:1;min-width:0;overflow-wrap:anywhere}
+.todo.done .tx{color:var(--dim);text-decoration:line-through}
+.todo button{border:0;background:none;color:var(--dim);cursor:pointer;opacity:0;font-size:14px;width:20px}
+.todo:hover button{opacity:1}
+/* timers */
+.sec{padding:4px 12px 12px;border-bottom:1px solid var(--line)}
+.sec h4{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--dim2);font-weight:600;margin:10px 0 8px}
+.quick{display:flex;gap:6px;flex-wrap:wrap}
+.quick button{flex:1}
+.row2{display:flex;gap:6px;margin-top:8px}
+.row2 input{flex:1;min-width:0;height:32px;background:var(--bg3);border:1px solid var(--line);border-radius:8px;color:var(--fg);padding:0 10px;font:inherit;outline:0}
+.row2 input.n{flex:0 0 64px}
+.tm{display:flex;align-items:center;gap:10px;padding:8px 0}
+.tm b{font:300 24px "Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;font-variant-numeric:tabular-nums;min-width:92px}
+.tm span{flex:1;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tm .bar2{height:3px;background:var(--bg3);border-radius:2px;margin-top:3px}
+.tm .bar2 i{display:block;height:100%;background:var(--accent);border-radius:2px}
+#sw{font:300 38px "Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;font-variant-numeric:tabular-nums;text-align:center;padding:4px 0 8px}
+#laps{max-height:140px;overflow:auto;color:var(--dim);font-variant-numeric:tabular-nums}
+/* rich notes */
+#fmt{display:flex;flex-wrap:wrap;gap:2px}
+#fmt button{min-width:28px;height:28px;padding:0 6px;border:0;border-radius:6px;background:none;color:var(--dim);cursor:pointer;font:600 12.5px "Segoe UI Variable Text","Segoe UI",system-ui,sans-serif}
+#fmt button:hover{background:var(--bg3);color:var(--fg)}
+#fmt i.sp{width:1px;background:var(--line);margin:4px 3px}
+#nText{flex:1;min-height:120px;overflow-y:auto;background:var(--bg3);border:1px solid var(--line);border-radius:9px;color:var(--fg);padding:10px;font:13px/1.55 "Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;outline:0;overflow-wrap:anywhere;white-space:pre-wrap}
+#nText:focus{border-color:var(--accent)}
+#nText:empty::before{content:attr(data-ph);color:var(--dim2)}
+#nText h2{font-size:16px;margin:8px 0 4px}#nText h3{font-size:14px;margin:6px 0 3px}
+#nText p{margin:0}#nText ul,#nText ol{margin:2px 0;padding-left:22px}
+#nText blockquote{margin:4px 0;padding-left:10px;border-left:3px solid var(--line);color:var(--dim)}
+#nText code{background:var(--bg);border-radius:4px;padding:0 4px;font:12px Consolas,monospace}
+#nText a{color:var(--accent);cursor:pointer}
+#nText ul.chk{list-style:none;padding-left:4px}
+#nText ul.chk li{position:relative;padding-left:24px}
+#nText ul.chk li::before{content:"";position:absolute;left:0;top:3px;width:14px;height:14px;border-radius:4px;border:1.5px solid var(--dim2);cursor:pointer}
+#nText ul.chk li[data-check="1"]{color:var(--dim);text-decoration:line-through}
+#nText ul.chk li[data-check="1"]::before{background:var(--accent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 8.5l3 3 6-7' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E") center/12px no-repeat;border-color:var(--accent)}
+#laps div{display:flex;justify-content:space-between;padding:3px 2px;border-bottom:1px solid var(--line)}
+/* motion */
+.pane.on{animation:up .3s cubic-bezier(.2,.8,.2,1) both}
+.item,.todo,.tb{transition:background .12s,transform .15s}
+.item:hover,.todo:hover{transform:translateX(2px)}
+nav button{transition:color .15s,border-color .2s}
+button.b{transition:border-color .15s,color .15s,transform .1s}
+button.b:active{transform:scale(.95)}
+@keyframes up{from{opacity:0;transform:translateY(10px)}}
+@keyframes fadeIn{from{opacity:0}}
+:root[data-motion="reduced"] *{animation-name:fadeIn!important;animation-duration:.15s!important;animation-delay:0s!important}
+:root[data-motion="off"] *,:root[data-motion="off"] *::before,:root[data-motion="off"] *::after{animation:none!important;transition:none!important}
+@media (prefers-reduced-motion:reduce){*{animation-name:fadeIn!important;animation-duration:.15s!important;animation-delay:0s!important}}
+</style>
+
+<nav><button data-p="tabs">Tabs</button><button data-p="notes">Notes</button><button data-p="todo">To-do</button><button data-p="reading">Reading</button><button data-p="timer">Timer</button><button data-p="calc">Calc</button></nav>
+
+<div class="pane" id="notes">
+  <div class="bar"><input id="nq" placeholder="Search notes" spellcheck="false"><button class="b m" id="nNew">New note</button></div>
+  <div class="list" id="nList"></div>
+  <div id="editor">
+    <div class="meta"><button class="b" id="nBack">&larr; All notes</button><span id="nInfo"></span><button class="b" id="nExport" title="Save as a text file">.txt</button><button class="b" id="nExportMd" title="Save as Markdown">.md</button></div>
+    <input id="nTitle" placeholder="Title" spellcheck="false">
+    <div id="fmt" role="toolbar" aria-label="Formatting">
+      <button data-c="bold" title="Bold (Ctrl+B)"><b>B</b></button><button data-c="italic" title="Italic (Ctrl+I)"><i>I</i></button><button data-c="underline" title="Underline (Ctrl+U)"><u>U</u></button><button data-c="strikeThrough" title="Strike through"><s>S</s></button>
+      <i class="sp"></i><button data-c="h2" title="Heading">H</button><button data-c="insertUnorderedList" title="Bullet list">&bull;</button><button data-c="insertOrderedList" title="Numbered list">1.</button><button data-c="check" title="Checklist">&#9745;</button><button data-c="quote" title="Quote">&ldquo;</button><button data-c="code" title="Code">&lt;/&gt;</button>
+      <i class="sp"></i><button data-c="link" title="Link">&#128279;</button><button data-c="removeFormat" title="Clear formatting">&#10005;</button>
+    </div>
+    <div id="nText" contenteditable="true" spellcheck="true" data-ph="Write anything. It is saved as you type."></div>
+  </div>
+</div>
+
+<div class="pane" id="tabs">
+  <div class="bar"><input id="tq" placeholder="Filter tabs" spellcheck="false"><button class="b" id="tTree" title="Show tabs opened from a page under it">Tree</button><button class="b m" id="tNewTab">New tab</button></div>
+  <div class="list" id="tbList"></div>
+</div>
+
+<div class="pane" id="todo">
+  <div class="bar"><input id="tNew" placeholder="Add a to-do and press Enter" maxlength="200"><button class="b" id="tClear">Clear done</button></div>
+  <div class="list" id="tList"></div>
+</div>
+
+<div class="pane" id="calc">
+  <div class="bar"><input id="cx" placeholder="Type a sum, like 12*(3+4) or sqrt(2)" spellcheck="false" autocomplete="off"></div>
+  <div id="cres" style="padding:0 14px 8px;font:300 30px 'Segoe UI Variable Display','Segoe UI',system-ui,sans-serif;min-height:46px;overflow-wrap:anywhere"></div>
+  <div class="keys" id="ckeys"></div>
+  <div class="list" id="chist"></div>
+</div>
+
+<div class="pane" id="timer">
+  <div class="list" style="padding:0">
+    <div class="sec">
+      <h4>Timer</h4>
+      <div class="quick"><button class="b" data-m="1">1 min</button><button class="b" data-m="5">5 min</button><button class="b" data-m="10">10 min</button><button class="b" data-m="25">25 min</button></div>
+      <div class="row2"><input class="n" id="tmMin" type="number" min="1" max="1440" placeholder="min"><input id="tmLabel" placeholder="Label (optional)" maxlength="60"><button class="b m" id="tmStart">Start</button></div>
+      <div class="row2"><button class="b" id="pomo" style="flex:1">Start a Pomodoro (25 min focus, 5 min break)</button></div>
+      <div id="tmList"></div>
+    </div>
+    <div class="sec">
+      <h4>Stopwatch</h4>
+      <div id="sw">0:00.0</div>
+      <div class="quick"><button class="b m" id="swGo">Start</button><button class="b" id="swLap">Lap</button><button class="b" id="swReset">Reset</button></div>
+      <div id="laps"></div>
+    </div>
+  </div>
+</div>
+
+<div class="pane" id="reading">
+  <div class="bar"><button class="b m" id="rAdd" style="flex:1;overflow:hidden;text-overflow:ellipsis">Add this page</button></div>
+  <div class="seg"><button data-f="unread" class="on">Unread</button><button data-f="read">Read</button><button data-f="all">All</button><button data-f="offline">Offline</button><button data-f="hl">Highlights</button></div>
+  <div class="list" id="rList"></div>
+</div>
+
+<script>
+"use strict";
+/* Color themes (Settings → Appearance), for the dark theme. */
+(function () {
+  const P = { midnight:["#0e1220","#151a2c","#1d2338","#262d46","#28304a","#e8ecf6","#98a2bd","#6b7593"], forest:["#0f1612","#151f19","#1c2a21","#24352a","#26372c","#e6f0e8","#93a898","#6a7f6f"],
+    ocean:["#0b1519","#102026","#152a31","#1b353e","#1d3942","#e3f1f4","#8fb0b8","#658891"], rose:["#1a1216","#22181d","#2d2027","#382830","#3a2931","#f6ecf0","#b5979f","#85707a"],
+    mono:["#141414","#1c1c1c","#252525","#2e2e2e","#303030","#efefef","#a0a0a0","#707070"], coffee:["#17120e","#201913","#2a2119","#34291f","#372b21","#f3ebe3","#aa9886","#7d6d5e"],
+    amoled:["#000000","#0b0b0d","#151518","#1e1e22","#222226","#f2f2f2","#9a9aa2","#6a6a72"] };
+  const K = ["bg", "bg2", "bg3", "bg4", "line", "fg", "dim", "dim2"];
+  function apply() {
+    let s = {}; try { s = JSON.parse(localStorage.getItem("wsb.settings") || "{}"); } catch (e) {}
+    const light = s.theme === "light" || document.documentElement.dataset.theme === "light";
+    const pk = !light && (s.pack === "custom" && Array.isArray(s.customTheme) && s.customTheme.length === 8 && s.customTheme.every(c => /^#[0-9a-f]{6}$/i.test(c)) ? s.customTheme : P[s.pack]), r = document.documentElement.style;
+    K.forEach((k, i) => { if (pk) r.setProperty("--" + k, pk[i]); else r.removeProperty("--" + k); });
+  }
+  apply();
+  addEventListener("storage", e => { if (e.key === "wsb.settings") setTimeout(apply, 0); });
+  document.addEventListener("wsb-pack", apply);
+})();
+
+const S = "\u0001";
+const wv = window.chrome && window.chrome.webview;
+const send = (...a) => { if (wv) wv.postMessage(a.map(x => x == null ? "" : String(x)).join(S)); };
+const get = (k, d) => { try { const v = localStorage.getItem("wsb." + k); return v ? JSON.parse(v) : d; } catch (e) { return d; } };
+const put = (k, v) => { try { localStorage.setItem("wsb." + k, JSON.stringify(v)); } catch (e) {} };
+const $ = s => document.getElementById(s);
+const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch (e) { return ""; } };
+function ago(ts) {
+  const s = (Date.now() - ts) / 1000;
+  return s < 90 ? "just now" : s < 3600 ? Math.round(s / 60) + " min ago" : s < 86400 ? Math.round(s / 3600) + " h ago" :
+    new Date(ts).toLocaleDateString([], { month:"short", day:"numeric" });
+}
+function theme() {
+  const cfg = get("settings", {});
+  document.documentElement.dataset.theme = cfg.theme || "dark";
+  document.documentElement.dataset.motion = cfg.motion || "";
+  if (/^#[0-9a-f]{6}$/i.test(cfg.accent || "")) document.documentElement.style.setProperty("--accent", cfg.accent);
+}
+theme();
+
+function show(p) {
+  document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.p === p));
+  document.querySelectorAll(".pane").forEach(x => x.classList.toggle("on", x.id === p));
+}
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => { show(b.dataset.p); history.replaceState(null, "", "#" + b.dataset.p); });
+
+/* ---------------------------------------------------------------- notes */
+let notes = get("notes", []);
+let cur = null, saveT = 0;
+function listNotes() {
+  const q = $("nq").value.trim().toLowerCase();
+  const box = $("nList");
+  box.innerHTML = "";
+  const list = notes.slice().sort((a, b) => b.ts - a.ts)
+    .filter(n => !q || (n.title + " " + n.text + " " + (n.site || "")).toLowerCase().includes(q));
+  if (!list.length) box.innerHTML = '<div class="empty">' + (q ? "No notes match." : "No notes yet. Notes are kept on this computer only.") + "</div>";
+  list.forEach(n => {
+    const d = document.createElement("div");
+    d.className = "item";
+    d.innerHTML = '<b></b><span></span><div class="acts"><button title="Delete">×</button></div>';
+    d.querySelector("b").textContent = n.title || (n.text.split("\n")[0] || "Untitled").slice(0, 80);
+    d.querySelector("span").textContent = (n.site ? n.site + " · " : "") + ago(n.ts) + " · " + (n.text.replace(/\s+/g, " ").slice(0, 80) || "empty");
+    d.onclick = () => openNote(n.id);
+    d.querySelector("button").onclick = e => { e.stopPropagation();
+      if (n.text.trim() && !confirm("Delete this note?")) return;
+      notes = notes.filter(x => x.id !== n.id); put("notes", notes); listNotes(); };
+    box.appendChild(d);
+  });
+}
+function openNote(id) {
+  cur = notes.find(n => n.id === id);
+  if (!cur) return;
+  $("nList").style.display = "none";
+  document.querySelector("#notes .bar").style.display = "none";
+  $("editor").classList.add("on");
+  $("nTitle").value = cur.title || "";
+  $("nText").innerHTML = noteHtml(cur);
+  $("nInfo").textContent = cur.site ? "For " + cur.site : "";
+  $("nText").focus();
+}
+function closeNote() {
+  flushNote();
+  if (cur && !cur.text.trim() && !cur.title.trim()) { notes = notes.filter(n => n !== cur); put("notes", notes); }
+  cur = null;
+  $("editor").classList.remove("on");
+  $("nList").style.display = "";
+  document.querySelector("#notes .bar").style.display = "";
+  listNotes();
+}
+function newNote(site) {
+  const n = { id:Date.now().toString(36) + Math.random().toString(36).slice(2, 6), title:site ? "Notes on " + site : "", text:"", ts:Date.now(), site:site || "" };
+  notes.push(n); put("notes", notes);
+  openNote(n.id);
+}
+function flushNote() {
+  clearTimeout(saveT);
+  if (!cur) return;
+  cur.title = $("nTitle").value;
+  const html = clean($("nText").innerHTML), text = htmlText($("nText"));
+  if (html === cur.html && text === cur.text && cur.title === cur.saved) return;
+  cur.html = html; cur.text = text; cur.htmlOf = text; cur.saved = cur.title; cur.ts = Date.now();
+  put("notes", notes);
+}
+/* Rich notes. Kept as cleaned-up HTML (html) next to plain text (text), which
+   search, export and the web clipper use. If the text changed without the
+   editor (a clip was added), the new part is added to the HTML. */
+function textHtml(t) {
+  if (!t) return "";
+  return String(t || "").split("\n").map(l => "<div>" + (esc(l) || "<br>") + "</div>").join("");
+}
+function noteHtml(n) {
+  if (!n.html) return textHtml(n.text);
+  if (n.htmlOf === n.text) return clean(n.html);
+  if (n.htmlOf != null && n.text.startsWith(n.htmlOf)) return clean(n.html) + textHtml(n.text.slice(n.htmlOf.length).replace(/^\n/, ""));
+  return textHtml(n.text);
+}
+const KEEP = { B:1, STRONG:1, I:1, EM:1, U:1, S:1, STRIKE:1, H2:1, H3:1, P:1, DIV:1, BR:1, UL:1, OL:1, LI:1, A:1, BLOCKQUOTE:1, CODE:1, PRE:1, SPAN:1 };
+const DROP = { SCRIPT:1, STYLE:1, IFRAME:1, OBJECT:1, EMBED:1, TEMPLATE:1, NOSCRIPT:1, SVG:1, MATH:1, IMG:1, VIDEO:1, AUDIO:1, FORM:1, INPUT:1, BUTTON:1, SELECT:1, TEXTAREA:1, LINK:1, META:1, HEAD:1, TITLE:1 };
+// Only plain formatting survives: no scripts, styles, event handlers or other pages' markup.
+function clean(html) {
+  const doc = new DOMParser().parseFromString("<body>" + String(html || ""), "text/html");
+  const walk = node => {
+    [...node.childNodes].forEach(c => {
+      if (c.nodeType === 3) return;
+      if (c.nodeType !== 1) { c.remove(); return; }
+      const tag = c.tagName.toUpperCase();
+      if (DROP[tag]) { c.remove(); return; }
+      walk(c);
+      if (!KEEP[tag]) { c.replaceWith(...c.childNodes); return; }
+      const href = tag === "A" ? c.getAttribute("href") || "" : "", chk = tag === "LI" ? c.getAttribute("data-check") : null, cls = tag === "UL" && c.classList.contains("chk");
+      [...c.attributes].forEach(a => c.removeAttribute(a.name));
+      if (href && /^(https?:|mailto:)/i.test(href.trim())) c.setAttribute("href", href.trim());
+      if (chk === "1" || chk === "0") c.setAttribute("data-check", chk);
+      if (cls) c.className = "chk";
+      if (tag === "SPAN") c.replaceWith(...c.childNodes);
+    });
+  };
+  walk(doc.body);
+  return doc.body.innerHTML.slice(0, 400000);
+}
+function htmlText(root) {
+  let out = "";
+  const block = /^(DIV|P|H2|H3|LI|BLOCKQUOTE|PRE|UL|OL)$/;
+  const walk = (n, pre) => {
+    n.childNodes.forEach(c => {
+      if (c.nodeType === 3) { out += c.data; return; }
+      if (c.nodeType !== 1) return;
+      if (c.tagName === "BR") { out += "\n"; return; }
+      const b = block.test(c.tagName);
+      if (b && out && !out.endsWith("\n")) out += "\n";
+      if (c.tagName === "LI") out += c.parentNode && c.parentNode.classList && c.parentNode.classList.contains("chk") ? (c.getAttribute("data-check") === "1" ? "[x] " : "[ ] ") : "- ";
+      walk(c);
+      if (b && !out.endsWith("\n")) out += "\n";
+    });
+  };
+  walk(root);
+  return out.replace(/\n{3,}/g, "\n\n").replace(/\n$/, "");
+}
+function toMd(root) {
+  const inl = n => [...n.childNodes].map(c => {
+    if (c.nodeType === 3) return c.data.replace(/([*_`\[\]])/g, "\\$1");
+    if (c.nodeType !== 1) return "";
+    const t = inl(c);
+    switch (c.tagName) {
+      case "B": case "STRONG": return t.trim() ? "**" + t + "**" : t;
+      case "I": case "EM": return t.trim() ? "*" + t + "*" : t;
+      case "S": case "STRIKE": return t.trim() ? "~~" + t + "~~" : t;
+      case "CODE": return "`" + c.textContent + "`";
+      case "A": return c.getAttribute("href") ? "[" + t + "](" + c.getAttribute("href") + ")" : t;
+      case "BR": return "  \n";
+      default: return /^(DIV|P|H2|H3|UL|OL|LI|BLOCKQUOTE|PRE)$/.test(c.tagName) ? "\n" + block(c) + "\n" : t;
+    }
+  }).join("");
+  const block = c => {
+    switch (c.tagName) {
+      case "H2": return "## " + inl(c).trim();
+      case "H3": return "### " + inl(c).trim();
+      case "BLOCKQUOTE": return inl(c).trim().split("\n").map(l => "> " + l).join("\n");
+      case "PRE": return "```\n" + c.textContent + "\n```";
+      case "UL": case "OL": return [...c.children].filter(li => li.tagName === "LI").map((li, i) =>
+        (c.classList.contains("chk") ? "- [" + (li.getAttribute("data-check") === "1" ? "x" : " ") + "] " : c.tagName === "OL" ? (i + 1) + ". " : "- ") + inl(li).trim().replace(/\n+/g, " ")).join("\n");
+      default: return inl(c).trim();
+    }
+  };
+  return inl(root).replace(/\n{3,}/g, "\n\n").trim() + "\n";
+}
+function fmt(c) {
+  const ed = $("nText");
+  ed.focus();
+  if (c === "h2") document.execCommand("formatBlock", false, document.queryCommandValue("formatBlock") === "h2" ? "div" : "h2");
+  else if (c === "quote") document.execCommand("formatBlock", false, document.queryCommandValue("formatBlock") === "blockquote" ? "div" : "blockquote");
+  else if (c === "code") { const s = getSelection().toString(); document.execCommand("insertHTML", false, "<code>" + esc(s || "code") + "</code>&#8203;"); }
+  else if (c === "link") {
+    const u = prompt("Link address", "https://");
+    if (u && /^(https?:\/\/|mailto:)\S+$/i.test(u.trim())) { if (getSelection().isCollapsed) document.execCommand("insertHTML", false, '<a href="' + esc(u.trim()) + '">' + esc(u.trim()) + "</a>"); else document.execCommand("createLink", false, u.trim()); }
+  } else if (c === "check") {
+    // a checklist is a bullet list with tick boxes
+    document.execCommand("insertUnorderedList");
+    const n = getSelection().anchorNode, li = n && (n.nodeType === 1 ? n : n.parentNode).closest("li"), ul = li && li.closest("ul");
+    if (ul) { ul.classList.add("chk"); ul.querySelectorAll(":scope > li").forEach(x => { if (!x.hasAttribute("data-check")) x.setAttribute("data-check", "0"); }); }
+  } else document.execCommand(c);
+  noteChanged();
+}
+function noteChanged() { clearTimeout(saveT); saveT = setTimeout(flushNote, 400); }
+document.querySelectorAll("#fmt button").forEach(b => { b.onmousedown = e => e.preventDefault(); b.onclick = () => fmt(b.dataset.c); });
+$("nText").addEventListener("click", e => {
+  const li = e.target.closest && e.target.closest("ul.chk > li");
+  if (li && e.offsetX < 20 && e.target === li) { li.setAttribute("data-check", li.getAttribute("data-check") === "1" ? "0" : "1"); noteChanged(); e.preventDefault(); return; }
+  // Ctrl+click opens a link (a plain click puts the cursor in it, for editing)
+  const a = e.target.closest && e.target.closest("a[href]");
+  if (a && e.ctrlKey && /^https?:/i.test(a.getAttribute("href"))) { e.preventDefault(); send("go", a.getAttribute("href")); }
+});
+$("nText").addEventListener("paste", e => {
+  const d = e.clipboardData; if (!d) return;
+  e.preventDefault();
+  const h = d.getData("text/html");
+  if (h) document.execCommand("insertHTML", false, clean(h));
+  else document.execCommand("insertText", false, d.getData("text/plain"));
+});
+$("nText").addEventListener("keydown", e => {
+  if (e.ctrlKey && e.key === "Enter") { const a = getSelection().anchorNode, l = a && (a.nodeType === 1 ? a : a.parentNode).closest("a[href]"); if (l) { e.preventDefault(); send("go", l.getAttribute("href")); } }
+});
+$("nText").addEventListener("input", () => {
+  // new items in a checklist start unticked
+  $("nText").querySelectorAll("ul.chk > li:not([data-check])").forEach(li => li.setAttribute("data-check", "0"));
+  noteChanged();
+});
+$("nTitle").oninput = noteChanged;
+$("nNew").onclick = () => newNote("");
+$("nBack").onclick = closeNote;
+$("nq").oninput = listNotes;
+$("nExport").onclick = () => {
+  flushNote();
+  const name = (cur.title || "note").replace(/[\\/:*?"<>|]+/g, " ").trim().slice(0, 60) || "note";
+  send("save-text", name + ".txt", (cur.title ? cur.title + "\r\n\r\n" : "") + cur.text.replace(/\r?\n/g, "\r\n"));
+};
+$("nExportMd").onclick = () => {
+  flushNote();
+  const name = (cur.title || "note").replace(/[\\/:*?"<>|]+/g, " ").trim().slice(0, 60) || "note";
+  send("save-text", name + ".md", (cur.title ? "# " + cur.title + "\n\n" : "") + toMd($("nText")));
+};
+addEventListener("beforeunload", flushNote);
+
+/* ---------------------------------------------------------------- reading list */
+let filter = "unread";
+function current() { return get("current", null); }
+function paintAdd() {
+  const c = current();
+  const b = $("rAdd");
+  const have = c && get("reading", []).some(r => r.u === c.u);
+  b.disabled = !c || have;
+  b.textContent = !c ? "Open a page to add it" : have ? "This page is in your list" : "Add “" + (c.t || hostOf(c.u)) + "”";
+}
+function listOffline(box) {
+  const list = get("offline", []);
+  if (!list.length) { box.innerHTML = '<div class="empty">Articles you save from reader view (Save offline) are kept here to read without internet.</div>'; return; }
+  list.forEach(a => {
+    const d = document.createElement("div");
+    d.className = "item";
+    d.innerHTML = '<b></b><span></span><div class="acts"><button class="x" title="Delete">×</button></div>';
+    d.querySelector("b").textContent = a.t || a.u;
+    d.querySelector("span").textContent = hostOf(a.u) + " · saved " + ago(a.ts);
+    d.onclick = () => send("go", "https://browser.example/reader.html#saved:" + a.id);
+    d.querySelector(".x").onclick = e => { e.stopPropagation(); put("offline", get("offline", []).filter(x => x.id !== a.id)); listReading(); };
+    box.appendChild(d);
+  });
+}
+function listHighlights(box) {
+  const all = get("highlights", {}), pages = Object.keys(all).filter(u => (all[u] || []).length)
+    .sort((a, b) => Math.max(...all[b].map(h => h.ts || 0)) - Math.max(...all[a].map(h => h.ts || 0)));
+  if (!pages.length) { box.innerHTML = '<div class="empty">Select text on a page and press Alt+H to highlight it. Highlights come back every time you open the page.</div>'; return; }
+  const ex = document.createElement("div"); ex.style.cssText = "display:flex;justify-content:flex-end;padding:2px 4px 6px";
+  ex.innerHTML = '<button class="b" id="hlMd">Export as Markdown</button>';
+  ex.firstChild.onclick = () => {
+    const md = ["# Highlights", ""];
+    pages.forEach(u => {
+      md.push("## [" + String((all[u][0] && all[u][0].title) || hostOf(u) || u).replace(/[\[\]]/g, "") + "](" + u + ")", "");
+      all[u].forEach(x => { md.push("> " + x.t.replace(/\s+/g, " ").trim()); if (x.note) md.push(">", "> *Note:* " + x.note.replace(/\s+/g, " ")); md.push(""); });
+    });
+    send("save-text", "highlights.md", md.join("\n"));
+  };
+  box.appendChild(ex);
+  pages.forEach(u => {
+    const h = document.createElement("div"); h.className = "item"; h.style.cursor = "pointer";
+    h.innerHTML = "<b></b><span></span>";
+    h.querySelector("b").textContent = (all[u][0] && all[u][0].title) || u;
+    h.querySelector("span").textContent = hostOf(u) + " · " + all[u].length + " highlight" + (all[u].length === 1 ? "" : "s");
+    h.onclick = () => send("go", u);
+    box.appendChild(h);
+    all[u].forEach(x => {
+      const d = document.createElement("div");
+      d.className = "item"; d.style.cssText = "margin-left:10px;border-left:3px solid #e6c94c;border-radius:0 9px 9px 0";
+      d.innerHTML = '<div style="white-space:normal;font-size:12.5px"></div><div class="nt" style="color:var(--dim);font-size:11.5px;margin-top:3px;white-space:normal"></div>' +
+        '<div class="acts"><button class="k" title="Note">✎</button><button class="x" title="Delete">×</button></div>';
+      d.firstChild.textContent = "“" + x.t.replace(/\s+/g, " ").slice(0, 300) + "”";
+      d.querySelector(".nt").textContent = x.note ? "Note: " + x.note : "";
+      d.onclick = () => send("go", u);
+      d.querySelector(".k").onclick = e => { e.stopPropagation(); const n = prompt("Note for this highlight", x.note || ""); if (n == null) return;
+        const a2 = get("highlights", {}); (a2[u] || []).forEach(y => { if (y.id === x.id) y.note = n.slice(0, 1000); }); put("highlights", a2); listReading(); };
+      d.querySelector(".x").onclick = e => { e.stopPropagation(); const a2 = get("highlights", {}); a2[u] = (a2[u] || []).filter(y => y.id !== x.id);
+        if (!a2[u].length) delete a2[u]; put("highlights", a2); listReading(); };
+      box.appendChild(d);
+    });
+  });
+}
+function listReading() {
+  const list = get("reading", []);
+  const box = $("rList");
+  box.innerHTML = "";
+  if (filter === "offline") { listOffline(box); return; }
+  if (filter === "hl") { listHighlights(box); return; }
+  const shown = list.filter(r => filter === "all" || (filter === "read" ? r.done : !r.done)).sort((a, b) => b.ts - a.ts);
+  if (!shown.length) box.innerHTML = '<div class="empty">' + (filter === "read" ? "Nothing read yet." : "Save pages here to read later. They open in the main window.") + "</div>";
+  shown.forEach(r => {
+    const d = document.createElement("div");
+    d.className = "item" + (r.done ? " done" : "");
+    d.innerHTML = '<b></b><span></span><div class="acts"><button class="k"></button><button class="x" title="Remove">×</button></div>';
+    d.querySelector("b").textContent = r.t || r.u;
+    d.querySelector("span").textContent = hostOf(r.u) + " · added " + ago(r.ts);
+    const k = d.querySelector(".k");
+    k.textContent = r.done ? "↺" : "✓";
+    k.title = r.done ? "Mark as unread" : "Mark as read";
+    d.onclick = e => {
+      send("go", r.u);
+      if (!r.done) { r.done = true; put("reading", list); listReading(); }
+    };
+    k.onclick = e => { e.stopPropagation(); r.done = !r.done; put("reading", list); listReading(); };
+    d.querySelector(".x").onclick = e => { e.stopPropagation(); put("reading", list.filter(x => x !== r)); listReading(); paintAdd(); };
+    box.appendChild(d);
+  });
+}
+$("rAdd").onclick = () => {
+  const c = current();
+  if (!c) return;
+  const list = get("reading", []).filter(r => r.u !== c.u);
+  list.push({ u:c.u, t:c.t, ts:Date.now(), done:false });
+  put("reading", list);
+  listReading(); paintAdd();
+};
+document.querySelectorAll("#reading .seg button").forEach(b => b.onclick = () => {
+  filter = b.dataset.f;
+  document.querySelectorAll("#reading .seg button").forEach(x => x.classList.toggle("on", x === b));
+  listReading();
+});
+
+/* ---------------------------------------------------------------- tabs (a vertical tab list for this window) */
+const WIN = new URLSearchParams(location.search).get("w") || "";
+const GC = { red:"#e8342a", orange:"#f08a24", yellow:"#e8c42a", green:"#3fb971", blue:"#3b8bf0", purple:"#9a63f0", pink:"#e85aa8" };
+function tabCmd(act, id) { if (WIN) put("tabcmd." + WIN, { act, id, ts:Date.now() + Math.random() }); }
+function listTabs() {
+  const box = $("tbList");
+  const snap = WIN ? get("tabs." + WIN, null) : null;
+  box.innerHTML = "";
+  if (!snap) { box.innerHTML = '<div class="empty">Open this list from the sidebar button to see this window\'s tabs.</div>'; return; }
+  const q = $("tq").value.trim().toLowerCase();
+  if (treeOn && !q) { listTree(snap, box); return; }
+  let lastG = null;
+  snap.tabs.filter(t => !q || (t.t + " " + t.u).toLowerCase().includes(q)).forEach(t => {
+    const g = t.g && snap.groups && snap.groups[t.g];
+    if (g && lastG !== t.g) {
+      const h = document.createElement("div"); h.className = "tg";
+      const dot = document.createElement("i"); dot.style.background = GC[g.color] || GC.blue;
+      h.append(dot, g.name || "Group"); box.appendChild(h);
+    }
+    lastG = g ? t.g : null;
+    const d = document.createElement("div");
+    d.className = "tb" + (t.id === snap.active ? " on" : "") + (g ? " ing" : "");
+    d.innerHTML = (t.i ? "<img>" : '<div class="ph"></div>') + '<div class="tt"></div>' + (t.a || t.m ? '<span class="au"></span>' : "") + '<button class="x" title="Close">×</button>';
+    if (t.i) d.querySelector("img").src = t.i;
+    d.querySelector(".tt").textContent = (t.p ? "Pinned · " : "") + t.t;
+    if (t.a || t.m) d.querySelector(".au").textContent = t.m ? "muted" : "playing";
+    d.title = t.t + (t.u ? "\n" + t.u : "");
+    d.onclick = () => tabCmd("select", t.id);
+    d.onauxclick = e => { if (e.button === 1) tabCmd("close", t.id); };
+    d.querySelector(".x").onclick = e => { e.stopPropagation(); tabCmd("close", t.id); };
+    const au = d.querySelector(".au"); if (au) { au.style.cursor = "pointer"; au.onclick = e => { e.stopPropagation(); tabCmd("mute", t.id); }; }
+    box.appendChild(d);
+  });
+}
+$("tq").oninput = listTabs;
+
+/* ---------------------------------------------------------------- calculator
+   A small, safe expression reader (no eval): + - * / ^ %, brackets,
+   sqrt, sin, cos, tan (degrees), log, ln, abs, round, pi, e and ans. */
+function calc(src) {
+  const tok = [], re = /\s*(\d+(?:[.,]\d+)?(?:e[+-]?\d+)?|\.\d+|[a-z]+|\*\*|[-+*/^%()×÷,])/gy;
+  let m, i = 0; src = String(src).toLowerCase().trim();
+  while (i < src.length) { re.lastIndex = i; m = re.exec(src); if (!m) throw new Error("?"); tok.push(m[1].replace(",", ".")); i = re.lastIndex; }
+  let p = 0;
+  const F = { sqrt:Math.sqrt, abs:Math.abs, round:Math.round, floor:Math.floor, ceil:Math.ceil, log:Math.log10, ln:Math.log,
+    sin:x => Math.sin(x * Math.PI / 180), cos:x => Math.cos(x * Math.PI / 180), tan:x => Math.tan(x * Math.PI / 180) };
+  const C = { pi:Math.PI, e:Math.E, ans:+get("calcAns", 0) || 0 };
+  const peek = () => tok[p], eat = t => { if (tok[p] !== t) throw new Error("?"); p++; };
+  function atom() {
+    const t = tok[p++];
+    if (t === undefined) throw new Error("?");
+    if (t === "(") { const v = expr(); eat(")"); return v; }
+    if (t === "-") return -power();
+    if (t === "+") return power();
+    if (/^[\d.]/.test(t)) return parseFloat(t);
+    if (F[t]) { eat("("); const v = expr(); eat(")"); return F[t](v); }
+    if (t in C) return C[t];
+    throw new Error("?");
+  }
+  function postfix() { let v = atom(); while (peek() === "%") { p++; v = v / 100; } return v; }
+  function power() { const b = postfix(); if (peek() === "^" || peek() === "**") { p++; return Math.pow(b, power()); } return b; }
+  function term() { let v = power(); for (;;) { const o = peek(); if (o === "*" || o === "×") { p++; v *= power(); } else if (o === "/" || o === "÷") { p++; v /= power(); } else if (o === "(" || (o && /^[a-z\d.]/.test(o))) v *= power(); else return v; } }
+  function expr() { let v = term(); for (;;) { const o = peek(); if (o === "+") { p++; v += term(); } else if (o === "-") { p++; v -= term(); } else return v; } }
+  const v = expr();
+  if (p < tok.length) throw new Error("?");
+  return v;
+}
+const fmtN = v => !isFinite(v) ? "Not a number" : Math.abs(v) >= 1e15 || (Math.abs(v) < 1e-9 && v) ? v.toExponential(8).replace(/\.?0+e/, "e") : String(+v.toPrecision(12));
+function calcShow() {
+  const q = $("cx").value.trim();
+  if (!q) { $("cres").textContent = ""; return; }
+  try { $("cres").textContent = "= " + fmtN(calc(q)); $("cres").style.color = ""; } catch (e) { $("cres").style.color = "var(--dim2)"; $("cres").textContent = "…"; }
+}
+function calcHist() {
+  const h = get("calcHist", []), box = $("chist"); box.innerHTML = "";
+  h.forEach(x => { const d = document.createElement("div"); d.className = "item"; d.innerHTML = "<b></b><span></span>"; d.querySelector("b").textContent = x.r; d.querySelector("span").textContent = x.q;
+    d.onclick = () => { $("cx").value = x.q; calcShow(); $("cx").focus(); }; box.appendChild(d); });
+}
+function calcEnter() {
+  const q = $("cx").value.trim(); if (!q) return;
+  let v; try { v = calc(q); } catch (e) { $("cres").textContent = "Can't work that out"; return; }
+  put("calcAns", v);
+  const h = get("calcHist", []).filter(x => x.q !== q); h.unshift({ q, r:fmtN(v) }); put("calcHist", h.slice(0, 30));
+  $("cx").value = fmtN(v); calcShow(); calcHist();
+}
+$("cx").oninput = calcShow;
+$("cx").onkeydown = e => { if (e.key === "Enter") calcEnter(); if (e.key === "Escape") { $("cx").value = ""; calcShow(); } };
+["7", "8", "9", "/", "(", "4", "5", "6", "*", ")", "1", "2", "3", "-", "^", "0", ".", "%", "+", "="].forEach(k => {
+  const b = document.createElement("button"); b.textContent = k === "*" ? "×" : k === "/" ? "÷" : k;
+  if ("/*-+^%()".includes(k)) b.className = "op"; if (k === "=") b.className = "eq";
+  b.onclick = () => { if (k === "=") calcEnter(); else { $("cx").value += k; calcShow(); } $("cx").focus(); };
+  $("ckeys").appendChild(b);
+});
+calcHist();
+/* Tree: tabs opened from a page sit under it, and can be folded away. */
+let treeOn = !!get("tabTree", false);
+const folded = new Set(get("treeFold", []));
+function listTree(snap, box) {
+  const ids = new Set(snap.tabs.map(t => t.id)), kids = {};
+  snap.tabs.forEach(t => { const p = t.o && ids.has(t.o) && t.o !== t.id ? t.o : 0; (kids[p] = kids[p] || []).push(t); });
+  const seen = new Set();
+  const walk = (t, depth) => {
+    if (seen.has(t.id)) return; seen.add(t.id);
+    const d = document.createElement("div"), has = (kids[t.id] || []).length;
+    d.className = "tb" + (t.id === snap.active ? " on" : "");
+    d.style.paddingLeft = (8 + Math.min(depth, 5) * 16) + "px";
+    d.innerHTML = '<button class="fold' + (has ? folded.has(t.id) ? " shut" : "" : " none") + '" title="Fold">▼</button>' + (t.i ? "<img>" : '<div class="ph"></div>') +
+      '<div class="tt"></div>' + (has && folded.has(t.id) ? '<span class="au"></span>' : "") + '<button class="x" title="Close">×</button>';
+    if (t.i) d.querySelector("img").src = t.i;
+    d.querySelector(".tt").textContent = (t.p ? "Pinned · " : "") + t.t;
+    if (has && folded.has(t.id)) d.querySelector(".au").textContent = "+" + has;
+    d.title = t.t + (t.u ? "\n" + t.u : "");
+    d.onclick = () => tabCmd("select", t.id);
+    d.onauxclick = e => { if (e.button === 1) tabCmd("close", t.id); };
+    d.querySelector(".x").onclick = e => { e.stopPropagation(); tabCmd("close", t.id); };
+    d.querySelector(".fold").onclick = e => { e.stopPropagation(); if (!has) return; if (folded.has(t.id)) folded.delete(t.id); else folded.add(t.id); put("treeFold", [...folded].slice(-200)); listTabs(); };
+    box.appendChild(d);
+    if (!folded.has(t.id)) (kids[t.id] || []).forEach(k => walk(k, depth + 1));
+    else hide(t.id);
+  };
+  const hide = id => (kids[id] || []).forEach(k => { if (!seen.has(k.id)) { seen.add(k.id); hide(k.id); } });
+  (kids[0] || []).forEach(t => walk(t, 0));
+  snap.tabs.forEach(t => walk(t, 0));      // anything left over (a loop in openers)
+}
+$("tTree").classList.toggle("on", treeOn);
+$("tTree").onclick = () => { treeOn = !treeOn; put("tabTree", treeOn); $("tTree").classList.toggle("on", treeOn); listTabs(); };
+$("tNewTab").onclick = () => tabCmd("new", 0);
+
+/* ---------------------------------------------------------------- to-do (shared with the new tab page) */
+function listTodo() {
+  const list = get("todo", []), box = $("tList");
+  box.innerHTML = "";
+  if (!list.length) box.innerHTML = '<div class="empty">Nothing to do. Add something above; it shows on the new tab page too.</div>';
+  list.forEach(it => {
+    const d = document.createElement("div");
+    d.className = "todo" + (it.done ? " done" : "");
+    d.innerHTML = '<div class="box" role="checkbox"></div><div class="tx"></div><button title="Delete">×</button>';
+    d.querySelector(".tx").textContent = it.t;
+    d.querySelector(".box").onclick = () => { put("todo", get("todo", []).map(x => x.id === it.id ? Object.assign(x, { done:!x.done }) : x)); listTodo(); };
+    d.querySelector("button").onclick = () => { put("todo", get("todo", []).filter(x => x.id !== it.id)); listTodo(); };
+    box.appendChild(d);
+  });
+}
+$("tNew").addEventListener("keydown", e => {
+  if (e.key !== "Enter" || !$("tNew").value.trim()) return;
+  const list = get("todo", []);
+  list.push({ id:Date.now().toString(36) + Math.random().toString(36).slice(2, 5), t:$("tNew").value.trim().slice(0, 200), done:false, ts:Date.now() });
+  put("todo", list.slice(-50)); $("tNew").value = ""; listTodo();
+});
+$("tClear").onclick = () => { put("todo", get("todo", []).filter(x => !x.done)); listTodo(); };
+
+/* ---------------------------------------------------------------- timers
+   Timers live in storage; the browser window rings them even when the
+   sidebar is closed. The stopwatch runs while this panel is open. */
+const two = n => String(n).padStart(2, "0");
+function left(ms) {
+  const s = Math.max(0, Math.ceil(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60);
+  return (h ? h + ":" + two(m) : m) + ":" + two(s % 60);
+}
+function addTimer(mins, label, pomo) {
+  const secs = Math.round(mins * 60);
+  if (!(secs > 0 && secs <= 86400)) return;
+  const list = get("timers", []);
+  list.push({ id:Date.now().toString(36) + Math.random().toString(36).slice(2, 6), end:Date.now() + secs * 1000, secs, label:label || "", pomo:pomo || 0 });
+  put("timers", list);
+  listTimers();
+}
+function listTimers() {
+  const box = $("tmList"), list = get("timers", []).sort((a, b) => a.end - b.end);
+  box.innerHTML = "";
+  list.forEach(t => {
+    const d = document.createElement("div");
+    d.className = "tm";
+    d.innerHTML = '<div><b></b><div class="bar2"><i></i></div></div><span></span><button class="b" title="Cancel">×</button>';
+    d.dataset.id = t.id;
+    d.querySelector("span").textContent = t.pomo ? (t.label === "Break" ? "Break" : "Focus round " + t.pomo) : (t.label || "Timer");
+    d.querySelector("button").onclick = () => { put("timers", get("timers", []).filter(x => x.id !== t.id)); listTimers(); };
+    box.appendChild(d);
+  });
+  paintTimers();
+}
+function paintTimers() {
+  const list = get("timers", []);
+  document.querySelectorAll("#tmList .tm").forEach(d => {
+    const t = list.find(x => x.id === d.dataset.id);
+    if (!t) { d.remove(); return; }
+    d.querySelector("b").textContent = left(t.end - Date.now());
+    d.querySelector("i").style.width = Math.max(0, Math.min(100, 100 - (t.end - Date.now()) / (t.secs * 10))) + "%";
+  });
+}
+setInterval(paintTimers, 250);
+document.querySelectorAll(".quick button[data-m]").forEach(b => b.onclick = () => addTimer(+b.dataset.m, ""));
+$("tmStart").onclick = () => { const m = +$("tmMin").value; if (m > 0) { addTimer(m, $("tmLabel").value.trim()); $("tmMin").value = ""; $("tmLabel").value = ""; } };
+$("tmMin").onkeydown = $("tmLabel").onkeydown = e => { if (e.key === "Enter") $("tmStart").click(); };
+$("pomo").onclick = () => addTimer(25, "Focus", 1);
+
+let swStart = 0, swAcc = 0, swRaf = 0, laps = [];
+const swNow = () => swAcc + (swStart ? performance.now() - swStart : 0);
+function swFmt(ms) { const t = Math.floor(ms / 100), s = Math.floor(t / 10), m = Math.floor(s / 60), h = Math.floor(m / 60);
+  return (h ? h + ":" + two(m % 60) : m) + ":" + two(s % 60) + "." + (t % 10); }
+function swPaint() { $("sw").textContent = swFmt(swNow()); if (swStart) swRaf = requestAnimationFrame(swPaint); }
+$("swGo").onclick = () => {
+  if (swStart) { swAcc = swNow(); swStart = 0; cancelAnimationFrame(swRaf); $("swGo").textContent = "Start"; swPaint(); }
+  else { swStart = performance.now(); $("swGo").textContent = "Stop"; swPaint(); }
+};
+$("swLap").onclick = () => {
+  if (!swStart && !swAcc) return;
+  laps.unshift(swNow());
+  $("laps").innerHTML = "";
+  laps.forEach((l, i) => { const d = document.createElement("div"); d.innerHTML = "<span></span><span></span>";
+    d.children[0].textContent = "Lap " + (laps.length - i); d.children[1].textContent = swFmt(l - (laps[i + 1] || 0)); $("laps").appendChild(d); });
+};
+$("swReset").onclick = () => { swStart = 0; swAcc = 0; laps = []; cancelAnimationFrame(swRaf); $("swGo").textContent = "Start"; $("laps").innerHTML = ""; swPaint(); };
+
+function route() {
+  const h = decodeURIComponent(location.hash.slice(1));
+  if (h.indexOf("notes:") === 0) {
+    const site = h.slice(6);
+    show("notes");
+    const ex = notes.filter(n => n.site === site).sort((a, b) => b.ts - a.ts)[0];
+    if (ex) openNote(ex.id); else newNote(site);
+  } else show(["reading", "todo", "timer", "tabs", "calc"].indexOf(h) >= 0 ? h : "notes");
+}
+addEventListener("hashchange", route);
+addEventListener("storage", e => {
+  if (e.key === "wsb.settings") theme();
+  if (e.key === "wsb.notes" && !cur) { notes = get("notes", []); listNotes(); }
+  if (e.key === "wsb.reading" || e.key === "wsb.offline" || e.key === "wsb.highlights") { listReading(); paintAdd(); }
+  if (e.key === "wsb.current") paintAdd();
+  if (e.key === "wsb.todo") listTodo();
+  if (WIN && e.key === "wsb.tabs." + WIN) listTabs();
+  if (e.key === "wsb.timers") listTimers();
+});
+listNotes();
+listTabs();
+listTodo();
+listTimers();
+listReading();
+paintAdd();
+route();
+</script>

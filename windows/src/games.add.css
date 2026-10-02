@@ -1,0 +1,47 @@
+/* ---------------------------------------------------------------- Webs 3.0 games */
+.tabs{flex-wrap:wrap;gap:6px!important}.tabs button{height:36px!important;padding:0 12px!important}
+.gbar{display:flex;justify-content:space-between;align-items:center;gap:8px;width:min(460px,100%);margin:0 auto 12px;flex-wrap:wrap}
+.gbar b{font-size:15px}
+.gseg{display:flex;background:var(--bg3);border-radius:10px;padding:2px;gap:2px}
+.gseg button{height:30px;padding:0 12px;border:0;border-radius:8px;background:none;color:var(--dim);font:600 12.5px inherit;font-family:inherit;cursor:pointer}
+.gseg button.on{background:var(--bg2);color:var(--fg);box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.gmsg{text-align:center;min-height:26px;margin:12px 0 4px;font-weight:600;color:var(--dim)}
+@keyframes hop{50%{transform:scale(1.18)}}
+#ttt{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:min(330px,100%);aspect-ratio:1;margin:0 auto}
+#ttt button{border:0;border-radius:18px;background:var(--bg2);color:var(--fg);font:800 54px/1 "Segoe UI",system-ui,sans-serif;cursor:pointer;box-shadow:0 6px 16px rgba(0,0,0,.15);transition:transform .3s cubic-bezier(.34,1.56,.64,1),background .2s}
+#ttt button:hover{background:var(--bg3)}#ttt button:active{transform:scale(.93)}
+#ttt button.x{color:var(--accent)}#ttt button.o{color:#3ec1d3}
+#ttt button.x,#ttt button.o{animation:hop .3s cubic-bezier(.34,1.56,.64,1)}
+#ttt button.win{background:color-mix(in srgb,var(--accent) 22%,var(--bg2))}
+#mem{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;width:min(400px,100%);margin:0 auto;perspective:800px}
+.mc{aspect-ratio:1;position:relative;border:0;background:none;padding:0;cursor:pointer;transform-style:preserve-3d;transition:transform .45s cubic-bezier(.4,.2,.2,1)}
+.mc:hover:not(.up):not(.ok){transform:translateY(-3px)}
+.mc.up,.mc.ok{transform:rotateY(180deg)}
+.mc i,.mc b{position:absolute;inset:0;border-radius:14px;display:grid;place-items:center;backface-visibility:hidden}
+.mc i{background:linear-gradient(135deg,var(--accent),color-mix(in srgb,var(--accent) 50%,#000));box-shadow:0 5px 14px rgba(0,0,0,.2)}
+.mc i::after{content:"?";color:rgba(255,255,255,.55);font:800 26px "Segoe UI",system-ui,sans-serif}
+.mc b{background:var(--bg2);transform:rotateY(180deg);font-size:38px;font-weight:400}
+.mc.ok b{background:color-mix(in srgb,#3fa55b 28%,var(--bg2));box-shadow:inset 0 0 0 2px #3fa55b}
+#mine{display:grid;gap:3px;width:min(480px,100%);margin:0 auto;user-select:none}
+#mine button{aspect-ratio:1;border:0;border-radius:5px;background:var(--bg3);color:var(--fg);font:800 14px "Segoe UI",system-ui,sans-serif;padding:0;cursor:pointer;transition:background .15s}
+#mine button:hover:not(.open){background:var(--bg4)}
+#mine button.open{background:var(--bg2);animation:fadeIn .2s}
+#mine button.boom{background:#e8342a}
+#mine button.n1{color:#3d8bf0}#mine button.n2{color:#2fa35f}#mine button.n3{color:#e8342a}#mine button.n4{color:#8a5cf5}#mine button.n5{color:#b8741a}#mine button.n6{color:#1f9bd1}#mine button.n7,#mine button.n8{color:var(--dim)}
+#brk,#pong{cursor:none}
+#typeW{height:5.1em;overflow:hidden}
+#typeBox{background:var(--bg2);border-radius:16px;padding:16px 20px;font:500 22px/1.7 "Segoe UI",system-ui,sans-serif;color:var(--dim2);box-shadow:0 18px 44px rgba(0,0,0,.22)}
+#typeBox span{border-radius:5px;padding:0 2px;transition:color .15s,background .15s}
+#typeBox span.cur{background:var(--bg3);color:var(--fg)}#typeBox span.ok{color:var(--fg)}#typeBox span.bad{color:#ff6b5f;text-decoration:underline wavy}
+#typeIn{display:block;width:100%;margin-top:12px;height:46px;border-radius:12px;border:1px solid var(--line);background:var(--bg2);color:var(--fg);padding:0 14px;font:500 18px "Segoe UI",system-ui,sans-serif;outline:0}
+#typeIn:focus{border-color:var(--accent)}
+#react{height:320px;border-radius:18px;background:var(--bg2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;cursor:pointer;user-select:none;outline:0;transition:background .12s;box-shadow:0 18px 44px rgba(0,0,0,.25)}
+#react b{font-size:30px}#react span{color:var(--dim)}
+#react.wait{background:#b8322a}#react.wait span,#react.go span,#react.early span{color:rgba(255,255,255,.85)}
+#react.go{background:#2fa35f}#react.early{background:#d6a21e}
+#aim{position:relative;height:420px;border-radius:18px;background:radial-gradient(circle at 50% 40%,var(--bg2),var(--bg) 120%);overflow:hidden;cursor:crosshair;box-shadow:0 18px 44px rgba(0,0,0,.25);user-select:none}
+#aim .aimhint{position:absolute;inset:0;display:grid;place-items:center;color:var(--dim)}
+#aim i{position:absolute;border-radius:50%;background:radial-gradient(circle,#fff 0 18%,var(--accent) 19% 38%,#fff 39% 56%,var(--accent) 57%);box-shadow:0 0 18px color-mix(in srgb,var(--accent) 60%,transparent);transform:translate(-50%,-50%);animation:aimIn .18s cubic-bezier(.3,1.6,.5,1)}
+@keyframes aimIn{from{transform:translate(-50%,-50%) scale(0)}}
+#aim .pop{position:absolute;pointer-events:none;font:700 14px "Segoe UI",sans-serif;color:var(--accent);animation:aimPop .6s ease-out forwards;transform:translate(-50%,-50%)}
+@keyframes aimPop{to{opacity:0;transform:translate(-50%,-150%)}}

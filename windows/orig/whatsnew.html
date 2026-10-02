@@ -1,0 +1,464 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>What's new</title>
+<!-- Every feature in this list exists in the browser; each line says where to
+     find it. The count at the top is computed, not typed. -->
+<style>
+:root{--bg:#16131a;--bg2:#1e1a24;--bg3:#272230;--line:#322c3c;--fg:#f3eff1;--dim:#9a91a3;--dim2:#6f6779;--accent:#e8342a}
+:root[data-theme="light"]{--bg:#efebe3;--bg2:#f9f6ef;--bg3:#e6e0d6;--line:#d9d2c6;--fg:#1d1a20;--dim:#6b6560;--dim2:#928b83}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--fg);font:14px/1.5 "Segoe UI Variable Text","Segoe UI",system-ui,sans-serif}
+.wrap{max-width:980px;margin:0 auto;padding:40px 24px 80px}
+h1{font-size:30px;font-weight:600;letter-spacing:-.01em}
+h1 b{color:var(--accent)}
+.sub{color:var(--dim);margin:6px 0 22px;max-width:640px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;position:sticky;top:0;background:var(--bg);padding:10px 0;z-index:2}
+.bar input{flex:1;min-width:200px;height:36px;background:var(--bg2);border:1px solid var(--line);border-radius:9px;color:var(--fg);padding:0 12px;font:inherit;outline:0}
+.bar input:focus{border-color:var(--accent)}
+.bar button{height:36px;padding:0 12px;border-radius:18px;border:1px solid var(--line);background:var(--bg2);color:var(--dim);font:12.5px "Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;cursor:pointer}
+.bar button.on{border-color:var(--accent);color:var(--fg)}
+h2{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim2);margin:26px 0 10px;display:flex;gap:8px}
+h2 span{color:var(--accent)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:10px}
+.f{display:flex;gap:12px;background:var(--bg2);border:1px solid var(--line);border-radius:11px;padding:12px 14px}
+.f .n{flex:none;width:28px;height:28px;border-radius:8px;background:var(--bg3);display:grid;place-items:center;font-size:11.5px;font-weight:600;color:var(--dim);font-variant-numeric:tabular-nums}
+.f b{display:block;font-weight:600;font-size:13.5px}
+.f span{display:block;color:var(--dim);font-size:12.5px}
+.f i{display:block;font-style:normal;color:var(--dim2);font-size:11.5px;margin-top:3px}
+.hide{display:none!important}
+/* motion */
+.f{animation:up .45s cubic-bezier(.2,.8,.2,1) both;transition:transform .2s,border-color .15s,box-shadow .2s}
+.f:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--accent) 45%,var(--line));box-shadow:0 10px 24px rgba(0,0,0,.22)}
+@keyframes up{from{opacity:0;transform:translateY(10px)}}
+@keyframes fadeIn{from{opacity:0}}
+:root[data-motion="reduced"] *{animation-name:fadeIn!important;animation-duration:.15s!important;animation-delay:0s!important}
+:root[data-motion="off"] *,:root[data-motion="off"] *::before,:root[data-motion="off"] *::after{animation:none!important;transition:none!important}
+@media (prefers-reduced-motion:reduce){*{animation-name:fadeIn!important;animation-duration:.15s!important;animation-delay:0s!important}}
+</style>
+<div class="wrap">
+  <h1><b id="count">100</b> new features</h1>
+  <div class="sub">Everything below is built in and works now. The groups marked New arrived in this update. Each card says where to find it.
+    Press <b>Ctrl</b>+<b>/</b> anywhere for the keyboard shortcuts.</div>
+  <div class="bar"><input id="q" placeholder="Search features" spellcheck="false"><span id="cats"></span></div>
+  <div id="out"></div>
+</div>
+<script>
+"use strict";
+/* Color themes (Settings → Appearance), for the dark theme. */
+(function () {
+  const P = { midnight:["#0e1220","#151a2c","#1d2338","#262d46","#28304a","#e8ecf6","#98a2bd","#6b7593"], forest:["#0f1612","#151f19","#1c2a21","#24352a","#26372c","#e6f0e8","#93a898","#6a7f6f"],
+    ocean:["#0b1519","#102026","#152a31","#1b353e","#1d3942","#e3f1f4","#8fb0b8","#658891"], rose:["#1a1216","#22181d","#2d2027","#382830","#3a2931","#f6ecf0","#b5979f","#85707a"],
+    mono:["#141414","#1c1c1c","#252525","#2e2e2e","#303030","#efefef","#a0a0a0","#707070"], coffee:["#17120e","#201913","#2a2119","#34291f","#372b21","#f3ebe3","#aa9886","#7d6d5e"],
+    amoled:["#000000","#0b0b0d","#151518","#1e1e22","#222226","#f2f2f2","#9a9aa2","#6a6a72"] };
+  const K = ["bg", "bg2", "bg3", "bg4", "line", "fg", "dim", "dim2"];
+  function apply() {
+    let s = {}; try { s = JSON.parse(localStorage.getItem("wsb.settings") || "{}"); } catch (e) {}
+    const light = s.theme === "light" || document.documentElement.dataset.theme === "light";
+    const pk = !light && (s.pack === "custom" && Array.isArray(s.customTheme) && s.customTheme.length === 8 && s.customTheme.every(c => /^#[0-9a-f]{6}$/i.test(c)) ? s.customTheme : P[s.pack]), r = document.documentElement.style;
+    K.forEach((k, i) => { if (pk) r.setProperty("--" + k, pk[i]); else r.removeProperty("--" + k); });
+  }
+  apply();
+  addEventListener("storage", e => { if (e.key === "wsb.settings") setTimeout(apply, 0); });
+  document.addEventListener("wsb-pack", apply);
+})();
+
+try { const s = JSON.parse(localStorage.getItem("wsb.settings") || "{}"); document.documentElement.dataset.theme = s.theme || "dark"; document.documentElement.dataset.motion = s.motion || "";
+  if (/^#[0-9a-f]{6}$/i.test(s.accent || "")) document.documentElement.style.setProperty("--accent", s.accent); } catch (e) {}
+const F = {
+"New: Music and sound": [
+  ["Keep playing while you browse", "Your music can carry on in every tab, not just on the new tab page.", "New tab → Music → Keep playing while you browse"],
+  ["Now playing", "Your music, ambient sounds and whatever plays in other tabs, all in one panel with play, next and volume.", "The moving music button in the toolbar"],
+  ["Start or stop everything", "One key or click stops the music and ambient sounds, and starts them again.", "Alt+M, or the corner button on the new tab page"],
+  ["Playlists", "Make lists like Chill, Study or Gaming and pick which one plays.", "New tab → Music → + New"],
+  ["Internet radio", "Thousands of free stations by style or name; save your favorites.", "New tab → Music → Radio"],
+  ["Ambient sounds", "Rain, thunderstorm, waves, wind, fireplace, café, forest, space, white and brown noise, made right in the browser.", "New tab → Music → Ambient"],
+  ["Sounds for focus", "Pick a sound that plays during every focus session.", "New tab → Music → Ambient"],
+  ["Smooth fades", "Music fades in and out instead of cutting off, and goes quiet while a web page plays its own sound.", "Automatic"],
+  ["Vibes", "Rainy night, Space, Beach, Cozy cabin, Forest, Snow day or Coffee shop: a color, a moving background and a sound in one click.", "New tab → Background → Vibe"],
+  ["More live wallpapers", "Rain, snow, embers, fireflies and a sunset sea.", "New tab → Background → Live wallpaper"],
+  ["Music visualizer", "Bars and a glow that move with your music behind the new tab page.", "New tab → Background → Live wallpaper → Music"],
+  ["Alarms", "Wake up to one of your songs (or a chime), once or on the days you pick, with snooze.", "Menu → Alarms"],
+  ["Sound styles", "Soft, retro game, typewriter, sci-fi or bubbles for the sound effects.", "Settings → Appearance"],
+  ["Startup animation", "A web spins itself and a spider drops in when the browser opens.", "Settings → Appearance"],
+  ["Music that won't play", "If sound is held back, one click on the toolbar's music button starts it; songs that are gone are skipped.", "Automatic"],
+],
+"New: Background music": [
+  ["Music on the new tab page", "Add songs from your computer and they play whenever a new tab is open, carrying on where they left off. A button in the bottom-left corner mutes them.", "New tab → Music"],
+],
+"New: Safety, part 2": [
+  ["Tracking grade", "Each site gets a grade from A to F for how much it tries to track you.", "Shield button → Tracking grade"],
+  ["Download check", "A warning when a program downloads from a site you haven't used before.", "Settings → Privacy"],
+  ["Permission check-up", "Every site that can use your camera, microphone or location, with a reset button, and a reminder now and then.", "Ctrl+Shift+P → Permission check-up"],
+  ["Private window PIN", "Private windows ask for a PIN before they open.", "Settings → Privacy"],
+  ["Temporary email", "A throwaway email address for sign-ups you don't trust.", "Ctrl+Shift+P → Get a temporary email address"],
+  ["Keep what you type", "If a page closes while you write a long message, your text is offered back next time.", "Settings → Privacy"],
+],
+"New: Tools, part 2": [
+  ["Scratchpad", "A quick place to jot or paste something, kept until you clear it.", "Alt+N"],
+  ["Text tools", "Change case, join or sort lines, tidy spaces, and see the word count of the selected text.", "Ctrl+Shift+P → Text tools on the selection"],
+  ["Calculator", "Type a sum and see the answer as you go, with a history.", "Sidebar → Calc"],
+  ["Sync between computers", "Bookmarks, notes, reading list, collections, highlights and to-dos shared through a folder like OneDrive or a USB stick.", "Settings → Backup and restore"],
+  ["Achievements", "Little badges for things like blocking 1,000 ads or a week-long streak.", "Ctrl+Shift+P → Achievements"],
+],
+"New: Home page and fun": [
+  ["Calendar", "A month calendar on the new tab page with your own events and reminders.", "New tab → Customize"],
+  ["Habit tracker", "Tick off each day's habits and watch the streak grow.", "New tab → Customize"],
+  ["More widgets", "A quote, a quick note, a stopwatch, and battery and connection.", "New tab → Customize"],
+  ["Live backgrounds", "A moving gradient, twinkling stars or an aurora behind the new tab page.", "New tab → Customize"],
+  ["Daily word", "A new five-letter word puzzle every day.", "Ctrl+Shift+P → Games"],
+  ["Little surprises", "A few hidden treats on the new tab page on special days (and maybe a secret code).", "New tab"],
+],
+"New: Looks and sound, part 2": [
+  ["Tiny toolbar", "Smaller tabs and buttons for small screens.", "Settings → Appearance"],
+  ["Click effects", "A ripple or sparkles where you click on web pages.", "Settings → Appearance"],
+  ["Sound effects", "Soft sounds when tabs open and close, and a chime when a download is done.", "Settings → Appearance"],
+],
+"New: Tabs, part 3": [
+  ["Tab trees", "In the sidebar's tab list, tabs opened from a page sit under it and can be folded away.", "Sidebar → Tabs → Tree"],
+  ["Pictures in hover cards", "Hover a tab to see what the page looked like.", "Hover over a tab"],
+  ["Group tabs by site", "One click puts every site's tabs into its own group.", "Ctrl+Shift+P → Group tabs by site"],
+  ["Tab limit", "Above the number you pick, your oldest unused tabs go to sleep.", "Settings → Performance"],
+  ["Already open?", "Opening a page you already have open offers to switch to that tab.", "Settings → Performance"],
+],
+"New: Reading, part 3": [
+  ["Key points", "The sentences that matter most in a long page, with reading time.", "Ctrl+Shift+P → Summarize this page"],
+  ["Citations", "Cite the page in MLA, APA or Chicago style, ready to copy.", "Ctrl+Shift+P → Cite this page"],
+  ["Compare two pages", "Two tabs' text side by side with what changed marked in red and green.", "Ctrl+Shift+P → Compare this page"],
+  ["Reading reminders", "Save a page for later and get reminded at the time you pick.", "Ctrl+Shift+P → Remind me to read this"],
+  ["Text size per site", "Bigger or smaller text on one site without zooming the whole page.", "Ctrl+Shift+P → Bigger text on this site"],
+  ["Print without clutter", "Prints the article without menus, ads, sidebars and comments.", "Ctrl+Shift+P → Print without clutter"],
+],
+"New: Video, part 4": [
+  ["Theater mode", "The video big in the middle of the window, everything else dimmed.", "Video button → Theater"],
+  ["Listen only", "Hide the picture and just listen.", "Video button → Listen only"],
+  ["Subtitle style", "Bigger, yellow or boxed captions on standard captions, YouTube and Netflix.", "Settings → Video → Subtitles"],
+  ["Watch history", "Every longer video you watched, with how far you got.", "Ctrl+Shift+P → Watch history"],
+  ["Sleep timer", "Everything pauses after 15 minutes to an hour and a half.", "Ctrl+Shift+P → Sleep timer"],
+],
+"New: You and your tabs": [
+  ["Profiles", "Separate windows for Personal, School or Games, each with its own logins, cookies, history and settings.", "Menu → Profiles"],
+  ["Tab overview", "Every open tab as a picture in a grid; type to filter, Enter to go, Delete to close.", "Alt+W"],
+  ["Pause when you switch", "A playing video pauses when you go to another tab and plays again when you come back.", "Settings → Video"],
+  ["Volume per tab", "Turn one tab down to 25, 50 or 75% without touching the others.", "Video button → Tab volume"],
+  ["Media keys", "The play/pause and next keys on your keyboard control the video in the browser.", "Your keyboard"],
+],
+"New: Reading and the web": [
+  ["Sites you follow", "Follow a news site or blog and its newest posts show on the new tab page.", "Ctrl+Shift+P → Follow this site"],
+  ["Continue reading", "Long articles offer to take you back to where you stopped.", "Settings → Tools"],
+  ["Sticky notes on pages", "Pin a note anywhere on a page; it is there every time you come back.", "Ctrl+Shift+P → Add a sticky note"],
+  ["Draw on a page", "Pen, highlighter and eraser right on the page, and it scrolls with it.", "Ctrl+Shift+P → Draw on this page"],
+  ["Readable font", "An easy font with more space between letters and lines, on one site or everywhere.", "Settings → Tools"],
+  ["Site search keywords", "Turn any site's search box into an address bar keyword.", "Ctrl+Shift+P → Add this site's search as a keyword"],
+],
+"New: Tools and fun": [
+  ["Color picker", "Pick any color on the screen; its code is copied.", "Ctrl+Shift+P → Pick a color"],
+  ["Ruler", "Drag to measure anything on a page in pixels.", "Ctrl+Shift+P → Measure with a ruler"],
+  ["Stored data", "Every site that keeps cookies here, how many, and a button to clear one.", "Settings → Tools → Stored data"],
+  ["Theme editor", "Choose every color yourself with a live preview; save or open theme files.", "Settings → Appearance"],
+  ["Your recap", "Your week or month in browsing: time, top sites, busiest day, ads blocked.", "Ctrl+Shift+P → Your browsing recap"],
+  ["Games", "Web Runner, Snake and 2048, offline, with best scores.", "Ctrl+Shift+P → Games"],
+  ["Clock styles", "Classic, big, flip or analog clock on the new tab page.", "New tab → Customize"],
+],
+"New: Looks and motion": [
+  ["Animations everywhere", "Panels, menus, tabs, the new tab page, Settings and the sidebar move smoothly. Full, reduced or off.", "Settings → Appearance → Animations"],
+  ["Seasonal effects", "Snow in winter, blossom in spring, fireflies in summer and falling leaves in autumn on the new tab page.", "New tab → Customize"],
+  ["Light by day, dark at night", "The theme follows sunrise and sunset where you are (the weather city), or 7:00 and 19:00.", "Settings → Appearance → Theme"],
+],
+"New: Video and sound": [
+  ["Volume boost", "Up to 300% for quiet videos, with a limiter so loud parts don't crackle.", "Video button → Volume boost"],
+  ["Bass and voice boost", "Stronger bass for music, clearer voices for talks and films.", "Video button → Sound"],
+  ["A-B loop", "Repeat just one part of a video: Alt+B at the start, again at the end, once more to stop.", "Alt+B"],
+],
+"New: Faster browsing": [
+  ["Link preview", "Hold Shift over a link and the page opens in the sidebar, so you can peek without leaving.", "Hold Shift over a link"],
+  ["Link hints", "Alt+G puts letters on every link and button; type them to click without the mouse.", "Alt+G"],
+  ["Your own shortcuts", "Alt+Shift+1 to 9 run any command you choose.", "Ctrl+Shift+P → Your own shortcuts"],
+  ["Translate selection", "The selected text in your language, in a bubble next to it.", "Ctrl+Shift+P → Translate selection"],
+  ["Startup check", "How long the window took to show its first page, and what slows it down.", "Ctrl+Shift+P → Startup check"],
+],
+"New: Tools": [
+  ["Screenshot editor", "Pen, highlighter, arrows, boxes, text, blur for private details and crop, with undo. Save or copy.", "Menu → Screenshot and edit"],
+  ["Collections", "Groups of pages with notes for projects, trips or shopping. Drag to sort or move; open all at once.", "Menu → Collections"],
+  ["Offline page with a game", "No internet? Web Runner to pass the time, and the page opens again by itself when you're back online.", "When the connection drops"],
+],
+"New: Home and family": [
+  ["Family safety", "Block sites and set a daily time limit behind a PIN. Private windows are off while it's on.", "Settings → Family safety"],
+  ["Data saver", "Skip pictures (and videos) on slow or limited connections, with exceptions for sites you choose.", "Settings → Data saver"],
+  ["Sorted downloads", "Pictures, Videos, Music, Documents, Archives and Programs each go to their own folder.", "Settings → Downloads"],
+  ["Automatic backups", "A backup file every day or week in a folder you choose; the last five are kept.", "Settings → Backup"],
+],
+"New: Video, part 3": [
+  ["Speed remembered for each site", "Change a video's speed with Alt+. or Alt+, and long videos on that site start at that speed next time.", "Settings → Video"],
+  ["Intros skipped by themselves", "Skip an intro once with Alt+S and later episodes of the same show jump over it at the same point, with Undo.", "Alt+S on a show"],
+  ["Next episode countdown", "When an episode ends and the page has a Next episode button, it is pressed after 5 seconds you can cancel.", "Settings → Video"],
+],
+"New: Watched pages": [
+  ["Price drop alerts", "Watch a product page and hear about it when the price goes down. Keeps the lowest price seen.", "Ctrl+Shift+P → Watch this page's price"],
+  ["Page change alerts", "Watch any page and be told when it changes, with the first new line.", "Ctrl+Shift+P → Watch this page for changes"],
+  ["Check all watched pages", "Now, or once a day by themselves, in background tabs that close again.", "Menu → Watched pages"],
+],
+"New: Notes and words": [
+  ["Formatted notes", "Bold, italic, headings, lists, quotes, code and links in sidebar notes. Pasted pages keep their formatting, nothing else.", "Sidebar → Notes"],
+  ["Checklists in notes", "Tick-box lists inside any note.", "Sidebar → Notes → ☑"],
+  ["Notes as Markdown", "Save a note as a .md file as well as plain text.", "Sidebar → Notes → .md"],
+  ["Highlights as Markdown", "Export every highlight and its note, grouped by page, to one file.", "Sidebar → Reading → Highlights"],
+  ["Define a word", "What the selected word means, in a bubble next to it, with examples.", "Ctrl+Shift+P → Define selected word"],
+  ["Double-click for meanings", "Double-click an English word on a page to see its meaning.", "Settings → Tools"],
+],
+"New: Everyday extras": [
+  ["Background slideshow", "Several pictures, GIFs or videos take turns behind the new tab page: every new tab, every hour or every day.", "New tab → Background"],
+  ["Search all open tabs", "Finds which open tab mentions the words you type, shows how often and where, and takes you there.", "Ctrl+Shift+P → Search all open tabs"],
+  ["Weather in the address bar", "Type weather in Paris (or paris weather) for the temperature, conditions, high, low and chance of rain.", "Address bar"],
+  ["Crypto prices", "Type btc price, eth price or solana in eur.", "Address bar"],
+  ["Always mute a site", "A noisy site stays muted in every tab, until you change your mind.", "Ctrl+Shift+P → Always mute this site"],
+  ["Forget recent browsing", "Remove the last 15 minutes, hour or day from history, closed tabs and continue watching.", "Ctrl+Shift+P → Forget recent browsing"],
+  ["Open in a private window", "Reopen the page you are on in a private window.", "Ctrl+Shift+P"],
+  ["Copy title and link", "The page's title and address together, ready to paste.", "Ctrl+Shift+P"],
+  ["Tip of the day", "One short tip about the browser on the new tab page. Next for another, × to hide.", "New tab"],
+],
+"New: Tabs, part 2": [
+  ["Tab groups", "Name and color a group of tabs; click its label to collapse it to one chip.", "Right-click a tab → Add to group"],
+  ["Workspaces", "Separate sets of tabs, like School and Games. Switching puts one set away and brings the other back.", "Menu → Workspaces"],
+  ["Snooze a tab", "It closes now and comes back in an hour, this evening, tomorrow, at the weekend or next week.", "Right-click a tab → Snooze"],
+  ["Forgotten tabs", "Offers to close tabs you have not looked at for a week (or the time you pick). They go to Recently closed.", "Settings → Performance"],
+  ["Vertical tabs", "Every tab of the window in a list in the sidebar, with groups, filter and close buttons.", "Sidebar → Tabs"],
+],
+"New: Reading": [
+  ["Reader fonts", "Serif, sans or an easy-reading font with wider letters and spacing.", "Reader view → Aa"],
+  ["Reader spacing and width", "Tight, normal or relaxed lines; narrow, normal or wide text.", "Reader view → Aa"],
+  ["More reader themes", "Dark, black, gray, sepia and light.", "Reader view → Theme or Aa"],
+  ["Listen", "Reads the article aloud and highlights each paragraph as it goes, with your choice of voice and speed.", "Reader view → Listen"],
+  ["Save articles offline", "Keep an article to read without internet.", "Reader view → Save offline; Sidebar → Reading → Offline"],
+  ["Highlight text", "Mark text on any page; the highlights come back every time you open it.", "Alt+H, or Menu → Page tools"],
+  ["Notes on highlights", "Add a note to a highlight; it shows when you point at the text.", "Menu → Page tools → Highlight with a note"],
+  ["All your highlights", "Every highlight by page, with its note. Click to go back to the page.", "Sidebar → Reading → Highlights"],
+  ["Clip to Notes", "Send the selected text and the page's link to a note for that site.", "Menu → Page tools"],
+],
+"New: Productivity": [
+  ["Clipboard history", "The last 25 things you copied on web pages; click one to copy it again. Never from password boxes.", "Alt+Shift+V"],
+  ["Text snippets", "Type ;addr (or your own keyword) in any text box and it becomes your saved text.", "Settings → Tools"],
+  ["Mouse gestures", "Hold the right button and draw to go back, forward, open, close or reload tabs.", "Settings → Tools"],
+  ["Page load time", "How long the page took, how many requests and how much data.", "Menu → Page tools"],
+],
+"New: Accessibility": [
+  ["Vision filters", "High contrast, grayscale or inverted colors on every page.", "Settings → Accessibility"],
+  ["Color-blind filters", "Shift the colors that are hard to tell apart with red-green or blue-yellow color blindness.", "Settings → Accessibility"],
+  ["Big mouse pointer", "A larger pointer on web pages.", "Settings → Accessibility"],
+  ["Highlight links", "Outline and underline every link.", "Settings → Accessibility"],
+  ["Break reminders", "Every 20 to 60 minutes of screen time, a reminder to rest your eyes.", "Settings → Accessibility"],
+],
+"New: Customization and safety": [
+  ["Color themes", "Midnight, Ocean, Forest, Rose, Coffee, Graphite and Pure black.", "Settings → Appearance"],
+  ["Your CSS for any site", "Restyle a site your way; it is applied every time.", "Menu → Page tools → Your CSS for this site"],
+  ["Userscripts", "Your own JavaScript for the sites you choose, like Tampermonkey.", "Settings → Tools"],
+  ["Toolbar editor", "Choose which toolbar buttons show.", "Settings → Appearance"],
+  ["Password leak check", "Find out if a password is in a known data breach, without sending the password.", "Settings → Privacy"],
+  ["Look-alike site warning", "Stops before addresses that imitate a well-known site, like paypa1.com or letters from other alphabets.", "Automatic"],
+],
+"New: Address bar": [
+  ["Currency converter", "Type 100 usd to eur or £50 in dollars. Today's rates, fetched twice a day.", "Address bar"],
+  ["World clock", "Type time in tokyo or london time.", "Address bar"],
+  ["Time zone converter", "Type 3pm est to pst or 9am new york to tokyo; it tells you when the day changes.", "Address bar"],
+  ["Date calculator", "days until christmas, 100 days from now, days since 2026-01-01, what day is 2026-12-25.", "Address bar"],
+  ["Percentages", "15% of 80, 20% off 50, 200 + 15%, 30 out of 120.", "Address bar"],
+  ["Tip and bill splitter", "tip 20% on 64 split 4, or split 120 by 4.", "Address bar"],
+  ["Number bases", "255 to hex, 0xff to decimal, 10 to binary.", "Address bar"],
+  ["Color converter", "Type #e8342a, rgb(...) or hsl(...) for hex, RGB and HSL with a swatch.", "Address bar"],
+  ["Dictionary", "Type define and a word for its meaning.", "Address bar"],
+  ["Dice, coins and random numbers", "roll 2d6, flip a coin, random 1 to 100, uuid.", "Address bar"],
+  ["Password in the address bar", "Type password or password 24 for a strong one; Enter copies it.", "Address bar"],
+  ["Timers and reminders", "timer 10 min, timer 1h 30m, remind me in 20 minutes to stretch.", "Address bar"],
+  ["Forget one page from history", "Highlight a history suggestion and press Shift+Delete.", "Address bar suggestions"],
+],
+"New: New tab": [
+  ["Weather", "Temperature, conditions and today's high and low for your city. Free, no account.", "New tab → Customize"],
+  ["To-do list", "Quick tasks you tick off, on the new tab page and in the sidebar.", "New tab page"],
+  ["Countdown", "Days left until a date you choose.", "New tab → Customize"],
+  ["Your name in the greeting", "Good evening, you.", "New tab → Customize"],
+  ["24-hour clock and seconds", "Pick the clock you like.", "New tab → Customize"],
+  ["Show or hide anything", "Weather, to-do, continue watching, shortcuts, reading list, the blocked counter, the greeting and the clock.", "New tab → Customize"],
+  ["Search engine for one search", "Click the letter in the search box to use Google, Bing, Brave, Startpage or Wikipedia just this once.", "New tab search box"],
+  ["Edit and reorder shortcuts", "Drag shortcuts into any order; right-click to rename, change or remove one.", "New tab page"],
+  ["Background fit and dim", "Fill, Fit (with a soft blurred edge), Stretch or Center, and an adjustable dim.", "New tab → Background"],
+  ["Sharper backgrounds", "Small pictures are enlarged with a smoother, sharper filter that hides compression blocks.", "Automatic"],
+  ["Video previews", "Continue watching shows a frame from where you stopped.", "New tab page"],
+  ["Anime artwork", "Anime sites show the show's artwork, looked up by title, when the player cannot be captured.", "New tab page"],
+],
+"New: Page tools": [
+  ["Unlock copy, paste and right-click", "For sites that turn them off.", "Menu → Page tools"],
+  ["Always unlock on a site", "Remembered for next time.", "Menu → Page tools"],
+  ["Clean up a page", "Removes pop-ups, sign-up walls, cookie bars and sticky headers, and lets the page scroll again.", "Menu → Page tools"],
+  ["Edit page text", "Change any text on a page, for a screenshot or a laugh.", "Menu → Page tools"],
+  ["Auto-scroll", "Hands-free reading; arrow keys change the speed, Esc stops.", "Alt+A"],
+  ["Word count and reading time", "For the page, or just the text you selected.", "Menu → Page tools"],
+  ["Page outline", "Every heading on the page; click one to jump to it.", "Menu → Page tools"],
+  ["QR code", "Scan to open the page on your phone.", "Alt+Q, or Menu → Page tools"],
+  ["Video volume keys", "Turn a video up or down from the keyboard.", "Alt+Up / Alt+Down"],
+  ["Night light", "Warmer, dimmer pages for reading late, in three strengths.", "Menu → Night light"],
+],
+"New: Focus": [
+  ["Focus mode", "Blocks distracting sites for 25 minutes to 4 hours, with a 5-minute pass when you really need one.", "Alt+Shift+F, or Menu"],
+  ["Your own focus list", "Choose which sites focus mode blocks.", "Settings → Focus"],
+  ["Screen time", "How long you spent on each site today and over two weeks. Stays on this computer.", "Menu → Screen time"],
+  ["Timers in the sidebar", "Quick 1, 5, 10 and 25 minute timers, or your own with a label. They ring even with the sidebar closed.", "Sidebar → Timer"],
+  ["Pomodoro", "25 minutes of focus, 5 minute breaks, a longer break every fourth round.", "Sidebar → Timer"],
+  ["Stopwatch", "With laps.", "Sidebar → Timer"],
+  ["To-do in the sidebar", "The same list as the new tab page.", "Sidebar → To-do"],
+],
+"New: Tabs and shortcuts": [
+  ["Command palette", "Type what you want to do: screenshot, focus, QR, dark mode... over 60 commands.", "Ctrl+Shift+P"],
+  ["Smarter tab search", "Finds commands and bookmarks too, not just tabs and history.", "Ctrl+Shift+A"],
+  ["Duplicate tab", "", "Ctrl+Shift+K"],
+  ["Mute tab", "", "Ctrl+M"],
+  ["Copy page address", "", "Ctrl+Shift+Y"],
+  ["Copy all tab links", "Every open page's title and address, ready to paste.", "Menu → Page tools"],
+  ["Add a page to the new tab page", "Right-click a tab → Add to new tab shortcuts.", "Right-click a tab"],
+],
+"VPN": [
+  ["Free built-in VPN", "Hide your address with Tor. No account, no sign-up, no monthly fee.", "Globe button in the toolbar, or Alt+V"],
+  ["Choose your country", "Appear to be in any of 21 countries, or let it pick the fastest.", "VPN panel → Country"],
+  ["Use your own VPN service", "Connect through your provider's SOCKS5, HTTP or HTTPS server with your login. NordVPN and PIA are filled in for you.", "Settings → VPN → My VPN provider"],
+  ["Password kept encrypted", "Your VPN password is locked to your Windows account and never stored in plain text.", "Settings → VPN"],
+  ["Kill switch", "If the VPN drops, pages stop loading instead of quietly using your real address.", "Settings → VPN"],
+  ["Split tunneling", "Send every site through the VPN except a list, or only the sites on a list.", "Settings → VPN → Split tunneling"],
+  ["VPN off for one site", "Banks and streaming sites that block VPNs can skip it with one click.", "VPN panel, or the lock button"],
+  ["New identity", "Get a fresh Tor route and a new address instantly.", "VPN panel → New identity"],
+  ["Live VPN status", "See the address and country sites see, how long you have been connected and the data used.", "VPN panel"],
+  ["Connect on start-up", "The VPN comes on by itself every time the browser opens.", "Settings → VPN"],
+  ["WebRTC leak guard", "While the VPN is on, pages cannot use WebRTC to discover your real address.", "Automatic"],
+],
+"Privacy": [
+  ["Secure DNS", "Look up sites over encrypted DNS from Cloudflare, Quad9, AdGuard, Mullvad or Google.", "Settings → Privacy"],
+  ["Fingerprint protection", "Hides the canvas, graphics card, CPU and memory details sites use to track you without cookies.", "Settings → Privacy"],
+  ["Global Privacy Control", "Tells every site not to sell or share your data.", "Settings → Privacy"],
+  ["HTTPS first", "Plain http:// addresses are upgraded to secure connections.", "Settings → Privacy"],
+  ["Tracking prevention levels", "The engine's own tracker blocking, from Off to Strict.", "Settings → Privacy"],
+  ["No notification nagging", "Sites cannot even ask to send you notifications.", "Settings → Privacy"],
+  ["Clear data on exit", "Cookies and site data are wiped every time you close the browser.", "Settings → Privacy"],
+  ["Auto-delete history", "Forget pages older than a day, a week, a month or a year.", "Settings → Privacy"],
+  ["Tracking tags removed", "utm_, fbclid, gclid and friends are stripped from links before pages load.", "Automatic (Shield)"],
+  ["Copy clean link", "Copy an address without its tracking junk.", "Right-click a link or the address bar"],
+  ["Site info", "Check a site's certificate, cookies and permissions.", "Click the lock left of the address"],
+  ["Forget this site", "Remove one site's history, cookies and stored data without touching the rest.", "Lock button → Forget this site"],
+  ["Reset site permissions", "Take back camera, microphone, location and other permissions you gave a site.", "Lock button"],
+  ["Private windows", "Nothing from these windows is kept once they close.", "Menu, or Ctrl+Shift+N"]
+],
+"Shield ad blocker": [
+  ["Ad and tracker blocking", "The same filter lists as uBlock Origin, updated automatically.", "Shield button"],
+  ["YouTube without ads", "Player and feed ads are removed; anything left is muted and skipped.", "Automatic"],
+  ["Popup blocking", "Pop-ups and pop-unders are stopped, with an Open button if you really wanted one.", "Automatic"],
+  ["Cookie banners rejected", "Consent pop-ups are answered “Reject all” or hidden.", "Settings → Shield"],
+  ["Empty ad spaces hidden", "The gaps blocked ads leave behind are collapsed.", "Settings → Shield"],
+  ["Block an element", "Point at anything annoying on a page and remove it for good.", "Shield panel → Block an element"],
+  ["What was blocked", "A list of every request Shield stopped on the page.", "Shield panel"],
+  ["Shield off per site", "Turn blocking off for a site that needs it in one click.", "Shield panel or the lock button"],
+  ["Your own filters", "Write rules in uBlock Origin syntax.", "Settings → My filters"],
+  ["Dangerous site warning", "Known malware and scam sites are stopped with a warning page.", "Automatic"]
+],
+"Video": [
+  ["Pop out any video", "Float a video over other windows, on any site.", "Alt+P, video button, or right-click"],
+  ["Speed control", "From 0.25× to 4× on any video.", "Alt+, and Alt+."],
+  ["Skip 10 seconds", "Jump back or forward on any player.", "Alt+J and Alt+L"],
+  ["Skip intro", "Jump 85 seconds ahead past an opening.", "Alt+S"],
+  ["Play or pause from anywhere", "Works even when the video is not focused.", "Alt+K"],
+  ["Fill the window", "Stretch a video across the page without going full screen.", "Video button → Fill window"],
+  ["Loop a video", "Replay a clip over and over.", "Video button → Loop"],
+  ["Save a video frame", "Save the current frame as a picture and copy it.", "Video button, or right-click the video"],
+  ["Media hub", "See and control what is playing in every tab from one place.", "Video button in the toolbar"],
+  ["Continue watching", "Long videos you did not finish appear on the new tab page, with a preview of where you stopped.", "New tab page"],
+  ["Resume where you stopped", "Come back to a video and jump to where you left it.", "Automatic"],
+  ["SponsorBlock", "Sponsor reads and “like and subscribe” parts of YouTube videos are skipped.", "Settings → Video"],
+  ["Stop autoplay", "Videos with sound wait until you click.", "Settings → Privacy"],
+  ["Mute other tabs", "Silence everything except the tab you are on.", "Right-click a tab"]
+],
+"Tabs": [
+  ["Pinned tabs", "Small, permanent tabs for the sites you always keep open.", "Right-click a tab → Pin"],
+  ["Tab colors", "Color-code tabs to group them by eye.", "Right-click a tab → Color"],
+  ["Hover cards", "See a tab's full title and address, and what it is doing.", "Hover a tab"],
+  ["Scrollable tab strip", "Tabs never shrink to nothing; the strip scrolls.", "Tab strip"],
+  ["Wheel switches tabs", "Scroll over the tab strip to move between tabs.", "Tab strip"],
+  ["Move tabs with the keyboard", "Shift a tab left or right.", "Ctrl+Shift+PgUp / PgDn"],
+  ["Auto-refresh", "Reload a tab every 15 seconds to 1 hour.", "Right-click a tab"],
+  ["Sleep a tab now", "Free a tab's memory straight away.", "Right-click a tab"],
+  ["Sleeping tabs", "Tabs you have not looked at for a while pause by themselves.", "Settings → Performance"],
+  ["Close duplicates", "Close every tab showing a page that is already open.", "Right-click a tab"],
+  ["Sort tabs by site", "Line tabs up by website.", "Right-click a tab"],
+  ["Move to a new window", "Pull a tab out into its own window.", "Right-click a tab"],
+  ["Recently closed", "Bring back any of the last 25 tabs you closed, or all of them.", "Menu → Recently closed tabs"],
+  ["Saved sessions", "Save a set of tabs and reopen them together later.", "Menu → Saved sessions"],
+  ["Split view", "Two tabs side by side in one window.", "Split button in the toolbar"],
+  ["Bookmark all tabs", "Save every open tab as a bookmark at once.", "Right-click a tab"],
+  ["Search open tabs", "Jump to any tab by typing part of its name.", "Ctrl+Shift+A"]
+],
+"Address bar": [
+  ["Search suggestions", "Suggestions from your search engine as you type.", "Address bar"],
+  ["Calculator", "Type 2^10/3 or sqrt(2)*pi and get the answer.", "Address bar"],
+  ["Unit converter", "Type 5 miles to km, 72 f to c or 3 cups to ml.", "Address bar"],
+  ["Search keywords", "Type yt cats to search YouTube, w for Wikipedia, gh for GitHub, and your own.", "Settings → Search keywords"],
+  ["Search bangs", "Start with !g, !d, !b or !w to use another engine once.", "Address bar"],
+  ["Switch to tab", "Typing the name of an open tab offers to jump to it.", "Address bar"],
+  ["Paste and go", "Paste an address or search and go in one click.", "Right-click the address bar"],
+  ["Copy as Markdown", "Copy the page as a [title](link) Markdown link.", "Right-click the address bar"]
+],
+"Page tools": [
+  ["Area screenshot", "Drag a box over any part of a page; it is saved and copied.", "Ctrl+Shift+S"],
+  ["Full-page screenshot", "Capture a whole page, top to bottom.", "Menu → Full page"],
+  ["Copy a screenshot", "Put a picture of the visible page on the clipboard.", "Menu"],
+  ["Translate a page", "Read any page in your own language.", "Menu → Translate"],
+  ["Smart right-click", "Search with any engine, define a word or translate just the selected text.", "Right-click selected text"],
+  ["Read aloud", "The page, or just the selected text, is read to you.", "Menu → Read aloud"],
+  ["Reader view", "The article alone, without clutter.", "Book button in the address bar"],
+  ["View source", "Page source with line numbers, colors and search.", "Menu → View page source"],
+  ["Save as PDF", "Save any page as a PDF file.", "Menu"],
+  ["Strong passwords", "Generate a strong password in any password box; it is copied too.", "Right-click a password box"],
+  ["Search an image", "Look up any picture with Google Lens.", "Right-click an image"],
+  ["Block JavaScript per site", "Turn scripts off for one site.", "Lock button → JavaScript"],
+  ["Mobile version per site", "Make a site think you are on a phone.", "Lock button → Mobile version"],
+  ["Zoom remembered per site", "Each site keeps its own zoom, and you choose the default.", "Ctrl + / −, Settings → Appearance"]
+],
+"Sidebar and more": [
+  ["Sidebar with web panels", "Keep ChatGPT, WhatsApp or any site open beside your page.", "Sidebar button, or Ctrl+Shift+E"],
+  ["Notes", "Quick notes, including notes for the site you are on.", "Sidebar → Notes"],
+  ["Reading list", "Save pages to read later and tick them off.", "Sidebar, menu, or right-click a tab"],
+  ["Always on top", "Keep the browser window above other windows.", "Menu → Keep window on top"],
+  ["Dark mode for every site", "Darken pages that have no dark mode of their own.", "Settings → Appearance"],
+  ["Accent colors and compact mode", "Pick the browser's color and a slimmer toolbar.", "Settings → Appearance"],
+  ["New tab page", "A clock, your own shortcuts, a background picture, GIF or looping video, and your reading list.", "New tab page"],
+  ["Chrome extensions", "Install extensions from the Chrome Web Store.", "Settings → Extensions"],
+  ["Backup and restore", "Everything in one file, plus bookmarks import and export in the standard format.", "Settings → Backup"],
+  ["Task manager", "See what each tab uses and end the ones that hang.", "Menu → Task manager"],
+  ["Open in another browser", "Send a page to Chrome, Edge, Brave or Firefox.", "Menu"],
+  ["Crash recovery", "A crashed tab gets a Reload button instead of a blank page, and frozen pages are reported.", "Automatic"]
+]
+};
+let n = 0;
+const out = document.getElementById("out"), cats = document.getElementById("cats");
+Object.keys(F).forEach(cat => {
+  const h = document.createElement("h2");
+  h.innerHTML = "<span></span><em></em>";
+  h.querySelector("span").textContent = F[cat].length;
+  h.querySelector("em").textContent = cat;
+  h.querySelector("em").style.fontStyle = "normal";
+  const g = document.createElement("div");
+  g.className = "grid";
+  F[cat].forEach(([t, d, w]) => {
+    const c = document.createElement("div");
+    c.className = "f";
+    c.innerHTML = '<div class="n"></div><div><b></b><span></span><i></i></div>';
+    c.querySelector(".n").textContent = ++n;
+    c.querySelector("b").textContent = t;
+    c.querySelector("span").textContent = d;
+    c.querySelector("i").textContent = w;
+    if (n <= 40) c.style.animationDelay = n * 25 + "ms";   // the first screenful arrives one after another
+    g.appendChild(c);
+  });
+  out.appendChild(h); out.appendChild(g);
+});
+document.getElementById("count").textContent = n;
+document.getElementById("q").oninput = e => {
+  const q = e.target.value.trim().toLowerCase();
+  document.querySelectorAll(".f").forEach(c => c.classList.toggle("hide", !!q && !c.textContent.toLowerCase().includes(q)));
+  document.querySelectorAll(".grid").forEach(g => { const any = [...g.children].some(c => !c.classList.contains("hide"));
+    g.classList.toggle("hide", !any); g.previousElementSibling.classList.toggle("hide", !any); });
+};
+</script>
