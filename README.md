@@ -24,6 +24,18 @@ An iPhone installs a web app from a web address, so these files have to be hoste
 
 The app also shows these steps when you first open it in Safari.
 
+## Updates
+
+The iPhone app updates itself from this repository. Once a new version is on `main`, every iPhone
+with Webs on its Home Screen shows an **Update** button the next time Webs is opened (or comes back
+from the background), with what's new in it; one tap switches to it. Settings → Check for updates
+looks straight away.
+
+To publish one: make the changes, run `python3 tools/publish_iphone.py "What changed" "Another change"`
+(it raises the version by one, or give one first, like `2.2.0`), then commit, push and merge into
+`main`. GitHub Pages takes a minute or two to serve it. The Windows browser has its own, separate
+updates: see `windows/README.md`.
+
 ## What it does
 
 Version 2.0 adds 150 new things. They're all listed in the app under *Menu → What's new*.
@@ -82,6 +94,8 @@ On an iPhone, an app can only show a website inside itself when that website all
 | `js/qrcode.js` | [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) by Kazuhiko Arase (MIT license), for QR codes |
 | `games.html` | The offline games |
 | `manifest.webmanifest`, `icons/` | What iOS and Android use to install the app and draw its icon |
-| `sw.js` | Offline support. Raise `VERSION` in this file when you publish changes, and the installed app will offer to update. |
+| `sw.js` | Offline support, and how phones notice a new version (its `VERSION`) |
+| `updates/iphone.json` | The newest iPhone version and its notes, shown before updating |
+| `tools/publish_iphone.py` | Publishes an iPhone update (see Updates below) |
 
 There's no build step. To try it on your computer, run `python3 -m http.server` in this folder and open http://localhost:8000.

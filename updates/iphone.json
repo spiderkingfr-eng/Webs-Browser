@@ -1,0 +1,10 @@
+{
+  "version": "2.1.0",
+  "date": "2026-10-02",
+  "notes": [
+    "An Update button when a new version is ready: one tap installs it",
+    "See what's new in an update before installing it",
+    "Settings → Check for updates",
+    "Looks for updates when you open Webs and when you come back to it"
+  ]
+}
