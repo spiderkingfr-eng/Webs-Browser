@@ -15,7 +15,7 @@
    games, settings and backups - lives here and works offline. */
 "use strict";
 
-const VERSION = "2.0.0";
+const VERSION = "2.1.0";
 
 /* ---------------------------------------------------------------- look */
 const ACCENTS = ["#e8342a", "#ff7a1a", "#e0a100", "#2fa35f", "#1f9bd1", "#3d6cf0", "#8a5cf5", "#e0408a"];
@@ -1443,7 +1443,8 @@ function settingsHTML() {
       "(Settings → Backup there): send the file to your iPhone with AirDrop, iCloud Drive or email and restore it here. Bookmarks import from the HTML file Chrome, Safari, Edge or Firefox export.") +
     GROUP("About",
       ROW("Version", '<span class="v">' + VERSION + (isStandalone() ? " · installed" : "") + "</span>") +
-      BTN("whatsnew", "What's new", "150 new things", "", "sparkle") +
+      BTN("checkUpdate", UPD.waiting ? "Update to Webs " + updName() : "Check for updates", UPD.waiting ? "Ready" : UPD.checked ? "Checked " + agoText(UPD.checked) : "", "", "ul") +
+      BTN("whatsnew", "What's new", "", "", "sparkle") +
       BTN("help", "What works on iPhone") +
       (!isStandalone() ? BTN("install", "Add Webs to your Home Screen") : "") +
       BTN("eraseAll", "Erase all Webs data", "", "danger"));
@@ -1777,20 +1778,78 @@ addEventListener("keydown", e => {
   else if (!typing && e.key === "/" && $("#omni").classList.contains("hide")) { e.preventDefault(); openOmni(""); }
 });
 
-/* ---------------------------------------------------------------- offline and updates */
+/* ---------------------------------------------------------------- offline and updates
+   The app's files come from GitHub Pages. Publishing a new version there (a new
+   VERSION in sw.js) is picked up by the service worker in the background; the
+   app then shows an Update button, and one tap switches to it. The notes come
+   from updates/iphone.json. It looks on every launch, when you come back to the
+   app after a while, every hour while it is open, and when you ask. */
+const UPD = { reg:null, waiting:null, checked:+load("updChecked", 0) || 0, info:null, told:false };
 let updating = false;
+function updReady(w) {
+  if (!navigator.serviceWorker.controller) return;   // first install: nothing to update
+  UPD.waiting = w;
+  updPill();
+  updInfo().then(() => { updPill(); if (!UPD.told) { UPD.told = true; toast("Webs " + updName() + " is ready", { label:"Update", fn:openUpdate }); } });
+}
+const updName = () => UPD.info && UPD.info.version ? UPD.info.version.replace(/\.0$/, "") : "update";
+async function updInfo() {
+  try {
+    const r = await fetch("updates/iphone.json?t=" + Date.now(), { cache:"no-store" });
+    if (r.ok) { const j = await r.json(); if (j && /^\d+\.\d+\.\d+$/.test(j.version || "")) UPD.info = j; }
+  } catch (e) {}
+  return UPD.info;
+}
+function updPill() {
+  let b = $("#updPill");
+  if (!UPD.waiting) { if (b) b.remove(); return; }
+  if (!b) { b = document.createElement("button"); b.type = "button"; b.id = "updPill"; b.onclick = openUpdate; document.body.appendChild(b); }
+  b.innerHTML = ico("ul") + "<span></span>";
+  b.querySelector("span").textContent = UPD.info && UPD.info.version ? "Update to " + updName() : "Update ready";
+}
+function applyUpdate() {
+  if (!UPD.waiting) return;
+  updating = true;
+  save("updFrom", VERSION);
+  UPD.waiting.postMessage("skip");
+  setTimeout(() => { if (updating) location.reload(); }, 4000);   // in case the switch isn't announced
+}
+function openUpdate() {
+  hideToast();
+  const i = UPD.info || {}, notes = Array.isArray(i.notes) ? i.notes.slice(0, 20) : [];
+  openSheet("Update", '<div class="updhead">' + ico("ul") + "<b>" + (UPD.waiting ? "Webs " + esc(updName()) + " is ready" : "You have the newest version") + "</b><span>You have " + esc(VERSION) +
+    (UPD.checked ? " · checked " + esc(agoText(UPD.checked)) : "") + "</span></div>" +
+    (UPD.waiting && notes.length ? '<div class="group"><h3>What\'s new</h3><div class="card wnlist">' + notes.map((n, k) => '<div class="wn"><b>' + (k + 1) + "</b><span>" + esc(n) + "</span></div>").join("") + "</div></div>" : "") +
+    '<div class="updbtns">' + (UPD.waiting ? '<button type="button" class="btn main" id="updGo">Update now</button><p>Takes a second. Your tabs, notes and settings stay as they are.</p>'
+      : '<button type="button" class="btn" id="updCheck">Check again</button><p>Webs looks for updates by itself whenever you open it.</p>') + "</div>", { kind:"update" });
+  const g = $("#updGo"); if (g) g.onclick = applyUpdate;
+  const c = $("#updCheck"); if (c) c.onclick = () => checkUpdate(true);
+}
+const agoText = ts => { const m = Math.round((Date.now() - ts) / 60000); return m < 1 ? "just now" : m < 60 ? m + " min ago" : m < 1440 ? Math.round(m / 60) + " h ago" : new Date(ts).toLocaleDateString(); };
+async function checkUpdate(manual) {
+  if (!UPD.reg) { if (manual) toast("Updates work once Webs is opened from its web address"); return; }
+  UPD.checked = Date.now(); save("updChecked", UPD.checked);
+  try { await UPD.reg.update(); } catch (e) { if (manual) toast("Couldn't check for updates. Are you online?"); return; }
+  if (!manual) return;
+  // a new version found now still has to download before it's ready
+  const w = UPD.reg.installing;
+  if (w) { toast("Downloading the update…"); await new Promise(res => { const t = setTimeout(res, 20000); w.addEventListener("statechange", () => { if (w.state === "installed" || w.state === "redundant") { clearTimeout(t); res(); } }); }); }
+  if (UPD.reg.waiting && navigator.serviceWorker.controller) { UPD.waiting = UPD.reg.waiting; await updInfo(); updPill(); openUpdate(); }
+  else toast("You have the newest version (" + VERSION + ")");
+}
+ACTIONS.checkUpdate = () => checkUpdate(true);
+SETACTIONS.checkUpdate = () => UPD.waiting ? openUpdate() : checkUpdate(true);
 if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
   navigator.serviceWorker.register("sw.js").then(reg => {
-    const ready = w => {
-      if (!navigator.serviceWorker.controller) return;   // first install: nothing to update
-      toast("A new version of Webs is ready", { label:"Update", fn:() => { updating = true; w.postMessage("skip"); } });
-    };
-    if (reg.waiting) ready(reg.waiting);
+    UPD.reg = reg; UPD.checked = Date.now(); save("updChecked", UPD.checked);
+    if (reg.waiting) updReady(reg.waiting);
     reg.addEventListener("updatefound", () => {
       const w = reg.installing;
-      if (w) w.addEventListener("statechange", () => { if (w.state === "installed") ready(w); });
+      if (w) w.addEventListener("statechange", () => { if (w.state === "installed") updReady(w); });
     });
-    setInterval(() => reg.update().catch(() => {}), 3600e3);
+    setInterval(() => checkUpdate(false), 3600e3);
+    // iPhone keeps a Home Screen app asleep in the background, so it also looks when you come back to it
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && Date.now() - UPD.checked > 10 * 60000) checkUpdate(false); });
   }).catch(() => {});
   // reload only for an update you asked for, not when the first install takes over
   navigator.serviceWorker.addEventListener("controllerchange", () => { if (updating) { updating = false; location.reload(); } });

@@ -615,3 +615,21 @@ html.locked #app,html.locked #omni,html.locked #tabsv,html.locked #sheet,html.lo
 /* reduced motion and Animations off */
 @media (prefers-reduced-motion:reduce){#heroSearch::before{animation:none}.ripple{display:none}}
 :root[data-motion="off"] .ripple{display:none}
+
+/* ---------------------------------------------------------------- 2.1: updates */
+#updPill{position:fixed;left:50%;top:calc(10px + var(--st));transform:translateX(-50%);z-index:20;display:flex;align-items:center;gap:7px;padding:9px 16px 9px 13px;border-radius:22px;
+  background:var(--accent);color:#fff;font-size:14px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.28);animation:updIn .5s var(--spring) both,updGlow 2.6s 1s ease-in-out infinite}
+#updPill svg{width:17px;height:17px}
+#updPill:active{transform:translateX(-50%) scale(.94)}
+body.bartop #updPill{top:auto;bottom:calc(24px + var(--sb))}
+@keyframes updIn{from{opacity:0;transform:translate(-50%,-14px) scale(.9)}}
+@keyframes updGlow{50%{box-shadow:0 8px 24px rgba(0,0,0,.28),0 0 0 6px color-mix(in srgb,var(--accent) 25%,transparent)}}
+.updhead{display:flex;flex-direction:column;align-items:center;text-align:center;gap:3px;margin:6px 0 18px}
+.updhead svg{width:54px;height:54px;padding:13px;border-radius:50%;background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent);margin-bottom:8px;animation:updIn .5s var(--spring) both}
+.updhead b{font-size:22px;letter-spacing:-.01em}
+.updhead span{color:var(--dim);font-size:14px}
+.updbtns{margin:16px 0 8px;text-align:center}
+.updbtns .btn{width:100%;height:50px;border-radius:13px;background:var(--bg3);color:var(--fg);font-size:17px;font-weight:600}
+.updbtns .btn.main{background:var(--accent);color:#fff}
+.updbtns p{color:var(--dim);font-size:13.5px;margin-top:10px}
+:root[data-motion="off"] #updPill,:root[data-motion="off"] .updhead svg{animation:none}

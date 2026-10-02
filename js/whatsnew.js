@@ -1,8 +1,12 @@
-/* Webs Browser for iPhone - what's new in 2.0: 150 new things, listed in the
-   app (Menu → What's new) and offered once after the update. */
+/* Webs Browser for iPhone - what's new in 2.1 and 2.0, listed in the app
+   (Menu → What's new) and offered once after each update. */
 "use strict";
 
 const WHATS_NEW = [
+  ["New in 2.1: updates", "ul", [
+    "An Update button appears when a new version is ready; one tap installs it", "See what's new in an update before you install it",
+    "Settings → Check for updates shows your version and looks for a new one", "Looks for updates when you open Webs and when you come back to it"
+  ]],
   ["Looks and animations", "sparkle", [
     "An animated launch splash", "The start page glides in, section by section", "Ripples and springy presses on every tap", "Shortcuts tilt in 3D under your finger",
     "Sheets spring open over a blurred background", "Sheet contents cascade in", "The address bar zooms open and its results cascade in", "Tab cards fly in when you open your tabs",
@@ -62,7 +66,7 @@ const WHATS_NEW = [
 function openWhatsNew() {
   let n = 0;
   const total = WHATS_NEW.reduce((a, g) => a + g[2].length, 0);
-  openSheet("What's new", '<div class="wnhead"><svg class="mark"><use href="#logo"/></svg><b>Webs ' + VERSION.replace(/\.0$/, "") + "</b><span>" + total + " new things</span></div>" +
+  openSheet("What's new", '<div class="wnhead"><svg class="mark"><use href="#logo"/></svg><b>Webs ' + VERSION.replace(/\.0$/, "") + "</b><span>" + total + " new things in 2.0 and 2.1</span></div>" +
     WHATS_NEW.map(([title, icon, list]) => '<div class="group"><h3>' + ico(icon) + esc(title) + " · " + list.length + '</h3><div class="card wnlist">' +
       list.map(x => '<div class="wn"><b>' + (++n) + "</b><span>" + esc(x) + "</span></div>").join("") + "</div></div>").join(""), { kind:"whatsnew", full:true });
   if (typeof confetti === "function") setTimeout(() => confetti($(".wnhead")), 250);
@@ -70,9 +74,13 @@ function openWhatsNew() {
 ACTIONS.whatsnew = openWhatsNew;
 SETACTIONS.whatsnew = openWhatsNew;
 document.addEventListener("DOMContentLoaded", () => {
-  if (load("seenVer", "") === VERSION) return;
-  const before = localStorage.getItem("wsb.mtabs") !== null;
+  const seen = load("seenVer", "");
+  if (seen === VERSION) return;
+  const before = !!seen || localStorage.getItem("wsb.mtabs") !== null;   // used Webs before this version
   if (!before && !isStandalone() && isIOS) return;   // a first visit in Safari: the install steps come first
   save("seenVer", VERSION);
-  setTimeout(() => toast(before ? "Webs " + VERSION.replace(/\.0$/, "") + " is here, with 150 new things" : "Welcome to Webs! See what it can do", { label:"See", fn:openWhatsNew }), 1400);
+  const short = VERSION.replace(/\.0$/, "");
+  // after an update (the version it had is remembered) it says so; a first start says hello
+  const msg = !before ? "Welcome to Webs! See what it can do" : seen ? "\u{1F389} Updated to Webs " + short + "!" : "Webs " + short + " is here, with lots of new things";
+  setTimeout(() => toast(msg, { label:before ? "What's new" : "See", fn:openWhatsNew }), 1400);
 });
