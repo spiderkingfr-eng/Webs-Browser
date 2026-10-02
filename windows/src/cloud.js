@@ -71,7 +71,7 @@ async function checkUpdate(manual) {
     u.latest = latest; u.err = "";
   } catch (e) { u.err = /HTTP|wrong/.test(e.message) ? e.message : "Couldn't reach GitHub"; }
   u.checked = Date.now(); checking = false;
-  save(UPD_KEY, u); paintUpd();
+  save(UPD_KEY, u); paintUpd(); publish();
   const a = updAvail();
   if (manual) { if (a) updPanel(); else toast(u.err ? "Couldn't check for updates: " + u.err : "You have the newest version (" + VERSION + ")"); return; }
   if (a) {
@@ -134,6 +134,16 @@ function onUpdDl(p) {
   }
 }
 X3.checkUpdate = checkUpdate; X3.updPanel = updPanel; X3.startUpdate = startUpdate;
+// The first start after an update says so. (3.1.0 didn't note its version, so an
+// update it offered counts too: it remembered the version it was offering.)
+function updatedNotice() {
+  const seen = load("xVersionSeen", ""), offered = (updInfo().latest || {}).version;
+  const from = seen || (offered === VERSION ? "an older version" : "");
+  if (seen !== VERSION) save("xVersionSeen", VERSION);
+  if (!from || (seen && !newer(VERSION, seen))) return;
+  X3.updatedFrom = from;
+  setTimeout(() => toast("\u{1F389} Updated to Webs Browser " + VERSION + ". The update worked!", { label:"What's new", fn:() => open1("whatsnew.html") }), 2500);
+}
 
 /* ================================================================ Google account */
 const TOKEN_URL = "https://oauth2.googleapis.com/token", DRIVE = "https://www.googleapis.com/drive/v3/files",
@@ -485,6 +495,7 @@ addEventListener("storage", e => {
   } else if (G_ON() && /^wsb\.(settings|tiles|hidden|panels|shield|bookmarks|notes|todo|reading|collections|highlights|stickies|habits|events)$/.test(e.key)) syncSoon(30000);
 });
 if (!PRIVATE) {
+  updatedNotice();
   publish(); paintUpd(); paintAcctBtn();
   setTimeout(() => checkUpdate(false), 25000);
   setInterval(() => checkUpdate(false), 6 * 3600000);

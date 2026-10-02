@@ -1,19 +1,18 @@
 {
-  "version": "3.1.0",
+  "version": "3.1.1",
   "date": "2026-10-02",
   "notes": [
-    "Sign in with Google: your layout, settings, bookmarks and notes follow you to every computer",
-    "Updates inside the browser: one click installs the next version",
-    "Settings → Google account picks what syncs"
+    "Test update: after updating, the browser says so",
+    "Settings shows Sign in with Google as soon as it's switched on"
   ],
   "exe": {
-    "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.1.0.exe",
-    "sha256": "4afae9d21377a5d7c15dad2bbf7ee4c864f69c481f0b29ccec387eca5db3a3b3",
-    "size": 2571264
+    "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.1.1.exe",
+    "sha256": "297162bec1c6dc213e30dbc3dce1e24373c9265488e86da9657de1c3957eb8fb",
+    "size": 2571776
   },
   "updater": {
     "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebsUpdate.exe",
-    "sha256": "496161e635a71fc2b97c272f51f729b9e005880c14c0f511af00f7b6483f5e5a",
+    "sha256": "c6464be8c66ff85068f804271929a33f2a8471c8dc8a45a2a2c4391800e105f4",
     "size": 20480
   },
   "google": {

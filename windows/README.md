@@ -84,8 +84,8 @@ hash) before and after, and every embedded file read back by the .NET runtime ma
 ```
 npm install playwright
 python3 build.py
-node tests/t_chrome.js     # also t_side, t_ntp, t_games, t_shield, t_misc, t_examples and t_cloud
+node tests/t_chrome.js     # also t_side, t_ntp, t_games, t_shield, t_misc, t_examples, t_cloud and t_updated; `sh tests/t_updater.sh` tests the updater under Mono
 ```
 
-282 checks pass (`t_cloud` fakes Google's sign-in, token and Drive endpoints and the update file). The exe itself was not run on Windows here: the tests run the same pages in
+288 checks pass (`t_cloud` fakes Google's sign-in, token and Drive endpoints and the update file). The exe itself was not run on Windows here: the tests run the same pages in
 Chromium, the engine WebView2 uses.

@@ -179,6 +179,8 @@ static class Updater
             foreach (var t in targets) Replace(t, tmp);
             try { File.Delete(tmp); } catch { }
             Log("installed to " + string.Join(", ", targets));
+            // the browser engine's own processes finish closing a moment after the window does
+            if (closed && mine.Count > 0 && !NoRestart) Thread.Sleep(2000);
 
             if (fresh && !NoRestart)
             {
