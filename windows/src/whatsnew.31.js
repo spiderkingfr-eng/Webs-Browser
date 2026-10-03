@@ -1,3 +1,9 @@
+"3.5 · Phantom calendar": [
+  ["Phantom calendar", "A start page card in the style of Persona 5: the date slams in on a red burst, with the time of day (After School, Evening…) and the weather.", "New tab → Customize → Phantom calendar (Persona 5 style)"],
+  ["Deadline countdown", "Set a deadline (exams, a trip, a birthday) and see the days left in cut-out letters, or \"Take your time\" when there isn't one.", "Phantom calendar → Set a deadline, or the ✎"],
+  ["This week at a glance", "The days gone are crossed off in red, today has a star, and the deadline is marked when it's this week.", "Phantom calendar"],
+  ["Change it any time", "The ✎ changes the deadline and Remove clears it. The card keeps up with the time of day by itself.", "Phantom calendar → ✎"]
+],
 "3.4 · Talk with Web AI": [
   ["Voice call with Web AI", "Tap 📞, ask out loud, and Web AI answers out loud, then listens for your next question until you hang up.", "Web AI → the 📞 button by the box you type in"],
   ["Hear any answer", "The 🔊 button under an answer reads it out loud. Tap it again to stop.", "Web AI → under an answer"],

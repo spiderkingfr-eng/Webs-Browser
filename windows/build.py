@@ -42,7 +42,7 @@ def page(name, css=None, js=None, edits=()):
     write(name, s)
 
 page("side.html", ["side.add.css", "webai.side.css"], ["side.add.js", "webai.side.js", "webai.voice.js"])
-page("newtab.html", "newtab.add.css", "newtab.add.js")
+page("newtab.html", "newtab.add.css", ["../../js/phantom.js", "newtab.add.js"])     # the Phantom calendar is shared with the iPhone app
 page("settings.html", None, ["settings.add.js", "settings.acct.js"], edits=[
   ('  <h2 id="vpn">VPN</h2>', rd(S, "settings.acct.html") + '  <h2 id="vpn">VPN</h2>', "account section"),
   ('<a href="#vpn">VPN</a>', '<a href="#account">Account</a><a href="#vpn">VPN</a>', "account link"),
@@ -74,7 +74,7 @@ print("games built")
 # whatsnew.html: the newest features first; the count on the page is worked out from the list
 wn = rd(O, "whatsnew.html")
 wn = once(wn, "const F = {\n", "const F = {\n" + rd(S, "whatsnew.31.js") + rd(S, "whatsnew.add.js"), "whatsnew: list")
-wn = once(wn, "The groups marked New arrived in this update.", "The groups marked 3.4, 3.3, 3.2, 3.1 and 3.0 are the newest; the ones marked New came just before.", "whatsnew: sub")
+wn = once(wn, "The groups marked New arrived in this update.", "The groups marked 3.5, 3.4, 3.3, 3.2, 3.1 and 3.0 are the newest; the ones marked New came just before.", "whatsnew: sub")
 write("whatsnew.html", wn)
 body = wn[wn.index("const F = {"):wn.index("};\nlet n = 0;")]
 features = len(re.findall(r'^\s*\["', body, re.M))     # one card per line that starts a [title, what, where] entry
