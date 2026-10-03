@@ -1,10 +1,10 @@
 {
-  "version": "2.5.0",
+  "version": "2.6.0",
   "date": "2026-10-03",
   "notes": [
-    "The Phantom calendar: a Persona 5-style start page card with a deadline countdown (Settings → Customize start page)",
-    "Add your own pictures to it (✎ → Your pictures); they stay on this iPhone",
-    "The time of day and the weather, the way the game's calendar shows them"
+    "Help & support: stuck? Write to the people who make Webs (Menu → Help & support) and the answer comes back in the app",
+    "Let support adjust your settings for 30 minutes at most, with Undo for every change. End it any time",
+    "Support only sees what you write and the settings on the list, never your history, bookmarks, tabs, notes or pages"
   ],
   "webai": {
     "server": "https://web-ai.spiderkingfr.workers.dev",

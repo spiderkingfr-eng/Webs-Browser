@@ -1,15 +1,15 @@
 {
-  "version": "3.5.1",
+  "version": "3.6.0",
   "date": "2026-10-03",
   "notes": [
-    "Phantom calendar redrawn like a Persona 5 phone theme: five days in a V over a city at sunset, today stabbed by a dagger",
-    "Add your own pictures to it (✎ → Your pictures); they stay on this computer",
-    "The Q poll shows your deadline and days left, or your battery, or how much of today is left"
+    "Help & support: stuck? Write to the people who make Webs from the menu, and the answer comes back in the sidebar",
+    "Let support fix a setting for you: turn on the switch and support can change a few switches and choices for 30 minutes at most, each with Undo",
+    "Support only sees what you write and the settings on the list, never your history, bookmarks, tabs, passwords or pages"
   ],
   "exe": {
-    "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.5.1.exe",
-    "sha256": "770477f2fb4c81e2fbc03342bf39522595e3a4e1ee3885e3d8bc19f8c9c7848a",
-    "size": 2657792
+    "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.6.0.exe",
+    "sha256": "0e588ec28dcdadd21226ba7d47be9e62f0fbae151b0f75e983ef5526e3af3053",
+    "size": 2696704
   },
   "updater": {
     "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebsUpdate.exe",
