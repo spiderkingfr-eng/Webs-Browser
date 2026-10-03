@@ -5,7 +5,8 @@ let pass = 0, fail = 0;
 const ok = (c, what) => { if (c) pass++; else { fail++; console.log("FAIL:", what); } };
 
 const kv = new Map();
-const LIMITS = { get:async k => kv.has(k) ? kv.get(k) : null, put:async (k, v) => { kv.set(k, v); } };
+const LIMITS = { get:async k => kv.has(k) ? kv.get(k) : null, put:async (k, v) => { kv.set(k, v); }, delete:async k => { kv.delete(k); },
+  list:async ({ prefix, limit }) => ({ keys:[...kv.keys()].filter(k => k.startsWith(prefix || "")).sort().slice(0, limit || 1000).map(name => ({ name })), list_complete:true }) };
 const env = { ANTHROPIC_API_KEY:"sk-ant-test", WEB_AI_CODES:"Sam=abcd1234efgh\nAlex=zzzz9999yyyy=2\nshort=abc", LIMITS, DAILY_LIMIT:"3" };
 let calls = [], reply = null;
 const sse = events => events.map(e => "event: " + e.type + "\ndata: " + JSON.stringify(e) + "\n\n").join("");
@@ -199,6 +200,77 @@ ok(r.lines[0].d === "crlf ok" && r.lines[1].end === 1, "CRLF lines");
   ok(r.res.status === 401 && r.j.error === "code", "not open: a code is needed");
   r = await call("GET", "/", null, ORIGIN, { ...openEnv, OPEN:"" });
   ok(r.j.ready === false && r.j.open === false, "not open and no codes: not ready");
+}
+
+// reports, linked devices and the dashboard
+{
+  kv.clear(); reply = null;
+  const E = { ...env, OPEN:"true", WEB_AI_CODES:"Me=owner1234code,Sam=abcd1234efgh" };
+  const post = (path, body, ip = "9.9.9.9", e = E) => worker.fetch(new Request("https://w.workers.dev" + path, { method:"POST", headers:{ Origin:ORIGIN, "CF-Connecting-IP":ip, "content-type":"application/json" }, body:JSON.stringify(body) }), e, { waitUntil(){} }).then(async r => ({ status:r.status, j:await r.json().catch(() => null) }));
+  r = await call("GET", "/", null, ORIGIN, E);
+  ok(r.j.features.includes("report") && r.j.features.includes("link"), "GET / lists the features");
+  // a report
+  let a = await post("/report", { device:"devAAAAAAAAAAAAAAAA", app:"windows", version:"3.4.0", text:"Searching shows a grey screen", info:{ theme:"dark", vpn:false }, errors:["TypeError: x is undefined"] });
+  ok(a.status === 200 && a.j.ok, "report accepted");
+  a = await post("/report", { device:"devAAAAAAAAAAAAAAAA", text:"   " });
+  ok(a.status === 400, "an empty report is refused");
+  const rk = [...kv.keys()].filter(k => k.startsWith("report:"));
+  const rv = JSON.parse(kv.get(rk[0]));
+  ok(rk.length === 1 && rv.text === "Searching shows a grey screen" && rv.app === "windows" && rv.info.theme === "dark" && rv.errors[0] === "TypeError: x is undefined" && /^device /.test(rv.who), "report stored: " + JSON.stringify(rv));
+  for (let i = 0; i < 10; i++) a = await post("/report", { device:"devAAAAAAAAAAAAAAAA", text:"again " + i });
+  ok(a.status === 429, "10 reports a day per device");
+  a = await post("/report", { device:"devBBBBBBBBBBBBBBBB", text:"x" }, "1.1.1.1", { ...E, OPEN:"" });
+  ok(a.status === 401, "reports need Web AI access when the server isn't open");
+  // linking: code on one device, join on another, send, receive
+  a = await post("/link/new", { device:"devPCPCPCPCPCPCPCPC" });
+  const link = a.j.link, pair = a.j.code;
+  ok(a.status === 200 && /^[a-z0-9]{24}$/.test(link) && /^\d{6}$/.test(pair) && a.j.minutes === 10, "a link code: " + JSON.stringify(a.j));
+  a = await post("/link/join", { device:"devPHPHPHPHPHPHPHPH", pair:"000000" === pair ? "111111" : "000000" });
+  ok(a.status === 404 && a.j.error === "pair", "a wrong code is refused");
+  a = await post("/link/join", { device:"devPHPHPHPHPHPHPHPH", pair });
+  ok(a.status === 200 && a.j.link === link, "joined the same link");
+  a = await post("/link/join", { device:"devXXXXXXXXXXXXXXXX", pair });
+  ok(a.status === 404, "a code works once");
+  a = await post("/link/new", { device:"devPCPCPCPCPCPCPCPC", link });
+  ok(a.j.link === link, "a linked device adds more devices to its own link");
+  a = await post("/send", { link, me:"devPCPCPCPCPCPCPCPC", from:"Windows PC", url:"https://example.com/a", title:"Page A" });
+  ok(a.status === 200, "sent a page");
+  a = await post("/send", { link, me:"devPCPCPCPCPCPCPCPC", from:"Windows PC", url:"javascript:alert(1)", title:"x" });
+  ok(a.status === 400, "only web pages can be sent");
+  a = await post("/inbox", { link, me:"devPHPHPHPHPHPHPHPH", since:0 });
+  ok(a.j.items.length === 1 && a.j.items[0].url === "https://example.com/a" && a.j.items[0].from === "Windows PC" && !("sender" in a.j.items[0]), "the phone gets it: " + JSON.stringify(a.j));
+  a = await post("/inbox", { link, me:"devPCPCPCPCPCPCPCPC", since:0 });
+  ok(a.j.items.length === 0, "the sender doesn't get its own page back");
+  const ts = (await post("/inbox", { link, me:"devPHPHPHPHPHPHPHPH", since:0 })).j.items[0].ts;
+  a = await post("/inbox", { link, me:"devPHPHPHPHPHPHPHPH", since:ts });
+  ok(a.j.items.length === 0, "only newer pages after since");
+  a = await post("/send", { link:"abcdefghijklmnopqrstuvwx", me:"x", url:"https://example.com/" });
+  ok(a.status === 404 && a.j.error === "link", "an unknown link is refused");
+  // usage and the dashboard
+  reply = null;
+  await call("POST", "/chat", { device:"devQQQQQQQQQQQQQQQQ", messages:[{ role:"user", content:"hi" }] }, ORIGIN, E);
+  const u = JSON.parse(kv.get("u:" + new Date().toISOString().slice(0, 10)) || "{}");
+  ok(u.n === 1 && u.input_tokens === 900 && u.output_tokens === 7, "usage counted for the dashboard: " + JSON.stringify(u));
+  r = await worker.fetch(new Request("https://w.workers.dev/admin"), E, { waitUntil(){} });
+  const page = await r.text();
+  ok(r.status === 200 && /Web AI dashboard/.test(page) && /default-src 'none'/.test(r.headers.get("content-security-policy")) && r.headers.get("x-frame-options") === "DENY", "the dashboard page");
+  a = await post("/admin", { code:"wrong-code-123" }, "7.7.7.7");
+  ok(a.status === 401, "wrong owner code refused");
+  a = await post("/admin", { code:"abcd1234efgh" }, "7.7.7.7");
+  ok(a.status === 401, "another person's code isn't the owner's");
+  a = await post("/admin", { code:"owner1234code", op:"stats" });
+  ok(a.status === 200 && a.j.days.length === 14 && a.j.days[13].questions === 1 && a.j.days[13].cost > 0 && a.j.today.devices === 1 && a.j.reports === 10, "stats: " + JSON.stringify(a.j.days[13]) + " " + JSON.stringify(a.j.today) + " reports " + a.j.reports);
+  a = await post("/admin", { code:"owner1234code", op:"reports" });
+  ok(a.j.items.length === 10 && a.j.items[0].ts >= a.j.items[9].ts, "reports, newest first");
+  const del = a.j.items[0].id;
+  a = await post("/admin", { code:"owner1234code", op:"delete", id:del });
+  a = await post("/admin", { code:"owner1234code", op:"reports" });
+  ok(a.j.items.length === 9 && !a.j.items.some(x => x.id === del), "a report deleted");
+  a = await post("/admin", { code:"owner1234code", op:"stats" }, "9.9.9.9", { ...E, ADMIN_CODE:"special-admin-99" });
+  ok(a.status === 401, "ADMIN_CODE replaces the Me code");
+  for (let i = 0; i < 20; i++) await post("/admin", { code:"nope-nope-nope" }, "6.6.6.6");
+  a = await post("/admin", { code:"owner1234code" }, "6.6.6.6");
+  ok(a.status === 429, "20 wrong owner codes a day per connection, then locked");
 }
 
 console.log(pass + " passed, " + fail + " failed");
