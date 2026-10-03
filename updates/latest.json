@@ -1,16 +1,14 @@
 {
-  "version": "3.2.0",
-  "date": "2026-10-02",
+  "version": "3.2.1",
+  "date": "2026-10-03",
   "notes": [
-    "Updates install by themselves in the background: nothing to download, and Windows doesn't ask",
-    "This is the last update you download by hand",
-    "Restart to update: one click switches to a version installed while you browse",
-    "Settings → Updates → Install updates by itself"
+    "Webs Browser now opens with \"Web Studios\"",
+    "A test of the automatic updates"
   ],
   "exe": {
-    "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.2.0.exe",
-    "sha256": "85611034a370d19230bdd251dd446a7e27b55931459eb98dd6bfcc1e5291297d",
-    "size": 2576896
+    "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.2.1.exe",
+    "sha256": "b7872f37792ec48579c05963099b983d51f6b852268f46a28c8e0a36cd31dff7",
+    "size": 2578944
   },
   "updater": {
     "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebsUpdate.exe",
