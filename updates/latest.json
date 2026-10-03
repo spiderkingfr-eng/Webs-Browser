@@ -1,15 +1,15 @@
 {
-  "version": "3.4.0",
+  "version": "3.5.0",
   "date": "2026-10-03",
   "notes": [
-    "Voice call with Web AI: tap 📞, ask out loud, and Web AI answers out loud",
-    "🔊 under any answer reads it out loud",
-    "Works without a microphone too: use Windows voice typing (Windows key + H), answers are still spoken"
+    "Phantom calendar: a Persona 5-style card for the new tab page (New tab → Customize)",
+    "Set a deadline and see the days left, with this week's days crossed off",
+    "Shows the time of day and the weather, the way the game's calendar does"
   ],
   "exe": {
-    "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.4.0.exe",
-    "sha256": "1a3742eb1b7dd7f4460fa7554336ad5f67f0ebbf396368855af713470f8705c4",
-    "size": 2627072
+    "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.5.0.exe",
+    "sha256": "9dbca71c17435c034ed267c853476d00c49ffc2c5a7554886fefc0173fe5e4b9",
+    "size": 2648064
   },
   "updater": {
     "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebsUpdate.exe",
