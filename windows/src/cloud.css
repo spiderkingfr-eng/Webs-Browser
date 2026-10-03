@@ -23,3 +23,11 @@
 .xbox>.xacc{width:22px;height:22px;padding:0;border-radius:50%;display:grid;place-items:center;background:var(--soft);color:var(--accent);font-weight:700;font-size:11px;cursor:pointer;overflow:hidden;position:relative}
 .xbox>.xacc img{width:100%;height:100%;object-fit:cover}
 .xbox>.xacc.warn::after{content:"";position:absolute;right:0;top:0;width:7px;height:7px;border-radius:50%;background:#e8a33a;box-shadow:0 0 0 2px var(--bg)}
+/* 3.2.1: the "Web Studios" title card */
+.xstudio{cursor:pointer}
+.xst{display:flex;flex-direction:column;align-items:center;gap:6px;animation:xstIn .7s cubic-bezier(.2,.9,.3,1.2) both}
+.xst b{font:700 54px/1.1 "Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;letter-spacing:-.03em;
+  background:linear-gradient(100deg,var(--fg) 20%,var(--accent) 50%,var(--fg) 80%);background-size:250% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:xstShine 1.6s ease-in-out .2s both}
+.xst span{color:var(--dim);font-size:13px;letter-spacing:.08em;text-transform:uppercase;animation:xstIn .7s .25s cubic-bezier(.2,.9,.3,1.2) both}
+@keyframes xstIn{from{opacity:0;transform:translateY(10px) scale(.96)}}
+@keyframes xstShine{from{background-position:100% 0}to{background-position:0 0}}

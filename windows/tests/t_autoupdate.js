@@ -1,6 +1,7 @@
 // The browser and the background updater: it reads ui/user/webs-update.json and
 // asks the updater through its inbox (sync-write), instead of downloading anything.
-const { chromium, setup, watch, SHOTS } = require("./harness");
+const { chromium, setup, watch, SHOTS, ROOT } = require("./harness");
+const VERSION = require("fs").readFileSync(require("path").join(ROOT, "VERSION"), "utf8").trim();
 let ok = 0, bad = 0; const errors = [];
 const check = (c, w) => { if (c) ok++; else { bad++; console.log("  FAIL:", w); } };
 const INBOX = "C:\\Users\\sam\\AppData\\Local\\Programs\\Webs Browser\\inbox";
@@ -26,7 +27,7 @@ let status = null, manifest404 = false;
   check((await sent(/^dl-retry/)).length === 1 && !(await inbox()).length, "downloads the updater");
 
   // the background updater is running: it is asked to get the update ready, nothing is downloaded
-  status = { v:1, auto:true, inbox:INBOX, latest:"3.2.0", ready:true, busy:false, error:"", autoInstall:true };
+  status = { v:1, auto:true, inbox:INBOX, latest:VERSION, ready:true, busy:false, error:"", autoInstall:true };
   await p.evaluate(() => { __sent.length = 0; localStorage.removeItem("wsb.xUpdTold"); X3.checkUpdate(false); }); await p.waitForTimeout(600);
   let reqs = await inbox();
   check(reqs.length === 1 && reqs[0].dir === INBOX && reqs[0].body.action === "check", "asks the updater to get " + "3.3.0 ready: " + JSON.stringify(reqs));
@@ -45,7 +46,7 @@ let status = null, manifest404 = false;
   await p.screenshot({ path:SHOTS + "auto-restart.png", clip:{ x:700, y:0, width:580, height:330 } });
   await p.evaluate(() => { __sent.length = 0; [...document.querySelectorAll("#xupdp button")].find(b => b.textContent === "Restart now").click(); }); await p.waitForTimeout(500);
   reqs = await inbox();
-  check(reqs.length === 1 && reqs[0].body.action === "update" && reqs[0].body.from === "3.2.0", "Restart now asks the updater: " + JSON.stringify(reqs));
+  check(reqs.length === 1 && reqs[0].body.action === "update" && reqs[0].body.from === VERSION, "Restart now asks the updater: " + JSON.stringify(reqs));
   check(!(await sent(/^dl-retry|^open-file/)).length, "no download, nothing to open");
   await p.evaluate(() => __host("sync-done", "1", ""));
 

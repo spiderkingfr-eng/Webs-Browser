@@ -29,7 +29,7 @@ ch = once(ch, '  m.appendChild(row("sparkle", "What\'s new (287 features)", "", 
 ch = once(ch, '  m.appendChild(row("code", "Your CSS for this site…", "", cssPanel));\n',
   '  m.appendChild(row("code", "Your CSS for this site…", "", cssPanel));\n  m.appendChild(row("grid", "40 more page tools…", "", () => X3.toolsPanel()));\n', "chrome: tools panel row")
 ch = once(ch, "    [\"Close\", () => closeTab(id)]\n  ];\n  ctxMenu(e, items);", "    [\"Close\", () => closeTab(id)]\n  ];\n  if (window.X3) X3.tabItems(items, id);\n  ctxMenu(e, items);", "chrome: tab menu")
-ch = once(ch, "relayout();\n</script>", "relayout();\n</script>\n<script>\n" + rd(S, "chrome.add.js") + "\n</script>\n<script>\n" + rd(S, "cloud.js").replace("@@WEBS_VERSION@@", VERSION) + "\n</script>", "chrome: script")
+ch = once(ch, "relayout();\n</script>", "relayout();\n</script>\n<script>\n" + rd(S, "chrome.add.js") + "\n</script>\n<script>\n" + rd(S, "cloud.js").replace("@@WEBS_VERSION@@", VERSION) + "\n</script>\n<script>\n" + rd(S, "studio.js") + "\n</script>", "chrome: script")
 chrome_html = ch   # written once the feature count is known
 
 def page(name, css=None, js=None, edits=()):
