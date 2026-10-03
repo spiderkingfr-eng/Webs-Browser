@@ -1,0 +1,9 @@
+// Cloudflare's settings for the Web AI server, used by deploy.cmd (wrangler deploy).
+// The key, the codes and the LIMITS storage are added in the Cloudflare dashboard (README.md).
+{
+  "name": "web-ai",
+  "main": "worker.js",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": true,
+  "observability": { "enabled": true }
+}

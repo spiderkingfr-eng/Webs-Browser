@@ -30,19 +30,28 @@ Days reset at midnight UTC.
 
 ## Setting it up (about 10 minutes)
 
-### 1. Make the worker
+### 1. Put the worker on Cloudflare
+
+Newer Cloudflare accounts can't edit Worker code in the dashboard, so a small
+script does it from your computer:
 
 1. Make a free account at [dash.cloudflare.com](https://dash.cloudflare.com/sign-up).
-2. Go to **Workers & Pages** and choose **Create**, then **Create Worker**. Name it `web-ai` and click **Deploy**.
-3. Click **Edit code**. Delete everything in the editor and paste in all of [`worker.js`](worker.js). Click **Deploy**.
+2. Install **Node.js** (the **LTS** version) from [nodejs.org](https://nodejs.org). Keep all the
+   default options.
+3. Put `worker.js`, `wrangler.jsonc` and `deploy.cmd` from this folder together in one folder,
+   then double-click `deploy.cmd`.
+   - The first time, a browser window asks you to log in to Cloudflare and **Allow** Wrangler.
+   - If it asks whether to continue because the Worker was changed in the dashboard, type `y`.
+4. When it says **Deployed**, it shows the worker's address, something like
+   `https://web-ai.your-name.workers.dev`. Keep it for step 5.
 
-The worker's address appears on its page, something like
-`https://web-ai.your-name.workers.dev`. Keep it for step 5.
+Later versions of `worker.js` go up the same way: run `deploy.cmd` again. Your key, codes and
+`LIMITS` stay as they are; check step 2 once afterwards.
 
 ### 2. Make the storage for the daily counts
 
 1. Go to **Storage & Databases → KV** (it may be under **Workers & Pages → KV**) and choose **Create** (a namespace). Name it `web-ai-limits`.
-2. Open your `web-ai` worker, then **Settings → Bindings → Add → KV namespace**.
+2. Open your `web-ai` worker, then **Settings → Bindings → Add → KV namespace** (not D1 database).
    - Variable name: `LIMITS`
    - KV namespace: `web-ai-limits`
 3. Click **Deploy** (or **Save**).
