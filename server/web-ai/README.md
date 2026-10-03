@@ -135,6 +135,23 @@ keeps each phone's notification address and choices (not who it belongs to), and
 when it turns notifications off. Big sends go out 20 phones at a time, a batch a minute, so a free
 Cloudflare account is fine.
 
+## Help & support
+
+People write from *Menu → Help & support* in either app. Open your dashboard
+(`https://…workers.dev/admin`, the code named `Me` or an `ADMIN_CODE`): **Help & support** lists
+the chats. Click one to answer; a reply also reaches their iPhone as a notification when they have
+those on.
+
+Next to the chat is a small screen of their iPhone or PC with the settings support may change
+(the list in `js/support.settings.js`, checked by this server and again by the app before anything
+is applied). It's locked unless they turn on **Let support adjust my settings**, which lasts 30
+minutes and which they can end any time. Changes reach their device within a few seconds and show
+there with Undo. You never see their history, bookmarks, tabs, passwords or pages: the app sends
+only the chat and the values of the settings on that list.
+
+**Close this chat** when you're done; they can end it too. A chat and its settings are deleted
+from the server 30 days after the last message. One internet connection can start 5 chats a day.
+
 ## Seeing what's happening
 
 - **Claude Console → Usage** shows what each day cost.
@@ -143,6 +160,7 @@ Cloudflare account is fine.
 ## What gets sent where
 
 - **Windows:** the question, and the text of the page you have open while "Use this page" is on (up to about 16,000 characters). Private windows never send their page.
+- **Help & support:** what's written in the chat, the app's version, and the values of the settings support may change (`js/support.settings.js`). Kept until 30 days after the last message.
 - **iPhone:** the question, and the page's address while "Use this page" is on. The app can't read pages itself, so Claude may open that address once, reading at most about 6,000 tokens. Private tabs never send their page.
 - The server keeps no chats. It keeps only a number per person per day, for 3 days.
 - Claude is made by Anthropic. Questions go to the Claude API under your Console account's terms.
@@ -150,6 +168,7 @@ Cloudflare account is fine.
 ## For developers
 
 - `node test.mjs` tests the worker with a pretend Claude API and pretend storage.
+- `node test-support.mjs` tests Help & support: what's kept, who can read it, access, the list of settings and its time limit.
 - `node test-push.mjs` tests notifications with a pretend Apple push service that decrypts each message with the phone's key and checks the signature.
 - `windows/tests/t_webai.js` runs the browser's Web AI against this worker end to end.
 - The browser sends `POST /chat` with `{ code, messages:[{ role, content }], web? }` and reads back one JSON object per line: `{ d }` for each piece of text, then `{ end, stop, left }`, or `{ error, message }`.

@@ -109,6 +109,21 @@ the answer back. That folder's README has the setup steps.
   open only when clicked. Pictures are never loaded, so a page can't make Web AI send anything
   anywhere by itself.
 
+## Help & support
+
+Help & support (3.6) is a chat with whoever runs the Web AI server, in the sidebar
+(`src/support.side.js`, `side.html#support`), opened from the menu or the command palette.
+The browser window (`src/support.js`) asks the server for replies, one window at a time
+(`wsb.supportLock`), every 4 seconds while the chat is on screen and every 30 otherwise.
+
+- **Settings, only when allowed:** support can change settings only while the chat is open and
+  "Let support adjust my settings" is on (30 minutes; the ✕ on the toolbar's 🛟 ends it). Only the
+  switches and choices in `../js/support.settings.js` (shared with the iPhone app and the server),
+  checked again here before anything is applied, each shown with Undo.
+- **Never sent:** history, bookmarks, tabs, passwords, pages, or anything typed into a setting
+  (home page, VPN server, download folder, your own search engine).
+- **Kept on the computer:** the chat (`wsb.support`, not in backups or Google sync).
+
 ## Making the exe by hand
 
 ```
@@ -125,8 +140,8 @@ hash) before and after, and every embedded file read back by the .NET runtime ma
 ```
 npm install playwright
 python3 build.py
-node tests/t_chrome.js     # also t_side, t_ntp, t_games, t_shield, t_misc, t_examples, t_cloud, t_updated, t_autoupdate, t_studio and t_webai; `sh tests/t_updater.sh` tests the updater under Mono (15 checks)
+node tests/t_chrome.js     # also t_side, t_ntp, t_games, t_shield, t_misc, t_examples, t_cloud, t_updated, t_autoupdate, t_studio, t_webai and t_support; `sh tests/t_updater.sh` tests the updater under Mono (15 checks)
 ```
 
-359 checks pass (`t_cloud` fakes Google's sign-in, token and Drive endpoints and the update file; `t_webai` runs Web AI against the real server code with a pretend Claude; `node ../server/web-ai/test.mjs` tests the server alone, 53 checks). The exe itself was not run on Windows here: the tests run the same pages in
+359 checks pass (`t_cloud` fakes Google's sign-in, token and Drive endpoints and the update file; `t_webai` runs Web AI against the real server code with a pretend Claude; `t_support` runs Help & support against it and the owner's dashboard; `node ../server/web-ai/test.mjs` tests the server alone, 53 checks). The exe itself was not run on Windows here: the tests run the same pages in
 Chromium, the engine WebView2 uses.

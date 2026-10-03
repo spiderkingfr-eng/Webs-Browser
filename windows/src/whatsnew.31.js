@@ -1,3 +1,9 @@
+"3.6 · Help & support": [
+  ["Help & support", "Stuck? Write to the people who make Webs, right in the sidebar, and the answer comes back there.", "Menu → Help & support"],
+  ["Let support fix a setting", "Turn on “Let support adjust my settings” and support can change a few switches and choices for you, for 30 minutes at most. Turn it off any time, or click ✕ on the 🛟 in the toolbar.", "Help & support → the switch"],
+  ["Every change with Undo", "Each change support makes shows up with an Undo button, and is written in the chat.", "Help & support"],
+  ["Your things stay yours", "Support only sees what you write and the values of the settings on the list. Never your history, bookmarks, tabs, passwords or the pages you visit.", "Help & support → What support can change"]
+],
 "3.5 · Phantom calendar": [
   ["Phantom calendar", "A new tab card in the style of a Persona 5 phone theme: five days in a V over a city at sunset, today stabbed by a dagger, with the time of day and the weather.", "New tab → Customize → Phantom calendar (Persona 5 style)"],
   ["Deadline countdown", "Set a deadline (exams, a trip, a birthday) and the Q poll asks if you'll be ready, with the days left. Without one it shows your battery, or how much of today is left.", "Phantom calendar → ✎"],
