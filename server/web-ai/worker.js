@@ -1,22 +1,26 @@
 /* Web AI server for Webs Browser - a Cloudflare Worker.
 
-   The browser never holds the Claude API key: it sends the question here, with
-   the person's Web AI code. This checks the code, counts the questions each
-   person asks per day, asks Claude, and streams the answer back.
+   The browser never holds the Claude API key: it sends the question here. This
+   counts the questions asked per day, asks Claude, and streams the answer back.
+   With OPEN=true (wrangler.jsonc) anyone using Webs Browser can ask without a
+   code, limited per device and per internet connection; Web AI codes still work
+   and give a named person their own limit.
 
    Settings (Cloudflare dashboard -> the worker -> Settings), see README.md:
      ANTHROPIC_API_KEY   secret   the key from console.anthropic.com
-     WEB_AI_CODES        secret   who may use Web AI: Name=code, one per line
-                                  (Name=code=50 gives that person 50 a day)
+     OPEN                text     "true": no code needed (see the limits below)
+     WEB_AI_CODES        secret   Web AI codes: Name=code, one per line or comma separated
+                                  (Name=code=50 gives that person 50 a day); needed unless OPEN
      LIMITS              KV namespace binding that keeps the daily counts
-     DAILY_LIMIT         text     questions per person per day (25)
+     DAILY_LIMIT         text     questions per person (or device, without a code) per day (25)
+     NETWORK_DAILY_LIMIT text     questions per internet connection per day without a code (100)
      TOTAL_DAILY_LIMIT   text     questions for everyone together per day (150)
      MODEL               text     claude-sonnet-5-5 (or claude-haiku-4-5, about half the price)
 
    The browser talks to it as:
      GET  /        is it running?
-     POST /check   { code }                    -> { ok, name, left, limit }
-     POST /chat    { code, messages:[{role, content}], web? }
+     POST /check   { code?, device? }          -> { ok, name, left, limit, open }
+     POST /chat    { code?, device?, messages:[{role, content}], web? }
                    web:true (the iPhone app, which can't read pages itself) lets Claude
                    fetch the page's address once, at most about 6,000 tokens of it
                    -> one JSON object per line: { d:"text" } ... { end:1, stop, left } or { error, message }
@@ -53,7 +57,7 @@ export default {
     try {
       if (req.method === "GET" && path === "/") {      // says what's missing, never any value
         const missing = setupProblem(env);
-        return json({ ok:true, name:"Web AI", ready:!missing, model:model(env), ...(missing ? { missing:"Still to do: " + missing } : {}) }, 200, cors);
+        return json({ ok:true, name:"Web AI", ready:!missing, open:isOpen(env), model:model(env), ...(missing ? { missing:"Still to do: " + missing } : {}) }, 200, cors);
       }
       if (req.method !== "POST" || (path !== "/check" && path !== "/chat")) return json({ error:"not_found", message:"Nothing here." }, 404, cors);
       const problem = setupProblem(env);
@@ -62,15 +66,16 @@ export default {
       let body = null;
       try { body = await req.json(); } catch (e) {}
       if (!body || typeof body !== "object") return json({ error:"bad", message:"The browser sent something the server can't read." }, 400, cors);
-      const who = await person(env, body.code);
+      const who = await person(env, body, req);
       if (!who) return json({ error:"code", message:"That Web AI code isn't right. Ask the person who runs Web AI for yours." }, 401, cors);
 
       const day = new Date().toISOString().slice(0, 10);
-      const [used, all] = await Promise.all([count(env, who.id, day), count(env, "everyone", day)]);
-      const total = limit(env.TOTAL_DAILY_LIMIT, 150);
-      if (path === "/check") return json({ ok:true, name:who.name, left:Math.max(0, who.limit - used), limit:who.limit, model:model(env) }, 200, cors);
+      const [used, all, net] = await Promise.all([count(env, who.id, day), count(env, "everyone", day), who.net ? count(env, who.net, day) : 0]);
+      const total = limit(env.TOTAL_DAILY_LIMIT, 150), netLimit = limit(env.NETWORK_DAILY_LIMIT, 100);
+      if (path === "/check") return json({ ok:true, name:who.name, left:Math.max(0, who.limit - used), limit:who.limit, open:isOpen(env), model:model(env) }, 200, cors);
 
       if (used >= who.limit) return json({ error:"limit", message:"You've asked your " + who.limit + " questions for today. Web AI is back tomorrow (midnight UTC).", left:0 }, 429, cors);
+      if (who.net && net >= netLimit) return json({ error:"limit", message:"This internet connection has asked its " + netLimit + " questions for today. Web AI is back tomorrow (midnight UTC).", left:0 }, 429, cors);
       if (all >= total) return json({ error:"busy", message:"Web AI has answered everyone's questions for today. It's back tomorrow (midnight UTC)." }, 429, cors);
       const messages = tidy(body.messages);
       if (typeof messages === "string") return json({ error:"bad", message:messages }, 400, cors);
@@ -96,7 +101,7 @@ export default {
         return json({ error:e.error, message:e.message }, e.status, cors);
       }
       // counted once Claude has taken the question
-      ctx.waitUntil(Promise.all([bump(env, who.id, day, used), bump(env, "everyone", day, all)]));
+      ctx.waitUntil(Promise.all([bump(env, who.id, day, used), bump(env, "everyone", day, all), who.net ? bump(env, who.net, day, net) : null]));
       const pipe = new TransformStream();
       ctx.waitUntil(relay(up.body, pipe.writable, who, Math.max(0, who.limit - used - 1)));
       return new Response(pipe.readable, { headers:{ ...cors, "content-type":"application/x-ndjson; charset=utf-8", "cache-control":"no-store" } });
@@ -120,13 +125,14 @@ function json(o, status, headers) {
   return new Response(JSON.stringify(o), { status, headers:{ ...headers, "content-type":"application/json; charset=utf-8", "cache-control":"no-store" } });
 }
 const model = env => String(env.MODEL || "").trim() || "claude-sonnet-5-5";
+const isOpen = env => /^(true|yes|1|on)$/i.test(String(env.OPEN || "").trim());
 const limit = (v, d) => { const n = parseInt(v, 10); return n > 0 ? n : d; };
 
 function setupProblem(env) {
   const key = String(env.ANTHROPIC_API_KEY || "").trim();
   if (!key) return "add the ANTHROPIC_API_KEY secret.";
   if (!/^sk-ant-/.test(key)) return "the ANTHROPIC_API_KEY secret isn't a Claude API key (those start with sk-ant-). Set it again.";
-  if (!codes(env).length) return "add the WEB_AI_CODES secret (Name=code, one per line; codes need 8 or more letters and numbers).";
+  if (!isOpen(env) && !codes(env).length) return "add the WEB_AI_CODES secret (Name=code, one per line; codes need 8 or more letters and numbers).";
   if (!env.LIMITS || typeof env.LIMITS.get !== "function") return "bind a KV namespace called LIMITS.";
   return "";
 }
@@ -139,13 +145,18 @@ function codes(env) {
     return { name:name || "Person " + (i + 1), code, limit:limit(n, limit(env.DAILY_LIMIT, 25)) };
   }).filter(c => /^[A-Za-z0-9_-]{8,}$/.test(c.code || ""));
 }
-async function person(env, code) {
-  code = String(code || "").trim();
-  if (!code) return null;
-  const c = codes(env).find(x => same(x.code, code));
-  if (!c) return null;
-  const h = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(c.code)));
-  return { name:c.name, limit:c.limit, id:"p" + [...h.slice(0, 8)].map(b => b.toString(16).padStart(2, "0")).join("") };
+const hash = async s => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s))).slice(0, 8)].map(b => b.toString(16).padStart(2, "0")).join("");
+/* Who is asking: a person with a code, or (when open) a device, counted on its internet connection too.
+   Only hashes are stored, never the address itself. */
+async function person(env, body, req) {
+  const code = String(body.code || "").trim();
+  if (code) {
+    const c = codes(env).find(x => same(x.code, code));
+    return c ? { name:c.name, limit:c.limit, id:"p" + await hash(c.code) } : null;
+  }
+  if (!isOpen(env)) return null;
+  const ip = req.headers.get("CF-Connecting-IP") || "", device = String(body.device || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40);
+  return { name:"", limit:limit(env.DAILY_LIMIT, 25), id:"d" + await hash(device.length >= 12 ? "device:" + device : "ip:" + ip), net:ip ? "n" + await hash("ip:" + ip) : "" };
 }
 function same(a, b) {     // compares every character, so the time taken says nothing about the code
   if (a.length !== b.length) return false;
@@ -216,7 +227,7 @@ async function relay(src, dst, who, left) {
     }
     if (buf) await take(buf.trim());
     if (!failed) await out({ end:1, stop:stop || "end_turn", left });
-    console.log("Web AI", who.name, "stop", stop, "tokens in", (usage.input_tokens || 0) + (usage.cache_read_input_tokens || 0) + (usage.cache_creation_input_tokens || 0),
+    console.log("Web AI", who.name || "(no code)", "stop", stop, "tokens in", (usage.input_tokens || 0) + (usage.cache_read_input_tokens || 0) + (usage.cache_creation_input_tokens || 0),
       "(cached " + (usage.cache_read_input_tokens || 0) + ")", "out", usage.output_tokens || 0);
   } catch (e) {
     try { await out({ error:"cut", message:"The answer was cut off. Try again." }); } catch (x) {}

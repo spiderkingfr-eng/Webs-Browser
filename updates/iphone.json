@@ -1,13 +1,11 @@
 {
-  "version": "2.2.0",
+  "version": "2.2.1",
   "date": "2026-10-03",
   "notes": [
-    "Web AI: ask about the page you're on, or anything else (Menu → Web AI)",
-    "One tap for a summary, the key points or a simple explanation",
-    "Answers appear word by word, with lists, tables and code you can copy",
-    "Private tabs never send their page"
+    "Web AI is ready by itself: no code to type"
   ],
   "webai": {
-    "server": "https://web-ai.spiderkingfr.workers.dev"
+    "server": "https://web-ai.spiderkingfr.workers.dev",
+    "code": "jcku563mgxwn"
   }
 }

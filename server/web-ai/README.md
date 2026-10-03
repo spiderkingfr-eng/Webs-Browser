@@ -2,9 +2,15 @@
 
 Web AI in Webs Browser (Windows 3.3 and iPhone 2.2) talks to this small server.
 The server holds the Claude API key, so the key never ships inside the browser,
-which anyone can download and take apart. The server also checks each person's
-Web AI code, counts their questions per day, and passes Claude's answer back
-word by word.
+which anyone can download and take apart. It counts the questions asked per day
+and passes Claude's answer back word by word.
+
+**Nobody needs to set anything up.** Web AI in the browser connects by itself.
+With `OPEN` on (the default in `wrangler.jsonc`), nobody needs a code: the server
+counts questions per device and per internet connection. Without `OPEN`, every
+copy uses the shared code that comes with the update files
+(`tools/set_webai_server.py --code`). Personal Web AI codes still work, for
+someone who should get their own limit.
 
 It runs on Cloudflare Workers. The free plan is plenty: 100,000 requests a day.
 `worker.js` is a single file you paste into Cloudflare's editor. There's nothing
@@ -22,9 +28,13 @@ Three limits keep spending in check:
 
 | Setting | Default | What it does |
 |---|---|---|
-| `DAILY_LIMIT` | 25 | Questions per person per day |
+| `DAILY_LIMIT` | 25 | Questions per device (or per code) per day |
+| `NETWORK_DAILY_LIMIT` | 100 | Questions per internet connection per day, without a code |
 | `TOTAL_DAILY_LIMIT` | 150 | Questions for everyone together per day |
 | Spend limit in the Claude Console | yours to choose | The hard ceiling on the bill |
+
+The server's address is public, in this repository, so with `OPEN` on anyone
+could ask, but only within these limits.
 
 Days reset at midnight UTC.
 
@@ -100,7 +110,9 @@ Add these to `"vars"` in `wrangler.jsonc` (for example `"vars": { "DAILY_LIMIT":
 
 | Name | Example | What it does |
 |---|---|---|
-| `DAILY_LIMIT` | `25` | Questions per person per day |
+| `OPEN` | `"true"` | No code needed (set in `wrangler.jsonc`) |
+| `DAILY_LIMIT` | `25` | Questions per device (or per code) per day |
+| `NETWORK_DAILY_LIMIT` | `100` | Questions per internet connection per day, without a code |
 | `TOTAL_DAILY_LIMIT` | `150` | Questions for everyone together per day |
 | `MODEL` | `claude-haiku-4-5` | A cheaper, faster model (about half the price). Default `claude-sonnet-5-5` |
 

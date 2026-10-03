@@ -4,7 +4,9 @@
    Web AI code and the chat (wsb.xai, wsb.xaiChat). Pages shown inside the app
    can't be read by it, so with "Use this page" on, the page's address goes
    along and the server lets Claude open it (web fetch). Private tabs never
-   send their page. The server's address comes with updates (updates/iphone.json). */
+   send their page. The server's address (and a shared code) come with updates
+   (updates/iphone.json), so Web AI is ready by itself: no code when the server
+   is open (it counts per device, wsb.xaiDev), otherwise the shared code. */
 "use strict";
 
 (function () {
@@ -12,6 +14,31 @@ const Q_MAX = 4000, CHAT_MAX = 70000, KEEP = 60;
 const st = () => load("xai", {}) || {};
 const setSt = o => save("xai", Object.assign(st(), o));
 const server = () => String(st().server || (load("xaiConfig", {}) || {}).server || "").trim().replace(/\/+$/, "");
+const shared = () => String((load("xaiConfig", {}) || {}).code || "").trim();
+const ready = () => !!server() && !!(st().code || st().auto);
+const codeToSend = () => st().code || (st().open ? "" : shared());
+function dev() {
+  let d = load("xaiDev", ""); if (/^[A-Za-z0-9]{20,40}$/.test(d)) return d;
+  const a = new Uint8Array(15); crypto.getRandomValues(a); d = [...a].map(b => b.toString(16).padStart(2, "0")).join(""); save("xaiDev", d); return d;
+}
+let autoState = "idle", autoFail = 0;
+async function autoConnect() {
+  if (st().code || autoState === "busy") return;
+  autoState = "busy";
+  try {
+    await fetchConfig();
+    if (!server()) throw new Error("no server");
+    const g = await (await fetch(server() + "/", { cache:"no-store" })).json();
+    const open = !!(g && g.open), code = open ? "" : shared();
+    if (!open && !code) throw new Error("needs a code");
+    const r = await fetch(server() + "/check", { method:"POST", headers:{ "content-type":"application/json" }, body:JSON.stringify({ code, device:dev() }) });
+    const j = await r.json().catch(() => null);
+    if (!r.ok || !j || !j.ok) throw new Error("no");
+    setSt({ auto:true, open, name:"", left:+j.left, limit:+j.limit });
+  } catch (e) { setSt({ auto:false }); autoFail = Date.now(); }
+  autoState = "done";
+  paint();
+}
 const SPARK = '<svg class="ais" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5c.5 4.6 2.4 7 7 7.6v.8c-4.6.6-6.5 3-7 7.6h-.8c-.5-4.6-2.4-7-7-7.6v-.8c4.6-.6 6.5-3 7-7.6z"/><path d="M19 15.5c.2 1.8 1 2.7 2.7 2.9v.4c-1.8.2-2.5 1-2.7 2.8h-.4c-.2-1.8-1-2.6-2.8-2.8v-.4c1.8-.2 2.6-1.1 2.8-2.9z" opacity=".7"/></svg>';
 let chat = null, busy = null, setupOpen = false;
 const chatLoad = () => { const c = load("xaiChat", null); return c && Array.isArray(c.msgs) ? c : { msgs:[] }; };
@@ -25,7 +52,11 @@ async function fetchConfig() {
   try {
     const r = await fetch("updates/iphone.json?t=" + Date.now(), { cache:"no-store" });
     const j = r.ok ? await r.json() : null, s = j && j.webai && String(j.webai.server || "");
-    if (/^https:\/\/[^\s/?#]+\.[^\s/?#]+(\/[^\s?#]*)?$/i.test(s)) save("xaiConfig", { server:s.replace(/\/+$/, "").slice(0, 300) });
+    const code = j && j.webai && /^[A-Za-z0-9_-]{8,64}$/.test(j.webai.code || "") ? j.webai.code : "";
+    if (/^https:\/\/[^\s/?#]+\.[^\s/?#]+(\/[^\s?#]*)?$/i.test(s)) {
+      const had = load("xaiConfig", {}) || {}, srv = s.replace(/\/+$/, "").slice(0, 300);
+      if (had.server !== srv || (had.code || "") !== code) { save("xaiConfig", code ? { server:srv, code } : { server:srv }); if (!st().code) setSt({ auto:false }); }
+    }
   } catch (e) {}
 }
 
@@ -97,15 +128,24 @@ function openAI() {
     const cc = e.target.closest(".aicc");
     if (cc) copyText(cc.parentNode.querySelector("code").textContent);
   };
-  paint();
-  if (!server()) fetchConfig().then(() => { if (isOpen()) paint(); });
+  if (!st().code && autoState !== "busy") autoState = "idle";     // a failed try earlier: try again now
+  paint();                                                        // not ready yet: this connects by itself
+  if (!st().code && st().auto) autoConnect();                     // ready: refresh the address and what's left today
 }
 function grow() { const ta = $("#sheetBody textarea"); if (!ta) return; ta.style.height = "auto"; ta.style.height = Math.min(140, ta.scrollHeight) + "px"; }
 function paint() {
   if (!isOpen()) return;
-  const s = st(), log = $("#sheetBody .ailog"), setup = setupOpen || !s.code || !server();
+  const s = st(), log = $("#sheetBody .ailog");
+  if (!setupOpen && !ready() && autoState !== "done") {
+    $("#sheetBody .ai").classList.add("setup");
+    $("#sheetTitle").innerHTML = SPARK + "Web AI"; headButtons();
+    log.innerHTML = '<div class="aihello"><div class="aiorb">' + SPARK + '</div><h3>Web AI</h3><p>Getting ready…</p></div>';
+    autoConnect();
+    return;
+  }
+  const setup = setupOpen || !ready();
   $("#sheetBody .ai").classList.toggle("setup", setup);
-  $("#sheetTitle").innerHTML = SPARK + "Web AI" + (s.code && s.limit ? '<em class="aileft' + (s.left != null && s.left <= 3 ? " low" : "") + '">' + (s.left != null ? s.left : s.limit) + " left today</em>" : "");
+  $("#sheetTitle").innerHTML = SPARK + "Web AI" + (ready() && s.limit ? '<em class="aileft' + (s.left != null && s.left <= 3 ? " low" : "") + '">' + (s.left != null ? s.left : s.limit) + " left today</em>" : "");
   headButtons();
   if (setup) return paintSetup(log);
   log.innerHTML = "";
@@ -127,7 +167,7 @@ function headButtons() {
   if (!h) { h = document.createElement("span"); h.id = "aiHead"; $("#sheetDone").before(h); }
   h.innerHTML = (chat.msgs.length && !setupOpen ? '<button type="button" id="aiNew" aria-label="New chat">' + ico("plus") + "</button>" : "") + '<button type="button" id="aiGear" aria-label="Web AI settings">' + ico("gear") + "</button>";
   const n = $("#aiNew"); if (n) n.onclick = () => { if (busy) busy.abort(); chat = { msgs:[] }; keep(); paint(); };
-  $("#aiGear").onclick = () => { setupOpen = !setupOpen || !st().code; paint(); };
+  $("#aiGear").onclick = () => { setupOpen = !setupOpen || !ready(); paint(); };
 }
 function bubble(m, i) {
   const d = document.createElement("div");
@@ -186,7 +226,15 @@ function paintSetup(log) {
   const code = $("#aiCode"), srv = $("#aiSrv"), msg = $("#aiMsg");
   code.value = s.code || ""; srv.value = s.server || "";
   if (fromUpdate) srv.placeholder = fromUpdate;
-  const off = $("#aiOff"); if (off) off.onclick = () => { setSt({ code:"", name:"", left:null, limit:0 }); setupOpen = false; paint(); };
+  const off = $("#aiOff"); if (off) off.onclick = () => { setSt({ code:"", name:"", left:null, limit:0, auto:false }); autoState = "idle"; setupOpen = false; paint(); };
+  if (s.auto && !s.code) {
+    $("#sheetBody .aisetup > p").textContent = "Web AI is ready for everyone, no code needed. If someone gave you a personal Web AI code, enter it here.";
+    $("#aiGo").textContent = "Use this code";
+  } else if (autoFail && !s.code) {
+    $("#sheetBody .aisetup > p").textContent = "Web AI couldn't connect by itself. Check your internet connection, or enter a Web AI code.";
+    const again = document.createElement("button"); again.type = "button"; again.className = "btn"; again.textContent = "Try again";
+    again.onclick = () => { autoState = "idle"; autoFail = 0; paint(); }; $("#sheetBody .aibtns").appendChild(again);
+  }
   const connect = async () => {
     const c = code.value.trim(), u = (srv.value.trim() || fromUpdate).replace(/\/+$/, "");
     msg.className = "aimsg"; msg.textContent = "";
@@ -194,7 +242,7 @@ function paintSetup(log) {
     if (!/^https:\/\/[^\s/?#]+\.[^\s/?#]+(\/[^\s?#]*)?$/i.test(u)) { msg.className = "aimsg bad"; msg.textContent = u ? "The server address should start with https://" : "Type the server address."; $("#sheetBody .aisrv").classList.remove("hide"); srv.focus(); return; }
     const b = $("#aiGo"); b.disabled = true; b.textContent = "Connecting…";
     try {
-      const r = await fetch(u + "/check", { method:"POST", headers:{ "content-type":"application/json" }, body:JSON.stringify({ code:c }) });
+      const r = await fetch(u + "/check", { method:"POST", headers:{ "content-type":"application/json" }, body:JSON.stringify({ code:c, device:dev() }) });
       let j = null; try { j = await r.json(); } catch (e) {}
       if (!r.ok || !j || !j.ok) throw new Error(j && j.message || "The server answered with an error (" + r.status + ").");
       setSt({ code:c, server:srv.value.trim() ? u : "", name:String(j.name || "").slice(0, 40), left:+j.left, limit:+j.limit });
@@ -213,7 +261,7 @@ async function ask(text) {
   text = String(text || "").trim().slice(0, Q_MAX);
   if (!text || busy) return;
   const s = st();
-  if (!s.code || !server()) { setupOpen = true; paint(); return; }
+  if (!ready()) { paint(); return; }
   const u = { role:"user", text, content:text }, a = { role:"assistant", text:"", pending:true };
   let web = false;
   const t = page();
@@ -229,10 +277,11 @@ async function ask(text) {
   const ctl = new AbortController(); busy = ctl; working(true); paint();
   try {
     const r = await fetch(server() + "/chat", { method:"POST", headers:{ "content-type":"application/json" }, signal:ctl.signal,
-      body:JSON.stringify({ code:s.code, web, messages:turns() }) });
+      body:JSON.stringify({ code:codeToSend(), device:dev(), web, messages:turns() }) });
     if (!r.ok || !r.body) {
       let j = null; try { j = await r.json(); } catch (e) {}
       if (j && j.left === 0) setSt({ left:0 });
+      if (j && j.error === "code" && !st().code) { setSt({ auto:false }); autoState = "idle"; }
       throw Object.assign(new Error(j && j.message || "Web AI couldn't answer (error " + r.status + ")."), { kind:j && j.error || "" });
     }
     const rd = r.body.getReader(), dec = new TextDecoder();

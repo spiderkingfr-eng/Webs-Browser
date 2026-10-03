@@ -1,7 +1,10 @@
 /* ---------------------------------------------------------------- Webs 3.3: Web AI, in the sidebar
    A chat with Claude through the Web AI server (server/web-ai in the repository).
-   The server holds the API key; this page keeps the person's Web AI code and the
-   chat on this computer (wsb.xai, wsb.xaiChat - never synced to Google).
+   The server holds the API key. Web AI is ready by itself: when the server is
+   open nobody needs a code (it counts questions per device, wsb.xaiDev), and
+   otherwise the shared code from the update is used. A personal Web AI code,
+   if someone has one, goes in the settings. The code and the chat stay on this
+   computer (wsb.xai, wsb.xaiChat - never synced to Google).
    The page text comes from the browser window that opened the sidebar
    (side.html?w=<window>, see webai.js): asked for through storage, at the
    moment a question is sent, only while "Use this page" is on. */
@@ -14,6 +17,31 @@ const q = (s) => pane.querySelector(s);
 const st = () => get("xai", {}) || {};
 const setSt = o => put("xai", Object.assign(st(), o));
 const server = () => String(st().server || (get("xaiConfig", {}) || {}).server || "").trim().replace(/\/+$/, "");
+const shared = () => String((get("xaiConfig", {}) || {}).code || "").trim();          // the shared code from updates/latest.json
+const ready = () => !!server() && !!(st().code || st().auto);                       // a personal code, or connected by itself
+const codeToSend = () => st().code || (st().open ? "" : shared());
+function dev() {      // a random name for this computer, so open Web AI can count per device
+  let d = get("xaiDev", ""); if (/^[A-Za-z0-9]{20,40}$/.test(d)) return d;
+  const a = new Uint8Array(15); crypto.getRandomValues(a); d = [...a].map(b => b.toString(16).padStart(2, "0")).join(""); put("xaiDev", d); return d;
+}
+/* connecting by itself: open server -> no code; otherwise the shared code; neither -> the settings screen */
+let autoState = "idle";
+async function autoConnect() {
+  if (st().code || !server() || autoState === "busy") return;
+  autoState = "busy";
+  try {
+    const g = await (await fetch(server() + "/", { cache:"no-store" })).json();
+    const open = !!(g && g.open), code = open ? "" : shared();
+    if (!open && !code) throw new Error("needs a code");
+    const r = await fetch(server() + "/check", { method:"POST", headers:{ "content-type":"application/json" }, body:JSON.stringify({ code, device:dev() }) });
+    const j = await r.json().catch(() => null);
+    if (!r.ok || !j || !j.ok) throw new Error(j && j.message || "no");
+    setSt({ auto:true, open, name:"", left:+j.left, limit:+j.limit });
+  } catch (e) { setSt({ auto:false }); autoFail = Date.now(); }
+  autoState = "done";
+  paint();
+}
+let autoFail = 0;
 const SPARK = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M12 2.5c.5 4.6 2.4 7 7 7.6v.8c-4.6.6-6.5 3-7 7.6h-.8c-.5-4.6-2.4-7-7-7.6v-.8c4.6-.6 6.5-3 7-7.6z"/><path d="M19 15.5c.2 1.8 1 2.7 2.7 2.9v.4c-1.8.2-2.5 1-2.7 2.8h-.4c-.2-1.8-1-2.6-2.8-2.8v-.4c1.8-.2 2.6-1.1 2.8-2.9z" opacity=".7"/></svg>';
 
 /* the tab and the pane */
@@ -100,11 +128,17 @@ const SUGGEST = [["Summarize this page", "Summarize this page."], ["Key points",
   ["Explain it simply", "Explain this page in simple words, like I'm new to the topic."], ["Explain what I selected", "Explain what I selected."]];
 function paint() {
   const s = st();
-  q(".xai-left").textContent = s.code && s.limit ? (s.left != null ? s.left : s.limit) + " left today" : "";
-  q(".xai-left").classList.toggle("low", s.code && s.left != null && s.left <= 3);
+  q(".xai-left").textContent = ready() && s.limit ? (s.left != null ? s.left : s.limit) + " left today" : "";
+  q(".xai-left").classList.toggle("low", ready() && s.left != null && s.left <= 3);
   q(".xai-new").style.visibility = chat.msgs.length && !setupOpen ? "" : "hidden";
-  pane.classList.toggle("setup", setupOpen || !s.code || !server());
-  if (setupOpen || !s.code || !server()) return paintSetup();
+  if (!setupOpen && !ready() && server() && autoState !== "done") {      // connecting by itself
+    pane.classList.add("setup");
+    log.innerHTML = '<div class="xai-hello"><div class="xai-orb">' + SPARK + '</div><h3>Web AI</h3><p>Getting ready…</p></div>';
+    autoConnect();
+    return;
+  }
+  pane.classList.toggle("setup", setupOpen || !ready());
+  if (setupOpen || !ready()) return paintSetup();
   log.innerHTML = "";
   if (!chat.msgs.length) {
     const w = E("div", "xai-hello", '<div class="xai-orb">' + SPARK + "</div><h3></h3><p>Ask about the page you're on, or anything else.</p><div class=\"xai-sug\"></div>");
@@ -169,6 +203,7 @@ function paintPage() {
 pageB.onclick = () => { setSt({ noPage:!st().noPage }); paintPage(); };
 addEventListener("storage", e => {
   if (e.key === "wsb.current") paintPage();
+  if (e.key === "wsb.xaiConfig" && !st().code) { setSt({ auto:false }); autoState = "idle"; }
   if (e.key === "wsb.xaiConfig" || (e.key === "wsb.xai" && !busy)) { if (pane.classList.contains("on")) paint(); }
 });
 
@@ -189,10 +224,19 @@ function paintSetup() {
   if (fromUpdate && !s.server) { srv.placeholder = fromUpdate; w.querySelector(".xai-srv").classList.add("hide"); }
   const more = E("button", "xai-link", "Use a different server"); more.onclick = () => { w.querySelector(".xai-srv").classList.remove("hide"); more.remove(); srv.focus(); };
   if (fromUpdate && !s.server) w.querySelector(".xai-srv").after(more);
-  w.querySelector("#xaiBack").style.display = s.code && server() ? "" : "none";
+  w.querySelector("#xaiBack").style.display = ready() ? "" : "none";
   w.querySelector("#xaiOff").style.display = s.code ? "" : "none";
+  if (s.auto && !s.code) {
+    w.querySelector(".xai-p").textContent = "Web AI is ready for everyone, no code needed. If someone gave you a personal Web AI code, enter it here.";
+    w.querySelector("#xaiGo").textContent = "Use this code";
+    if (autoFail) autoFail = 0;
+  } else if (autoFail && !s.code) {
+    w.querySelector(".xai-p").textContent = "Web AI couldn't connect by itself. Check your internet connection, or enter a Web AI code.";
+    const retry = E("button", "b", "Try again"); retry.onclick = () => { autoState = "idle"; autoFail = 0; paint(); };
+    w.querySelector(".xrow").appendChild(retry);
+  }
   w.querySelector("#xaiBack").onclick = () => { setupOpen = false; paint(); };
-  w.querySelector("#xaiOff").onclick = () => { setSt({ code:"", name:"", left:null, limit:0 }); setupOpen = false; paint(); };
+  w.querySelector("#xaiOff").onclick = () => { setSt({ code:"", name:"", left:null, limit:0, auto:false }); autoState = "idle"; setupOpen = false; paint(); };
   const go = async () => {
     const c = code.value.trim(), u = (srv.value.trim() || fromUpdate).replace(/\/+$/, "");
     msg.className = "xmsg"; msg.textContent = "";
@@ -200,7 +244,7 @@ function paintSetup() {
     if (!/^https:\/\/[^\s/?#]+\.[^\s/?#]+(\/[^\s?#]*)?$/i.test(u)) { msg.className = "xmsg bad"; msg.textContent = u ? "The server address should start with https://" : "Type the server address."; w.querySelector(".xai-srv").classList.remove("hide"); srv.focus(); return; }
     const b = w.querySelector("#xaiGo"); b.disabled = true; b.textContent = "Connecting…";
     try {
-      const r = await fetch(u + "/check", { method:"POST", headers:{ "content-type":"application/json" }, body:JSON.stringify({ code:c }) });
+      const r = await fetch(u + "/check", { method:"POST", headers:{ "content-type":"application/json" }, body:JSON.stringify({ code:c, device:dev() }) });
       let j = null; try { j = await r.json(); } catch (e) {}
       if (!r.ok || !j || !j.ok) throw new Error(j && j.message || "The server answered with an error (" + r.status + ").");
       setSt({ code:c, server:srv.value.trim() ? u : "", name:String(j.name || "").slice(0, 40), left:+j.left, limit:+j.limit });
@@ -214,7 +258,7 @@ function paintSetup() {
   [code, srv].forEach(x => x.addEventListener("keydown", e => { if (e.key === "Enter") go(); }));
   setTimeout(() => code.focus(), 30);
 }
-q(".xai-gear").onclick = () => { setupOpen = !setupOpen || !st().code; paint(); };
+q(".xai-gear").onclick = () => { setupOpen = !setupOpen || !ready(); paint(); };
 q(".xai-new").onclick = () => { if (busy) busy.abort(); chat = { msgs:[] }; keep(); paint(); ta.focus(); };
 
 /* ---------------------------------------------------------------- the page, from the browser window */
@@ -243,7 +287,7 @@ async function ask(text) {
   text = String(text || "").trim().slice(0, Q_MAX);
   if (!text || busy) return;
   const s = st();
-  if (!s.code || !server()) { setupOpen = true; paint(); return; }
+  if (!ready()) { paint(); return; }
   const u = { role:"user", text, content:text }, a = { role:"assistant", text:"", pending:true };
   chat.msgs.push(u, a);
   ta.value = ""; grow(); paint();
@@ -268,10 +312,11 @@ async function ask(text) {
     paint();
   }
     const r = await fetch(server() + "/chat", { method:"POST", headers:{ "content-type":"application/json" }, signal:ctl.signal,
-      body:JSON.stringify({ code:s.code, messages:turns() }) });
+      body:JSON.stringify({ code:codeToSend(), device:dev(), messages:turns() }) });
     if (!r.ok || !r.body) {
       let j = null; try { j = await r.json(); } catch (e) {}
       if (j && j.left === 0) setSt({ left:0 });
+      if (j && j.error === "code" && !st().code) { setSt({ auto:false }); autoState = "idle"; }      // the server changed: connect again
       throw Object.assign(new Error(j && j.message || "Web AI couldn't answer (error " + r.status + ")."), { kind:j && j.error || "" });
     }
     const rd = r.body.getReader(), dec = new TextDecoder();
@@ -346,8 +391,9 @@ function route3() {
   if (h !== "xai" && h.indexOf("xai:") !== 0) { tab.classList.remove("on"); return; }
   show("xai"); start();
   const what = h.split(":")[1];
-  if (what === "summarize" && st().code && server()) { history_replace(); ask(SUGGEST[0][1]); }
+  if (what === "summarize") { history_replace(); whenReady(() => ask(SUGGEST[0][1])); }
 }
+function whenReady(fn, n) { if (ready()) fn(); else if ((n || 0) < 40) setTimeout(() => whenReady(fn, (n || 0) + 1), 150); }
 const history_replace = () => { try { history.replaceState(null, "", "#xai"); } catch (e) {} };
 addEventListener("hashchange", route3);
 route3();
