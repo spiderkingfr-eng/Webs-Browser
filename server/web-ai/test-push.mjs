@@ -68,8 +68,10 @@ globalThis.fetch = async (url, init = {}) => {
   }
   if (!good) { badSig++; return new Response("BadJwtToken", { status:403 }); }
   if (h["Content-Encoding"] !== "aes128gcm" || !(+h.TTL > 0)) return new Response("bad headers", { status:400 });
+  // like Apple: an optional header it doesn't like is a 400 with a reason
+  if (h.Topic != null) return new Response(JSON.stringify({ reason:"BadWebPushTopic" }), { status:400 });
   if (!p || p.gone) return new Response("", { status:410 });
-  if (applesAnswer) return new Response("", { status:applesAnswer });
+  if (applesAnswer) return new Response(JSON.stringify({ reason:applesAnswer === 429 ? "TooManyRequests" : "BadSomething" }), { status:applesAnswer });
   const msg = decrypt(p, Buffer.from(init.body));
   p.got.push(msg); pushes.push({ phone:p.name, msg });
   return new Response("", { status:201 });
@@ -223,6 +225,12 @@ ok(r.j.ok && ![...kv.values()].some(v => v.includes(amy.endpoint)), "unsubscribe
 applesAnswer = 429; pushes = [];
 r = await call("POST", "/push/test", { endpoint:crowd[1].endpoint });
 ok(r.res.status === 502 && kv.has("ps:" + [...kv.keys()].find(k => k.startsWith("ps:") && kv.get(k).includes(crowd[1].endpoint)).slice(3)), "Apple busy: says so, and keeps the phone");
+ok(/\(429 TooManyRequests\)/.test(r.j.message), "the app is told Apple's reason: " + r.j.message);
+applesAnswer = 400;
+r = await call("POST", "/admin", { code:"ownercode123", op:"push", title:"Lunch", text:"Eat food" });
+ok(r.j.ok && r.j.sent === 0 && r.j.failed > 0 && r.j.why === "400 BadSomething", "the dashboard is told Apple's reason: " + r.j.why);
+r = await worker.fetch(new Request("https://web-ai.example.workers.dev/admin"), env, { waitUntil(){} });
+ok(/Apple said: /.test(await r.text()), "and shows it");
 applesAnswer = 0;
 ok(badSig === 0, "every signature was good");
 
