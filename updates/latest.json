@@ -20,5 +20,8 @@
   "google": {
     "clientId": "",
     "clientSecret": ""
+  },
+  "webai": {
+    "server": "https://web-ai.spiderkingfr.workers.dev"
   }
 }

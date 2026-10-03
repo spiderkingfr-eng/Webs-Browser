@@ -6,5 +6,8 @@
     "One tap for a summary, the key points or a simple explanation",
     "Answers appear word by word, with lists, tables and code you can copy",
     "Private tabs never send their page"
-  ]
+  ],
+  "webai": {
+    "server": "https://web-ai.spiderkingfr.workers.dev"
+  }
 }
