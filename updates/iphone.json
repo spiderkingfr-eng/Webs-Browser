@@ -1,8 +1,9 @@
 {
-  "version": "2.2.1",
+  "version": "2.2.2",
   "date": "2026-10-03",
   "notes": [
-    "Web AI is ready by itself: no code to type"
+    "Web AI now shows in the menu (☰), first in the list",
+    "A Web AI button on the start page too"
   ],
   "webai": {
     "server": "https://web-ai.spiderkingfr.workers.dev",

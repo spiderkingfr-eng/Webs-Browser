@@ -346,6 +346,11 @@ openMenu = function () {
   if (card) card.insertAdjacentHTML("afterbegin", '<button type="button" class="mrow" data-act="webai">' + ico("sparkle") + "<span>Web AI</span><em>Ask about this page</em></button>");
 };
 ACTIONS.webai = openAI;
+// app.js wired the menu button to the menu before this file loaded; point it at the menu that has Web AI in it
+$("#menuBtn").onclick = () => openMenu();
+// and a Web AI button on the start page, first among Bookmarks, History...
+const foot = $("#homeFoot");
+if (foot && !foot.querySelector('[data-act="webai"]')) foot.insertAdjacentHTML("afterbegin", '<button type="button" data-act="webai" class="aihome">✦ Web AI</button>');
 // the header buttons only belong to the Web AI sheet
 const closeSheet0 = closeSheet;
 closeSheet = function () { if (busy && isOpen()) busy.abort(); closeSheet0(); const h = $("#aiHead"); if (h) h.remove(); };
