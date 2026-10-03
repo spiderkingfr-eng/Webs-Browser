@@ -1,0 +1,38 @@
+/* ---------------------------------------------------------------- Webs 3.6: Help & support */
+nav .sup-tab{display:flex;align-items:center;justify-content:center;gap:3px}
+nav .sup-tab svg{color:#2fbf71}
+.sup-h{display:flex;align-items:center;gap:8px;padding:10px 10px 6px}
+.sup-h b{display:flex;align-items:center;gap:6px;font-size:14px;font-weight:600;flex:1}
+.sup-h b svg{color:#2fbf71}
+.sup-log{flex:1;min-height:0;overflow-y:auto;padding:6px 12px 10px;display:flex;flex-direction:column;gap:10px}
+.sup-hello{margin:auto 0;text-align:center;padding:10px 4px;animation:up .35s cubic-bezier(.2,.8,.2,1) both}
+.sup-hello .xai-orb{background:radial-gradient(circle at 30% 25%,#8be0b1,#2fbf71 60%,#1d8a50);box-shadow:0 10px 28px rgba(47,191,113,.3)}
+.sup-hello h3{font-size:17px;font-weight:600;margin:0 0 4px}
+.sup-hello>p{color:var(--dim);margin:0 0 12px;font-size:12.5px;line-height:1.5}
+.sup-safe{background:var(--bg3);border:1px solid var(--line);border-radius:10px;padding:9px 11px;font-size:12px;line-height:1.5;color:var(--dim);text-align:left}
+.sup-what{margin-top:8px;text-align:left;font-size:12px;color:var(--dim);line-height:1.55}
+.sup-what summary{color:var(--accent);font-weight:600;cursor:pointer;padding:3px 0}
+.sup-what p{margin:5px 0 0}
+.sup-what b{color:var(--fg);font-weight:600}
+.sup-a{align-self:flex-start;max-width:88%;background:var(--bg3);border:1px solid var(--line);border-radius:14px 14px 14px 4px;padding:7px 11px 8px;line-height:1.45;white-space:pre-wrap;word-wrap:break-word;animation:up .25s ease both}
+.sup-a b{display:block;font-size:11px;font-weight:700;color:var(--accent);margin-bottom:1px}
+.sup-n{align-self:center;max-width:92%;text-align:center;font-size:11.5px;color:var(--dim);line-height:1.4}
+.sup-foot{padding:8px 10px 10px;border-top:1px solid var(--line);background:var(--bg2)}
+.sup-acc{display:flex;align-items:center;gap:10px;padding:0 2px 8px;cursor:pointer}
+.sup-acc .k{flex:1;min-width:0;font-weight:600;font-size:12.5px}
+.sup-acc .k i{display:block;font-style:normal;font-weight:400;font-size:11.5px;color:var(--dim);margin-top:1px}
+.sup-acc.on .k i{color:#2fbf71}
+.sup-sw{position:relative;width:38px;height:22px;flex:none}
+.sup-sw input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer;z-index:1}
+.sup-sw span{position:absolute;inset:0;border-radius:11px;background:var(--line);transition:background .2s}
+.sup-sw span::after{content:"";position:absolute;left:2px;top:2px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .2s}
+.sup-sw input:checked+span{background:#2fbf71}
+.sup-sw input:checked+span::after{transform:translateX(16px)}
+.sup-sw input:focus-visible+span{outline:2px solid var(--accent);outline-offset:2px}
+.sup-msg{font-size:11.5px;color:var(--dim);margin-top:5px;min-height:1px}
+.sup-msg.bad{color:#ff7a6e}
+.sup-end{display:block;margin:4px auto 0;border:0;background:none;color:var(--dim);font:inherit;font-size:12px;cursor:pointer;padding:3px 8px}
+.sup-end:hover{color:var(--fg)}
+.sup-endq{font-size:12px;color:var(--dim);margin-top:6px;line-height:1.5}
+.sup-endq button{margin:6px 6px 0 0}
+.sup-new{width:100%;height:36px}

@@ -1,8 +1,14 @@
-/* Webs Browser for iPhone - what's new in 2.5, 2.4, 2.3, 2.2, 2.1 and 2.0, listed in the app
+/* Webs Browser for iPhone - what's new in 2.6, 2.5, 2.4, 2.3, 2.2, 2.1 and 2.0, listed in the app
    (Menu → What's new) and offered once after each update. */
 "use strict";
 
 const WHATS_NEW = [
+  ["New in 2.6: Help & support", "lifebuoy", [
+    "Help & support: stuck? Write to the people who make Webs and the answer comes back in the app, with a notification if those are on (Menu → Help & support)",
+    "Let support adjust your settings: turn on the switch and support can change a few looks, browsing and start page settings for you, for 30 minutes at most",
+    "Every change shows with Undo and is written in the chat, and a banner shows while support is connected. Tap End any time",
+    "Support only sees what you write and the settings on the list. Never your history, bookmarks, tabs, notes, passwords or the pages you visit"
+  ]],
   ["New in 2.5: the Phantom calendar", "sparkle", [
     "The Phantom calendar: a start page card in the style of a Persona 5 phone theme, with five days in a V over a city at sunset and today stabbed by a dagger (Settings → Customize start page)",
     "Set a deadline and the Q poll asks if you'll be ready, with the days left; without one it shows how much of today is left",

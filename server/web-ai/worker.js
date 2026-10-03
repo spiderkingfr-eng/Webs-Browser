@@ -42,6 +42,13 @@
      Cloudflare runs scheduled() every minute (wrangler.jsonc "triggers"): it announces new
      versions of the iPhone app and sends the daily word reminders.
 
+     Help & support, see "support" below (the apps' Menu → Help & support):
+     POST /support/open   { platform, version, text, access, settings, push? } -> { id, token }
+     POST /support/send   { id, token, text }
+     POST /support/poll   { id, token, since, settings?, done? } -> { msgs, changes, access, closed }
+     POST /support/access { id, token, on }     the person lets support adjust their settings (30 minutes)
+     POST /support/close  { id, token }
+
    The raw Messages API is called with fetch, so this one file can be pasted
    into the Cloudflare editor without a build step. */
 
@@ -74,9 +81,10 @@ export default {
     try {
       if (req.method === "GET" && path === "/") {      // says what's missing, never any value
         const missing = setupProblem(env);
-        return json({ ok:true, name:"Web AI", ready:!missing, open:isOpen(env), model:model(env), features:["report", "link", "admin", "push"], ...(missing ? { missing:"Still to do: " + missing } : {}) }, 200, cors);
+        return json({ ok:true, name:"Web AI", ready:!missing, open:isOpen(env), model:model(env), features:["report", "link", "admin", "push", "support"], ...(missing ? { missing:"Still to do: " + missing } : {}) }, 200, cors);
       }
       if ((req.method === "GET" && path === "/push/key") || (req.method === "POST" && /^\/push\/(subscribe|unsubscribe|test)$/.test(path))) return await pushApi(path, req, env, cors);
+      if (req.method === "POST" && /^\/support\/(open|send|poll|access|close)$/.test(path)) return await supportApi(path, req, env, cors);
       if (req.method === "GET" && path === "/admin") return new Response(ADMIN_PAGE, { headers:{ "content-type":"text/html; charset=utf-8", "cache-control":"no-store",
         "x-frame-options":"DENY", "referrer-policy":"no-referrer", "content-security-policy":"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'" } });
       if (req.method === "POST" && path === "/admin") return await admin(req, env);
@@ -547,6 +555,142 @@ async function pushCron(env, now) {
   await save();
 }
 
+/* ---------------------------------------------------------------- Help & support
+   Someone who needs help opens Help & support in the app and writes to the owner, who answers from
+   /admin. If they also turn on "Let support adjust my settings" (it lasts 30 minutes, and they can
+   end it any time), the dashboard shows their settings - only the ones on the list below, never
+   their history, bookmarks, passwords or pages - and the owner can change those. The app checks
+   every change against its own copy of the list (js/support.settings.js) before applying it,
+   shows it, and offers Undo. Without an open chat with access on, nothing can be changed.
+
+   Stored in LIMITS, one writer each so nothing gets lost: tku:<id> is written only by the
+   person's app (their messages, their settings as they are now, access, the changes done) and
+   tka:<id> only by the owner (replies, changes asked for, closed). Both last 30 days. */
+const SUPPORT_SETTINGS = {"windows":[["Look",[{"k":"theme","label":"Theme","t":"choice","o":[["dark","Dark"],["light","Light"],["auto","Light by day, dark after sunset"]],"s":"settings"},{"k":"motion","label":"Animations","t":"choice","o":[["","Full"],["reduced","Reduced"],["off","Off"]],"s":"settings"},{"k":"compact","label":"Compact toolbar","t":"bool","s":"settings"},{"k":"defzoom","label":"Default zoom","t":"choice","o":[["0.8","80%"],["0.9","90%"],["1","100%"],["1.1","110%"],["1.25","125%"],["1.5","150%"]],"s":"settings","num":true},{"k":"dark","label":"Dark mode for every site","t":"bool","s":"settings"}]],["Browsing",[{"k":"search","label":"Search engine","t":"choice","o":[["ddg","DuckDuckGo"],["google","Google"],["bing","Bing"],["brave","Brave"],["start","Startpage"],["wiki","Wikipedia"],["ecosia","Ecosia"],["qwant","Qwant"],["kagi","Kagi"],["yahoo","Yahoo"],["mojeek","Mojeek"],["yandex","Yandex"]],"s":"settings"},{"k":"suggest","label":"Search suggestions","t":"bool","s":"settings"},{"k":"https","label":"Always try HTTPS first","t":"bool","s":"settings"},{"k":"sleep","label":"Sleeping tabs","t":"choice","o":[["0","Never"],["5","After 5 minutes"],["15","After 15 minutes"],["30","After 30 minutes"],["60","After 1 hour"],["120","After 2 hours"]],"s":"settings","num":true},{"k":"restore","label":"Reopen my tabs when Webs starts","t":"bool","s":"settings"},{"k":"askdl","label":"Ask where to save each download","t":"bool","s":"settings"}]],["Privacy",[{"k":"tracking","label":"Tracking prevention","t":"choice","o":[["off","Off"],["basic","Basic"],["balanced","Balanced"],["strict","Strict"]],"s":"settings"},{"k":"fp","label":"Fingerprint protection","t":"bool","s":"settings"},{"k":"clearexit","label":"Clear cookies and site data when Webs closes","t":"bool","s":"settings"}]],["Shield (the ad blocker)",[{"k":"on","label":"Shield","t":"bool","s":"shield"},{"k":"popups","label":"Block pop-ups","t":"bool","s":"shield"},{"k":"yt","label":"Skip YouTube ads","t":"bool","s":"shield"},{"k":"cosmetic","label":"Hide empty ad spaces","t":"bool","s":"shield"},{"k":"clean","label":"Remove tracking from links","t":"bool","s":"shield"},{"k":"gpc","label":"Ask sites not to sell my data (GPC)","t":"bool","s":"shield"}]],["VPN",[{"k":"kill","label":"Kill switch (block the internet if the VPN drops)","t":"bool","s":"vpn"},{"k":"vpnOff","label":"Disconnect the VPN","t":"action","s":"vpn"}]]],"iphone":[["Look",[{"k":"theme","label":"Theme","t":"choice","o":[["auto","Auto"],["light","Light"],["dark","Dark"]],"s":"settings"},{"k":"textSize","label":"Text size","t":"choice","o":[["","Default"],["l","Large"],["xl","Larger"]],"s":"settings"},{"k":"font","label":"Font","t":"choice","o":[["","System"],["rounded","Rounded"],["serif","Serif"],["mono","Mono"]],"s":"settings"},{"k":"compact","label":"Compact layout","t":"bool","s":"settings"},{"k":"barPos","label":"Address bar","t":"choice","o":[["bottom","Bottom"],["top","Top"]],"s":"settings"},{"k":"motion","label":"Animations","t":"choice","o":[["","On"],["off","Off"]],"s":"settings"}]],["Browsing",[{"k":"search","label":"Search engine","t":"choice","o":[["ddg","DuckDuckGo"],["google","Google"],["bing","Bing"],["brave","Brave"],["start","Startpage"],["wiki","Wikipedia"],["ecosia","Ecosia"]],"s":"settings"},{"k":"suggest","label":"Search suggestions","t":"bool","s":"settings"},{"k":"openMode","label":"Opening websites","t":"choice","o":[["smart","Smart"],["inside","Inside Webs when possible"],["outside","Always in Safari"]],"s":"settings"},{"k":"https","label":"HTTPS first","t":"bool","s":"settings"},{"k":"clean","label":"Clean links","t":"bool","s":"settings"},{"k":"saveHistory","label":"Save history","t":"bool","s":"settings"}]],["Start page",[{"k":"show:clock","label":"Clock","t":"bool","s":"settings"},{"k":"show:greet","label":"Greeting and date","t":"bool","s":"settings"},{"k":"show:weather","label":"Weather","t":"bool","s":"settings"},{"k":"show:focus","label":"Today's focus","t":"bool","s":"settings"},{"k":"show:shortcuts","label":"Shortcuts","t":"bool","s":"settings"},{"k":"show:todo","label":"To-do list","t":"bool","s":"settings"},{"k":"show:quote","label":"Quote of the day","t":"bool","s":"settings"},{"k":"show:cd","label":"Countdown","t":"bool","s":"settings"},{"k":"show:cal","label":"Calendar","t":"bool","s":"settings"},{"k":"show:wclock","label":"World clocks","t":"bool","s":"settings"},{"k":"show:otd","label":"On this day","t":"bool","s":"settings"},{"k":"show:tip","label":"Tip of the day","t":"bool","s":"settings"},{"k":"show:fx","label":"Seasonal effects","t":"bool","s":"settings"},{"k":"show:p5","label":"Phantom calendar","t":"bool","s":"settings"},{"k":"clock24","label":"24-hour clock","t":"bool","s":"settings"},{"k":"clockStyle","label":"Clock style","t":"choice","o":[["","Classic"],["big","Big"],["flip","Flip"],["analog","Analog"]],"s":"settings"}]]]};
+function supportValue(platform, k, v) {
+  for (const [, list] of SUPPORT_SETTINGS[platform] || []) for (const e of list) {
+    if (e.k !== k) continue;
+    if (e.t === "bool") return v === true || v === false ? v : undefined;
+    if (e.t === "action") return v === true ? true : undefined;
+    const hit = e.o.find(x => x[0] === String(v));
+    return hit ? (e.num ? +hit[0] : hit[0]) : undefined;
+  }
+  return undefined;
+}
+const ACCESS_MS = 30 * 60000, TK_TTL = 30 * 86400;
+// only the settings on the list, with allowed values, ever get stored
+function cleanSnap(platform, snap) {
+  const out = {};
+  if (!snap || typeof snap !== "object") return out;
+  for (const [, list] of SUPPORT_SETTINGS[platform] || []) for (const e of list) {
+    if (e.t === "action" || !(e.k in snap)) continue;
+    const v = supportValue(platform, e.k, snap[e.k]);
+    if (v !== undefined) out[e.k] = v;
+  }
+  return out;
+}
+const tkMeta = u => ({ platform:u.platform, version:u.version, created:u.created, updated:u.updated, open:u.open, access:u.access, last:cut(u.last, 80) });
+async function tkSaveU(env, u) { await env.LIMITS.put("tku:" + u.id, JSON.stringify(u), { expirationTtl:TK_TTL, metadata:tkMeta(u) }); }
+async function tkSaveA(env, id, a) { await env.LIMITS.put("tka:" + id, JSON.stringify(a), { expirationTtl:TK_TTL }); }
+const tkA = async (env, id) => Object.assign({ msgs:[], changes:[], closed:false }, await readJSON(env, "tka:" + id) || {});
+
+async function supportApi(path, req, env, cors) {
+  if (!env.LIMITS || typeof env.LIMITS.get !== "function") return json({ error:"setup", message:"Support isn't set up on the server yet." }, 503, cors);
+  let body = null;
+  try { body = await req.json(); } catch (e) {}
+  if (!body || typeof body !== "object") return json({ error:"bad", message:"The app sent something the server can't read." }, 400, cors);
+  const now = Date.now();
+
+  if (path === "/support/open") {
+    const platform = body.platform === "iphone" ? "iphone" : body.platform === "windows" ? "windows" : "";
+    const text = cut(body.text, 1000).trim();
+    if (!platform || !text) return json({ error:"bad", message:"Say what's going wrong first." }, 400, cors);
+    if (await overLimit(env, "sopen:" + (await hash("ip:" + (req.headers.get("CF-Connecting-IP") || ""))), 5))
+      return json({ error:"limit", message:"That's a lot of support chats for one day. Try again tomorrow." }, 429, cors);
+    const id = rnd(12), token = rnd(32);
+    let pid = "";
+    try { const e = String(body.push || ""); if (e && PUSH_HOSTS.test(new URL(e).hostname)) pid = await pushId(e); } catch (x) {}
+    const u = { id, tokenHash:await hash("tk:" + token), platform, version:cut(body.version, 20), created:now, updated:now, open:true,
+      access:body.access === true ? now + ACCESS_MS : 0, snap:cleanSnap(platform, body.settings), done:[], pid, msgs:[{ f:"u", t:text, ts:now }], last:text };
+    await tkSaveU(env, u);
+    return json({ ok:true, id, token, access:u.access }, 200, cors);
+  }
+
+  const id = String(body.id || "");
+  const u = /^[a-z0-9]{12}$/.test(id) ? await readJSON(env, "tku:" + id) : null;
+  if (!u || !same(await hash("tk:" + String(body.token || "")), u.tokenHash || "")) return json({ error:"gone", message:"This support chat has ended. Start a new one." }, 404, cors);
+  const a = await tkA(env, id);
+  let dirty = false;
+
+  if (path === "/support/send") {
+    const text = cut(body.text, 1000).trim();
+    if (!text) return json({ error:"bad", message:"Write something first." }, 400, cors);
+    if (!u.open || a.closed) return json({ error:"closed", message:"This support chat has ended. Start a new one." }, 409, cors);
+    if (u.msgs.length >= 200) return json({ error:"limit", message:"This chat is full. Start a new one." }, 429, cors);
+    u.msgs.push({ f:"u", t:text, ts:now }); u.last = text; u.updated = now; dirty = true;
+  } else if (path === "/support/access") {
+    u.access = body.on === true && u.open && !a.closed ? now + ACCESS_MS : 0; u.updated = now; dirty = true;
+  } else if (path === "/support/close") {
+    u.open = false; u.access = 0; u.updated = now; dirty = true;
+  } else if (path === "/support/poll") {
+    if (body.settings && typeof body.settings === "object") {
+      const snap = cleanSnap(u.platform, body.settings);
+      if (JSON.stringify(snap) !== JSON.stringify(u.snap)) { u.snap = snap; dirty = true; }
+    }
+    if (Array.isArray(body.done)) for (const d of body.done.slice(0, 50)) if (/^[a-z0-9]{8}$/.test(d) && u.done.indexOf(d) < 0) { u.done.push(d); u.done = u.done.slice(-100); dirty = true; }
+  }
+  if (u.access && u.access < now) { u.access = 0; dirty = true; }
+  if (dirty) await tkSaveU(env, u);
+  const since = +body.since || 0, live = u.open && !a.closed && u.access > now;
+  return json({ ok:true, now, open:u.open && !a.closed, closed:!!a.closed, access:u.access,
+    msgs:a.msgs.filter(m => m.ts > since),
+    changes:live ? a.changes.filter(c => u.done.indexOf(c.id) < 0 && c.ts > now - ACCESS_MS) : [] }, 200, cors);
+}
+
+// for the dashboard
+async function supportAdmin(op, body, env, h) {
+  const now = Date.now();
+  if (op === "tickets") {
+    const l = await env.LIMITS.list({ prefix:"tku:", limit:200 });
+    const items = l.keys.map(k => ({ id:k.name.slice(4), ...(k.metadata || {}) })).sort((x, y) => (y.updated || 0) - (x.updated || 0));
+    return json({ ok:true, items, now }, 200, h);
+  }
+  const id = String(body.id || ""), u = /^[a-z0-9]{12}$/.test(id) ? await readJSON(env, "tku:" + id) : null;
+  if (!u) return json({ error:"gone", message:"That support chat is gone." }, 404, h);
+  const a = await tkA(env, id);
+  if (op === "ticket") {
+    return json({ ok:true, now, id, platform:u.platform, version:u.version, created:u.created, open:u.open && !a.closed, closed:!!a.closed, access:u.access > now ? u.access : 0,
+      settings:u.snap || {}, schema:SUPPORT_SETTINGS[u.platform] || [],
+      msgs:u.msgs.concat(a.msgs).sort((x, y) => x.ts - y.ts),
+      changes:a.changes.map(c => ({ ...c, done:u.done.indexOf(c.id) >= 0 })) }, 200, h);
+  }
+  if (op === "reply") {
+    const text = cut(body.text, 1000).trim();
+    if (!text) return json({ error:"bad", message:"Write a reply first." }, 400, h);
+    if (a.msgs.length >= 200) return json({ error:"limit", message:"This chat is full." }, 429, h);
+    a.msgs.push({ f:"a", t:text, ts:now });
+    await tkSaveA(env, id, a);
+    // a notification on their iPhone, if they have them on
+    if (u.pid) try {
+      const s = await readJSON(env, "ps:" + u.pid), v = await vapid(env, false);
+      if (s && v) await pushOne(pushCtx(env, v), s, tidyMsg({ title:"Webs support replied", body:text, url:"./?go=support", tag:"webs-support" }));
+    } catch (e) { console.log("support notification failed:", e && e.message); }
+    return json({ ok:true }, 200, h);
+  }
+  if (op === "set") {
+    if (!u.open || a.closed) return json({ error:"closed", message:"This chat has ended." }, 409, h);
+    if (!(u.access > now)) return json({ error:"access", message:"They haven't let support adjust their settings (or the 30 minutes are up)." }, 403, h);
+    const k = String(body.k || ""), v = supportValue(u.platform, k, body.v);
+    if (v === undefined) return json({ error:"bad", message:"That setting can't be changed by support." }, 400, h);
+    a.changes = a.changes.filter(c => !(c.k === k && u.done.indexOf(c.id) < 0)).slice(-49);      // the newest ask for a setting wins
+    a.changes.push({ id:rnd(8), k, v, ts:now });
+    await tkSaveA(env, id, a);
+    return json({ ok:true }, 200, h);
+  }
+  if (op === "closeTicket") { a.closed = true; await tkSaveA(env, id, a); return json({ ok:true }, 200, h); }
+  return json({ error:"bad", message:"Unknown request." }, 400, h);
+}
+
 /* ---------------------------------------------------------------- the owner's dashboard */
 function adminCode(env) {
   if (String(env.ADMIN_CODE || "").trim().length >= 8) return String(env.ADMIN_CODE).trim();
@@ -575,6 +719,7 @@ async function admin(req, env) {
     if (r.done) await env.LIMITS.put("push:news", JSON.stringify({ at:Date.now(), title:msg.title, sent:(+body.sentSoFar || 0) + r.sent }));
     return json({ ok:true, ...r }, 200, h);
   }
+  if (/^(tickets|ticket|reply|set|closeTicket)$/.test(op)) return await supportAdmin(op, body, env, h);
   if (op === "reports") {
     const l = await env.LIMITS.list({ prefix:"report:", limit:100 });
     const items = (await Promise.all(l.keys.map(k => env.LIMITS.get(k.name)))).map(v => { try { return JSON.parse(v); } catch (e) { return null; } }).filter(Boolean);
@@ -613,6 +758,30 @@ button{background:var(--accent);color:#fff;border:0;border-radius:10px;padding:1
 .bar em{font-style:normal;color:var(--dim);text-align:right;font-variant-numeric:tabular-nums}
 .rep{margin-bottom:10px}.rep h3{font-size:14px;margin:0 0 4px}.rep .meta{color:var(--dim);font-size:12.5px}.rep pre{white-space:pre-wrap;word-break:break-word;background:var(--bg3);border-radius:8px;padding:8px;font-size:12px;max-height:240px;overflow:auto}
 .err{color:#ff7a6e}.hide{display:none}
+.sup .row{display:flex;gap:10px;align-items:center;padding:10px 6px;border-bottom:1px solid var(--line);cursor:pointer;border-radius:8px}.sup .row:hover{background:var(--bg3)}
+.sup .row:last-child{border-bottom:0}.sup .row .ic{font-size:20px}.sup .row .tx{flex:1;min-width:0}.sup .row .tx b{display:block;font-size:14px}
+.sup .row .tx span{display:block;color:var(--dim);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pill{font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:99px;background:var(--bg3);color:var(--dim);white-space:nowrap}.pill.on{background:#1e7a4a;color:#fff}.pill.off{opacity:.7}
+.tk{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:16px;margin-top:10px}@media (max-width:760px){.tk{grid-template-columns:1fr}}
+.tkh{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.tkh b{font-size:15px}.tkh span{color:var(--dim);font-size:13px}.tkh .sp{flex:1}
+button.small{padding:6px 12px;font-size:13px;margin:0}
+.chat{display:flex;flex-direction:column;gap:8px;max-height:420px;overflow:auto;padding:4px}.msg{max-width:85%;padding:8px 11px;border-radius:12px;font-size:14px;white-space:pre-wrap;word-break:break-word}
+.msg.u{background:var(--bg3);align-self:flex-start;border-bottom-left-radius:4px}.msg.a{background:var(--accent);color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
+.msg i{display:block;font-style:normal;font-size:11px;opacity:.7;margin-top:3px}
+.reply{display:flex;gap:8px;margin-top:10px}.reply textarea{flex:1;background:var(--bg3);border:1px solid var(--line);border-radius:10px;color:var(--fg);padding:8px 10px;font:inherit;resize:vertical;min-height:42px}
+.reply button{margin:0;align-self:flex-end}
+.dev{border-radius:16px;border:1px solid var(--line);background:var(--bg);overflow:hidden}.dev.iphone{border-radius:34px;border:8px solid #2b2731;max-width:380px;margin:0 auto}
+.devbar{display:flex;align-items:center;gap:6px;padding:8px 12px;background:var(--bg3);font-size:12.5px;color:var(--dim)}.devbar i{width:10px;height:10px;border-radius:50%;background:#ff5f57}.devbar i+i{background:#febc2e}.devbar i+i+i{background:#28c840}
+.dev.iphone .devbar{justify-content:center;background:var(--bg2)}.dev.iphone .devbar i{display:none}
+.acc{padding:9px 12px;font-size:13px;border-bottom:1px solid var(--line)}.acc.on{background:rgba(30,122,74,.18);color:#7fe0aa}.acc.off{background:rgba(255,122,110,.1);color:#ffb3aa}
+@media (prefers-color-scheme:light){.acc.on{color:#17643d}.acc.off{color:#a3291f}}
+.sets{max-height:460px;overflow:auto;padding:4px 12px 12px}.sets h4{margin:12px 0 4px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+.set{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px}.set .l{flex:1}.set .w{font-size:11.5px;color:#febc2e}.set .w.d{color:#7fe0aa}
+.set select{background:var(--bg3);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:5px 8px;font:inherit;font-size:13px;max-width:52%}
+.tg{width:44px;height:26px;border-radius:13px;background:var(--bg3);border:1px solid var(--line);position:relative;cursor:pointer;padding:0;margin:0;flex:none}
+.tg::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#bbb;transition:left .15s}.tg.on{background:#1e7a4a;border-color:#1e7a4a}.tg.on::after{left:21px;background:#fff}
+.sets.locked .set select,.sets.locked .tg,.sets.locked button.act{opacity:.45;pointer-events:none}
+button.act{background:var(--bg3);color:var(--fg);padding:6px 12px;font-size:13px;margin:0}
 .push label{display:block;margin:10px 0 0;font-size:13px;color:var(--dim)}.push input,.push textarea{display:block;width:100%;max-width:none;margin-top:4px}
 .push textarea{background:var(--bg3);border:1px solid var(--line);border-radius:10px;color:var(--fg);padding:10px 12px;font:inherit;resize:vertical;min-height:70px}
 .push .row{display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap}.push .row button{margin:0}.push .row span{color:var(--dim);font-size:13px}
@@ -624,6 +793,12 @@ button{background:var(--accent);color:#fff;border:0;border-radius:10px;padding:1
 <div class="card tile"><b id="tc">$0</b><span>cost today (about)</span></div><div class="card tile"><b id="tm">$0</b><span>last 14 days (about)</span></div></div>
 <h2>The last 14 days</h2><div class="card bars" id="bars"></div>
 <p class="d" id="lim"></p>
+<h2>Help &amp; support <span id="sn" class="pill"></span></h2>
+<div class="card sup"><div id="slist"><p class="d" style="margin:0">No support chats yet. People start one from Help &amp; support in the app.</p></div>
+<div id="sview" class="hide"><div class="tkh"><button class="ghost small" id="sback">← All chats</button><b id="stitle"></b><span id="ssub"></span><span class="sp"></span><button class="ghost small" id="sclose">Close this chat</button></div>
+<div class="tk"><div><div class="chat" id="schat"></div><div class="reply"><textarea id="sreply" maxlength="1000" placeholder="Write a reply…"></textarea><button id="ssend">Send</button></div></div>
+<div><div class="dev" id="sdev"><div class="devbar"><i></i><i></i><i></i><span id="sdevname"></span></div><div class="acc" id="sacc"></div><div class="sets" id="ssets"></div></div>
+<p class="d" style="margin:8px 2px 0;font-size:12.5px">Only these settings, and only while they allow it. You never see their history, bookmarks, passwords or pages. Each change shows on their screen with Undo.</p></div></div></div></div>
 <h2>Notifications on iPhones</h2><div class="card push"><p class="d" id="pn" style="margin:0"></p>
 <label>Title<input id="ptitle" maxlength="80" placeholder="New games are here!"></label>
 <label>Message<textarea id="ptext" maxlength="300" placeholder="Open Webs and try Pong and Breakout."></textarea></label>
@@ -647,6 +822,7 @@ async function load() {
   $("pn").textContent = p.phones + (p.more ? "+" : "") + " iPhones have notifications on: " + p.news + " get news, " + p.updates + " new versions, " + p.daily + " the daily word reminder. " +
     "Last new-version notice: " + when(p.lastUpdate) + ". Last news: " + (p.lastNews ? "\u201c" + p.lastNews.title + "\u201d, " + when(p.lastNews) : "not yet") + "." + (p.sending ? " Still sending: " + p.sending + "." : "");
   $("psend").textContent = "Send to " + p.news + (p.more ? "+" : "") + " iPhones";
+  loadTickets().catch(() => {});
   const r = await call({ op:"reports" });
   $("rn").textContent = r.items.length; $("reps").innerHTML = "";
   if (!r.items.length) { const p = E("p", "d"); p.textContent = "No reports. 🎉"; $("reps").append(p); }
@@ -677,6 +853,101 @@ $("psend").onclick = async () => {
   } catch (e) { $("pmsg").textContent = e.message + (sent ? " (" + sent + " sent before that)" : ""); }
   $("psend").disabled = false;
 };
+/* Help & support: the chats, and a small screen of their settings while they allow it */
+const ago = ts => { const s = Math.max(0, (Date.now() - ts) / 1000); return s < 60 ? "just now" : s < 3600 ? Math.round(s / 60) + " min ago" : s < 86400 ? Math.round(s / 3600) + " h ago" : new Date(ts).toLocaleDateString(); };
+const mins = until => Math.max(1, Math.round((until - Date.now()) / 60000));
+let tk = null, tkT = 0, listT = 0, waiting = {};
+async function loadTickets() {
+  const r = await call({ op:"tickets" }), box = $("slist");
+  const open = r.items.filter(x => x.open);
+  $("sn").textContent = open.length ? open.length + " open" : ""; $("sn").className = "pill" + (open.length ? " on" : "");
+  if (!r.items.length) return;
+  box.innerHTML = "";
+  r.items.forEach(x => {
+    const row = E("div", "row"), ic = E("span", "ic"), tx = E("div", "tx"), b = E("b"), sp = E("span"), pl = E("span", "pill");
+    ic.textContent = x.platform === "iphone" ? "📱" : "💻";
+    b.textContent = (x.platform === "iphone" ? "iPhone " : "Windows ") + (x.version || "") + " · " + ago(x.updated || x.created);
+    sp.textContent = x.last || "";
+    const acc = x.open && x.access > Date.now();
+    pl.textContent = !x.open ? "ended" : acc ? "settings access · " + mins(x.access) + " min" : "open";
+    pl.className = "pill" + (acc ? " on" : x.open ? "" : " off");
+    tx.append(b, sp); row.append(ic, tx, pl);
+    row.onclick = () => openTicket(x.id);
+    box.append(row);
+  });
+}
+async function openTicket(id) {
+  $("slist").classList.add("hide"); $("sview").classList.remove("hide");
+  tk = { id }; waiting = {};
+  await refreshTicket();
+  clearInterval(tkT); tkT = setInterval(() => { if (!document.hidden && tk) refreshTicket().catch(() => {}); }, 4000);
+}
+function closeView() { tk = null; clearInterval(tkT); $("sview").classList.add("hide"); $("slist").classList.remove("hide"); loadTickets().catch(() => {}); }
+async function refreshTicket() {
+  const t = await call({ op:"ticket", id:tk.id });
+  if (!tk || tk.id !== t.id) return;
+  tk = t;
+  const phone = t.platform === "iphone";
+  $("stitle").textContent = (phone ? "📱 iPhone " : "💻 Windows ") + (t.version || "");
+  $("ssub").textContent = "started " + ago(t.created) + (t.open ? "" : " · ended");
+  $("sclose").classList.toggle("hide", !t.open);
+  // the chat
+  const chat = $("schat"), atEnd = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 20;
+  chat.innerHTML = "";
+  t.msgs.forEach(m => { const d = E("div", "msg " + m.f), i = E("i"); d.textContent = m.t; i.textContent = (m.f === "a" ? "You · " : "Them · ") + ago(m.ts); d.append(i); chat.append(d); });
+  if (atEnd) chat.scrollTop = chat.scrollHeight;
+  $("ssend").disabled = !t.open; $("sreply").disabled = !t.open;
+  // their settings
+  $("sdev").className = "dev " + (phone ? "iphone" : "windows");
+  $("sdevname").textContent = phone ? "Webs on their iPhone" : "Webs on their PC";
+  const live = t.open && t.access > 0;
+  $("sacc").className = "acc " + (live ? "on" : "off");
+  $("sacc").textContent = !t.open ? "This chat has ended. Nothing can be changed." : live ? "✓ They let support adjust their settings · " + mins(t.access) + " min left" : "They haven't let support adjust their settings. Ask them to turn on the switch in Help & support.";
+  const sets = $("ssets"), y = sets.scrollTop;
+  sets.className = "sets" + (live ? "" : " locked");
+  sets.innerHTML = "";
+  const open = {}; t.changes.forEach(c => { if (!c.done) open[c.k] = c; });
+  t.schema.forEach(([group, list]) => {
+    const h = E("h4"); h.textContent = group; sets.append(h);
+    list.forEach(e => {
+      const row = E("div", "set"), l = E("span", "l"), w = E("span", "w");
+      l.textContent = e.label;
+      const cur = t.settings[e.k], pend = open[e.k];
+      if (pend) w.textContent = "waiting for their device…";
+      else if (waiting[e.k] && t.changes.some(c => c.k === e.k && c.done)) { w.textContent = "✓ changed"; w.className = "w d"; }
+      let c;
+      if (e.t === "bool") {
+        c = E("button", "tg" + (cur ? " on" : "")); c.setAttribute("aria-pressed", cur ? "true" : "false"); c.title = cur ? "On" : "Off";
+        if (cur === undefined) c.title = "Unknown";
+        c.onclick = () => change(e.k, !cur);
+      } else if (e.t === "choice") {
+        c = E("select");
+        e.o.forEach(([v, lab]) => { const o = E("option"); o.value = v; o.textContent = lab; c.append(o); });
+        c.value = cur === undefined ? "" : String(cur);
+        c.onchange = () => change(e.k, c.value);
+      } else {
+        c = E("button", "act"); c.textContent = e.label; l.textContent = "";
+        c.onclick = () => { if (confirm(e.label + "?")) change(e.k, true); };
+      }
+      row.append(l, w, c); sets.append(row);
+    });
+  });
+  sets.scrollTop = y;
+}
+async function change(k, v) {
+  try { await call({ op:"set", id:tk.id, k, v }); waiting[k] = true; await refreshTicket(); }
+  catch (e) { alert(e.message); }
+}
+$("sback").onclick = closeView;
+$("sclose").onclick = async () => { if (!confirm("Close this chat? They'll see it has ended, and nothing more can be changed.")) return; await call({ op:"closeTicket", id:tk.id }); await refreshTicket(); };
+$("ssend").onclick = async () => {
+  const text = $("sreply").value.trim(); if (!text) return;
+  $("ssend").disabled = true;
+  try { await call({ op:"reply", id:tk.id, text }); $("sreply").value = ""; await refreshTicket(); } catch (e) { alert(e.message); }
+  $("ssend").disabled = false;
+};
+$("sreply").onkeydown = e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("ssend").click(); } };
+setInterval(() => { if (!document.hidden && !tk && code && !$("out").classList.contains("hide")) loadTickets().catch(() => {}); }, 30000);
 $("go").onclick = () => { code = $("code").value.trim(); $("msg").textContent = ""; load().catch(e => { $("msg").textContent = e.message; }); };
 $("code").onkeydown = e => { if (e.key === "Enter") $("go").click(); };
 if (code) load().catch(() => { sessionStorage.removeItem("c"); code = ""; });

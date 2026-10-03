@@ -76,7 +76,7 @@ const check = (c, w) => { if (c) ok++; else { bad++; console.log("  FAIL:", w); 
   await p.evaluate(() => { __sent.length = 0; [...document.querySelectorAll("#xtp .xtg button")].find(b => /Reading guide/.test(b.textContent)).click(); });
   check(await p.evaluate(() => __sent.some(m => m === "page-tool\u00012\u0001x-ruler\u0001")), "tool button runs the page tool");
   await p.evaluate(() => mainMenu()); await p.waitForTimeout(250);
-  check(await p.evaluate(() => [...document.querySelectorAll("#menu .mi span")].some(s => s.textContent === "More page tools (new)…") && [...document.querySelectorAll("#menu .mi span")].some(s => /458 features/.test(s.textContent)) && [...document.querySelectorAll("#menu .mi span")].some(s => s.textContent === "Web AI") && [...document.querySelectorAll("#menu .mi span")].some(s => /Sign in with Google/.test(s.textContent)) && [...document.querySelectorAll("#menu .mi span")].some(s => /Check for updates/.test(s.textContent))), "main menu rows");
+  check(await p.evaluate(() => [...document.querySelectorAll("#menu .mi span")].some(s => s.textContent === "More page tools (new)…") && [...document.querySelectorAll("#menu .mi span")].some(s => /462 features/.test(s.textContent)) && [...document.querySelectorAll("#menu .mi span")].some(s => s.textContent === "Web AI") && [...document.querySelectorAll("#menu .mi span")].some(s => /Sign in with Google/.test(s.textContent)) && [...document.querySelectorAll("#menu .mi span")].some(s => /Check for updates/.test(s.textContent))), "main menu rows");
   await p.screenshot({ path:SHOTS + "pc-menu.png" });
   await p.evaluate(() => closeOver());
   check(await p.evaluate(() => commands().length) > 230, "palette commands: " + await p.evaluate(() => commands().length));

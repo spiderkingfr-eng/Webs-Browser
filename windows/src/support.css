@@ -1,0 +1,9 @@
+/* ---------------------------------------------------------------- Webs 3.6: Help & support - the toolbar's 🛟 while support may adjust settings */
+.suppill{display:flex;align-items:center;height:28px;flex:none;margin:0 3px;border-radius:14px;overflow:hidden;
+  background:color-mix(in srgb,#2fbf71 20%,var(--bg3));border:1px solid color-mix(in srgb,#2fbf71 55%,transparent);animation:toastIn .28s cubic-bezier(.2,.8,.2,1)}
+.suppill.hide{display:none}
+.suppill button{height:100%;display:flex;align-items:center;gap:5px;color:var(--fg);font-size:12px;font-weight:600;padding:0 5px 0 9px;white-space:nowrap}
+.suppill .ic{width:15px;height:15px;color:#2fbf71}
+.suppill .supx{padding:0 9px 0 5px;color:var(--dim);font-weight:400}
+.suppill button:hover{background:color-mix(in srgb,#2fbf71 18%,transparent)}
+.suppill .supx:hover{color:var(--fg)}

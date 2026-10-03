@@ -56,6 +56,17 @@ a daily word reminder at the time each person picks. They come from the same Web
 once it's deployed. iPhones only allow notifications for apps on the Home Screen, with iOS 16.4
 or newer.
 
+## Help & support
+
+*Menu → Help & support* (iPhone 2.6, Windows 3.6) lets someone who's stuck write to you. You answer
+from the Web AI server's dashboard (`…workers.dev/admin`, **Help & support**), and the reply shows
+in the app (on iPhone also as a notification, if those are on). Only while a chat is open, and only
+if they turn on **Let support adjust my settings** (30 minutes at most, ended any time), the
+dashboard shows a small screen of their iPhone or PC where you can change a few switches and
+choices: the list in `js/support.settings.js`. Nothing typed in, nothing that deletes anything.
+Each change shows on their screen with Undo. You never see their history, bookmarks, tabs, notes,
+passwords or the pages they visit.
+
 ## What it does
 
 Version 2.0 adds 150 new things. They're all listed in the app under *Menu → What's new*.
@@ -114,6 +125,8 @@ On an iPhone, an app can only show a website inside itself when that website all
 | `js/whatsnew.js` | The list of what's new |
 | `js/webai.js` | Web AI (2.2) |
 | `js/push.js` | Notifications (2.4); `sw.js` shows them |
+| `js/support.js` | Help & support (2.6): the chat, and support's changes with Undo |
+| `js/support.settings.js` | The only settings support may change, shared with Windows and the server |
 | `js/qrcode.js` | [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) by Kazuhiko Arase (MIT license), for QR codes |
 | `games.html` | The offline games |
 | `manifest.webmanifest`, `icons/` | What iOS and Android use to install the app and draw its icon |
