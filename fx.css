@@ -639,6 +639,9 @@ body.bartop #updPill{top:auto;bottom:calc(24px + var(--sb))}
 #sheetTitle .aileft{font-style:normal;font-size:12.5px;font-weight:500;color:var(--dim2);margin-left:10px}
 #sheetTitle .aileft.low{color:var(--warn)}
 #aiHead{display:flex;gap:4px}
+.sheet:not([data-kind="ai"]) #aiHead{display:none}
+#homeFoot .aihome{color:var(--accent);font-weight:600}
+body.pic #homeFoot .aihome{color:#fff}
 #aiHead button{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;color:var(--dim)}
 #aiHead button:active{background:var(--bg3)}
 #aiHead .ic{width:20px;height:20px}
