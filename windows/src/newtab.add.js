@@ -167,9 +167,23 @@ liveBg = function () {
   if (xl.kind === want && xl.cv) return;
   xlStop(); xlStart(want);
 };
+/* the Phantom calendar (Persona 5 style): js/phantom.js, the same card as on the iPhone */
+SHOW.push(["p5", "Phantom calendar (Persona 5 style)"]); DEFAULT_OFF.push("p5");
+const p5s = document.createElement("section"); p5s.id = "p5Sec"; p5s.className = "hide"; p5s.innerHTML = '<div id="p5Box"></div>';
+$("todoSec").before(p5s);
+let p5Seen = false;
+function p5() {
+  const on = !!window.Phantom && !hidden("p5") && !PRIVATE;
+  p5s.classList.toggle("hide", !on);
+  if (!on) { p5Seen = false; return; }
+  Phantom.render($("p5Box"), { animate:!p5Seen });      // it slams in the first time
+  p5Seen = true;
+}
+setInterval(() => { if (!document.hidden && !p5s.classList.contains("hide")) Phantom.render($("p5Box"), { tick:true }); }, 30000);
+
 const applyCustom0 = applyCustom;
-applyCustom = function () { applyCustom0(); try { xWidgets(); } catch (e) {} };
-if (!PRIVATE) { xWidgets(); liveBg(); }
+applyCustom = function () { applyCustom0(); try { xWidgets(); } catch (e) {} try { p5(); } catch (e) {} };
+if (!PRIVATE) { xWidgets(); liveBg(); p5(); }
 const E2 = ["ecosia", "Ecosia", "E", "!eco"], more = [E2, ["qwant", "Qwant", "Q", "!q"], ["kagi", "Kagi", "K", "!k"], ["yahoo", "Yahoo", "Y", "!y"], ["mojeek", "Mojeek", "Mj", "!mj"], ["yandex", "Yandex", "Ya", "!ya"],
   ["custom", String(cfg.xCustomName || "").trim().slice(0, 20) || "Your engine", "★", "!my"]];
 more.forEach(x => { if (x[0] !== "custom" || /%s/.test(cfg.xCustomUrl || "")) ENGS.push(x); });

@@ -517,4 +517,21 @@ setInterval(() => {
   if (document.hidden || (t && t.u)) return;
   if (!hidden("wclock")) wclockBox();
   if (!hidden("year")) yearBox();
+  if (!hidden("p5") && !PRIVATE && typeof Phantom !== "undefined") Phantom.render($("#p5Box"), { tick:true });
 }, 20000);
+
+/* ---------------------------------------------------------------- the Phantom calendar (Persona 5 style, js/phantom.js)
+   Off until it's turned on in Customize; it slams in the first time the start page shows. */
+HIDE_KEYS.push(["p5", "Phantom calendar (Persona 5 style)"]);
+DEFAULT_OFF.push("p5");
+ORDERABLE.unshift(["p5Sec", "Phantom calendar"]);       // near the top: it's the one you turned on to see
+BACKUP_KEYS.push("p5");                 // the deadline comes along in a backup
+$("#homeFoot").insertAdjacentHTML("beforebegin", '<section id="p5Sec" class="wsec hide"><div id="p5Box"></div></section>');
+let p5Seen = false;
+HOME_HOOKS.push(() => {
+  const on = typeof Phantom !== "undefined" && !hidden("p5") && !PRIVATE;
+  wshow("p5Sec", on);
+  if (!on) { p5Seen = false; return; }
+  Phantom.render($("#p5Box"), { animate:!p5Seen });
+  p5Seen = true;
+});
