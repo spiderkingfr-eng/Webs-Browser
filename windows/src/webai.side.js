@@ -172,10 +172,12 @@ function fillAnswer(d, m) {
     return;
   }
   d.innerHTML = (m.text ? md(m.text) : "") + (m.pending && !m.text ? '<div class="xai-dots"><i></i><i></i><i></i></div>' : "") +
-    (m.note ? '<div class="xai-note"></div>' : "") + (!m.pending && m.text ? '<div class="xai-acts"><button class="xai-copy" title="Copy the answer">Copy</button></div>' : "");
+    (m.note ? '<div class="xai-note"></div>' : "") + (!m.pending && m.text ? '<div class="xai-acts"><button class="xai-copy" title="Copy the answer">Copy</button>' + (window.XAI && XAI.say ? '<button class="xai-say" title="Read it out loud">🔊</button>' : "") + "</div>" : "");
   if (m.note) d.querySelector(".xai-note").textContent = m.note;
   const c = d.querySelector(".xai-copy");
   if (c) c.onclick = () => { send("clip", m.text); c.textContent = "Copied"; setTimeout(() => { c.textContent = "Copy"; }, 1100); };
+  const v = d.querySelector(".xai-say");
+  if (v) v.onclick = () => XAI.say(m.text);
 }
 let rafT = 0;
 function repaintLast() {
@@ -352,6 +354,7 @@ async function ask(text) {
   } finally {
     if (busy === ctl) busy = null;
     working(false); keep(); paint();
+    XAI.hooks.forEach(f => { try { f(a); } catch (x) {} });       // the voice call reads it out loud
   }
 }
 function retry(i) {
@@ -379,6 +382,9 @@ function working(on) {
   sendB.classList.toggle("stop", on); sendB.textContent = on ? "■" : "↑"; sendB.title = on ? "Stop" : "Send (Enter)";
   pane.classList.toggle("busy", on);
 }
+
+/* for the voice call (webai.voice.js) */
+window.XAI = { ask:t => ask(t), busy:() => !!busy, input:ta, grow, hooks:[], foot:q(".xai-in"), pane };
 
 /* opened as #xai, or #xai:summarize from the browser's menu */
 function start() {
