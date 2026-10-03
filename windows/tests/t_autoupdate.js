@@ -2,6 +2,7 @@
 // asks the updater through its inbox (sync-write), instead of downloading anything.
 const { chromium, setup, watch, SHOTS, ROOT } = require("./harness");
 const VERSION = require("fs").readFileSync(require("path").join(ROOT, "VERSION"), "utf8").trim();
+const NEXT = VERSION.replace(/\d+$/, n => +n + 1);     // the pretend update is always newer than this build
 let ok = 0, bad = 0; const errors = [];
 const check = (c, w) => { if (c) ok++; else { bad++; console.log("  FAIL:", w); } };
 const INBOX = "C:\\Users\\sam\\AppData\\Local\\Programs\\Webs Browser\\inbox";
@@ -12,7 +13,7 @@ let status = null, manifest404 = false;
   await setup(ctx);
   await ctx.route(/raw\.githubusercontent\.com\/.*latest\.json/, r => manifest404 ? r.fulfill({ status:404, body:"404: Not Found" }) :
     r.fulfill({ status:200, contentType:"application/json", headers:{ "access-control-allow-origin":"*" },
-      body:JSON.stringify({ version:"3.3.0", notes:["Something new"], updater:{ url:"https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebsUpdate.exe" } }) }));
+      body:JSON.stringify({ version:NEXT, notes:["Something new"], updater:{ url:"https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebsUpdate.exe" } }) }));
   await ctx.route("https://browser.example/user/webs-update.json*", r => status ? r.fulfill({ status:200, contentType:"application/json", body:JSON.stringify(Object.assign({ alive:Date.now() }, status)) }) : r.fulfill({ status:404, body:"" }));
   const p = await ctx.newPage(); watch(p, errors, "auto");
   await p.goto("https://browser.example/chrome.html"); await p.waitForTimeout(400);
@@ -30,7 +31,7 @@ let status = null, manifest404 = false;
   status = { v:1, auto:true, inbox:INBOX, latest:VERSION, ready:true, busy:false, error:"", autoInstall:true };
   await p.evaluate(() => { __sent.length = 0; localStorage.removeItem("wsb.xUpdTold"); X3.checkUpdate(false); }); await p.waitForTimeout(600);
   let reqs = await inbox();
-  check(reqs.length === 1 && reqs[0].dir === INBOX && reqs[0].body.action === "check", "asks the updater to get " + "3.3.0 ready: " + JSON.stringify(reqs));
+  check(reqs.length === 1 && reqs[0].dir === INBOX && reqs[0].body.action === "check", "asks the updater to get " + NEXT + " ready: " + JSON.stringify(reqs));
   check(!(await sent(/^dl-retry/)).length, "nothing downloaded");
   const syncLast = await p.evaluate(() => localStorage.getItem("wsb.syncLast"));
   await p.evaluate(() => __host("sync-done", "1", "Webs Browser sync - PC.json"));
@@ -38,7 +39,7 @@ let status = null, manifest404 = false;
   check(/Update$/.test(await p.evaluate(() => (document.querySelector(".xupd") || {}).textContent || "")), "Update button while it gets ready");
 
   // installed by the updater: Restart to update
-  status = Object.assign({}, status, { latest:"3.3.0", ready:true });
+  status = Object.assign({}, status, { latest:NEXT, ready:true });
   await p.evaluate(() => X3.checkUpdate(false)); await p.waitForTimeout(500);
   check(/Restart to update/.test(await p.evaluate(() => document.querySelector(".xupd").textContent)), "Restart to update once it's installed");
   await p.evaluate(() => X3.updPanel()); await p.waitForTimeout(200);

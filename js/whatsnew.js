@@ -1,8 +1,13 @@
-/* Webs Browser for iPhone - what's new in 2.1 and 2.0, listed in the app
+/* Webs Browser for iPhone - what's new in 2.2, 2.1 and 2.0, listed in the app
    (Menu → What's new) and offered once after each update. */
 "use strict";
 
 const WHATS_NEW = [
+  ["New in 2.2: Web AI", "sparkle", [
+    "Web AI: an assistant that answers questions about the page you're on, or anything else (Menu → Web AI)", "One tap for a summary, the key points or a simple explanation of a page",
+    "Answers appear word by word, with lists, tables and code you can copy", "Choose whether Web AI looks at the page you have open; private tabs never send theirs",
+    "Runs on Claude, made by Anthropic, through the same Web AI as the Windows browser"
+  ]],
   ["New in 2.1: updates", "ul", [
     "An Update button appears when a new version is ready; one tap installs it", "See what's new in an update before you install it",
     "Settings → Check for updates shows your version and looks for a new one", "Looks for updates when you open Webs and when you come back to it"

@@ -1,10 +1,10 @@
 {
-  "version": "2.1.0",
-  "date": "2026-10-02",
+  "version": "2.2.0",
+  "date": "2026-10-03",
   "notes": [
-    "An Update button when a new version is ready: one tap installs it",
-    "See what's new in an update before installing it",
-    "Settings → Check for updates",
-    "Looks for updates when you open Webs and when you come back to it"
+    "Web AI: ask about the page you're on, or anything else (Menu → Web AI)",
+    "One tap for a summary, the key points or a simple explanation",
+    "Answers appear word by word, with lists, tables and code you can copy",
+    "Private tabs never send their page"
   ]
 }

@@ -576,6 +576,7 @@ function xTool(action, arg) {
     case 'x-md': xReply({ a: 'x-md', md: xToMd(), title: D.title || L.hostname }, 'md'); return true;
     case 'x-csv': { var c = xTablesCsv(); xReply({ a: 'x-csv', csv: c.csv, n: c.n, title: D.title || L.hostname }, 'csv'); return true; }
     case 'x-text': xReply({ a: 'x-text', t: String((D.body && D.body.innerText) || ''), save: arg === 'save' ? 1 : 0, title: D.title || L.hostname }, 't'); return true;
+    case 'x-ai': { var sl = ''; try { sl = String(W.getSelection() || ''); } catch (e) {} xReply({ a: 'x-ai', t: String((D.body && D.body.innerText) || '').slice(0, 60000), sel: sl.slice(0, 5000), title: D.title || L.hostname }, 't'); return true; }
     case 'x-words': xWords(); return true;
     case 'x-marks': xMarks(arg); return true;
     case 'x-calm': xCalm(); return true;
@@ -775,7 +776,7 @@ function xLaser() {
 /* The shell only passes a fixed set of shortcuts on while a page has the
    keyboard, so the new ones are caught here, from real key presses only, and
    handed to the browser the same way mouse gestures are. */
-var X_KEYS = 'BEGRUXZ', xKeysOn = true;
+var X_KEYS = 'ABEGRUXZ', xKeysOn = true;
 W.addEventListener('keydown', function (e) {
   if (!xKeysOn || !e.isTrusted || !TOP || e.ctrlKey || e.metaKey || !e.altKey) return;
   var k = '';

@@ -36,6 +36,17 @@ To publish one: make the changes, run `python3 tools/publish_iphone.py "What cha
 `main`. GitHub Pages takes a minute or two to serve it. The Windows browser has its own, separate
 updates: see `windows/README.md`.
 
+## Web AI
+
+*Menu → Web AI* is a chat with Claude, made by Anthropic. It can summarize the page you're on,
+pick out the key points, explain it simply, or answer anything else. It uses the same Web AI
+server as the Windows browser (`server/web-ai/`, with setup steps in its README). That server
+holds the API key and each person's Web AI code. On iPhone, Webs can't read the pages it shows,
+so with *Use this page* on it sends the page's address, and Claude opens it (once, a limited
+amount). Private tabs never send their page. The server's address comes with
+`updates/iphone.json` (`python3 tools/set_webai_server.py <address>`), so people only type their
+code.
+
 ## What it does
 
 Version 2.0 adds 150 new things. They're all listed in the app under *Menu → What's new*.
@@ -91,11 +102,14 @@ On an iPhone, an app can only show a website inside itself when that website all
 | `js/tools.js` | The Tools |
 | `js/extras.js` | The passcode lock, storage, alerts, page info, the reader view and keyboard shortcuts |
 | `js/whatsnew.js` | The list of what's new |
+| `js/webai.js` | Web AI (2.2) |
 | `js/qrcode.js` | [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) by Kazuhiko Arase (MIT license), for QR codes |
 | `games.html` | The offline games |
 | `manifest.webmanifest`, `icons/` | What iOS and Android use to install the app and draw its icon |
 | `sw.js` | Offline support, and how phones notice a new version (its `VERSION`) |
 | `updates/iphone.json` | The newest iPhone version and its notes, shown before updating |
 | `tools/publish_iphone.py` | Publishes an iPhone update (see Updates below) |
+| `tools/set_webai_server.py` | Tells every copy, iPhone and Windows, where the Web AI server is |
+| `server/web-ai/` | The Web AI server (a Cloudflare Worker) and how to set it up |
 
 There's no build step. To try it on your computer, run `python3 -m http.server` in this folder and open http://localhost:8000.

@@ -29,19 +29,19 @@ ch = once(ch, '  m.appendChild(row("sparkle", "What\'s new (287 features)", "", 
 ch = once(ch, '  m.appendChild(row("code", "Your CSS for this site…", "", cssPanel));\n',
   '  m.appendChild(row("code", "Your CSS for this site…", "", cssPanel));\n  m.appendChild(row("grid", "40 more page tools…", "", () => X3.toolsPanel()));\n', "chrome: tools panel row")
 ch = once(ch, "    [\"Close\", () => closeTab(id)]\n  ];\n  ctxMenu(e, items);", "    [\"Close\", () => closeTab(id)]\n  ];\n  if (window.X3) X3.tabItems(items, id);\n  ctxMenu(e, items);", "chrome: tab menu")
-ch = once(ch, "relayout();\n</script>", "relayout();\n</script>\n<script>\n" + rd(S, "chrome.add.js") + "\n</script>\n<script>\n" + rd(S, "cloud.js").replace("@@WEBS_VERSION@@", VERSION) + "\n</script>\n<script>\n" + rd(S, "studio.js") + "\n</script>", "chrome: script")
+ch = once(ch, "relayout();\n</script>", "relayout();\n</script>\n<script>\n" + rd(S, "chrome.add.js") + "\n</script>\n<script>\n" + rd(S, "cloud.js").replace("@@WEBS_VERSION@@", VERSION) + "\n</script>\n<script>\n" + rd(S, "studio.js") + "\n</script>\n<script>\n" + rd(S, "webai.js") + "\n</script>", "chrome: script")
 chrome_html = ch   # written once the feature count is known
 
 def page(name, css=None, js=None, edits=()):
     s = rd(O, name)
     for old, new, what in edits: s = once(s, old, new, name + ": " + what)
-    if css: s = once(s, "</style>\n", rd(S, css) + "</style>\n", name + ": css")
+    if css: s = once(s, "</style>\n", "".join(rd(S, c) for c in ([css] if isinstance(css, str) else css)) + "</style>\n", name + ": css")
     for f in ([js] if isinstance(js, str) else js or []):
         i = s.rindex("</script>")
         s = s[:i + 9] + "\n<script>\n" + rd(S, f) + "\n</script>" + s[i + 9:]
     write(name, s)
 
-page("side.html", "side.add.css", "side.add.js")
+page("side.html", ["side.add.css", "webai.side.css"], ["side.add.js", "webai.side.js"])
 page("newtab.html", "newtab.add.css", "newtab.add.js")
 page("settings.html", None, ["settings.add.js", "settings.acct.js"], edits=[
   ('  <h2 id="vpn">VPN</h2>', rd(S, "settings.acct.html") + '  <h2 id="vpn">VPN</h2>', "account section"),
@@ -74,7 +74,7 @@ print("games built")
 # whatsnew.html: the newest features first; the count on the page is worked out from the list
 wn = rd(O, "whatsnew.html")
 wn = once(wn, "const F = {\n", "const F = {\n" + rd(S, "whatsnew.31.js") + rd(S, "whatsnew.add.js"), "whatsnew: list")
-wn = once(wn, "The groups marked New arrived in this update.", "The groups marked 3.1 and 3.0 are the newest; the ones marked New came just before.", "whatsnew: sub")
+wn = once(wn, "The groups marked New arrived in this update.", "The groups marked 3.3, 3.2, 3.1 and 3.0 are the newest; the ones marked New came just before.", "whatsnew: sub")
 write("whatsnew.html", wn)
 body = wn[wn.index("const F = {"):wn.index("};\nlet n = 0;")]
 features = len(re.findall(r'^\s*\["', body, re.M))     # one card per line that starts a [title, what, where] entry

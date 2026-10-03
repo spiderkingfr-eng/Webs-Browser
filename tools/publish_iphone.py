@@ -8,7 +8,8 @@ every iPhone with Webs on its Home Screen shows an Update button the next time
 the app is opened or comes back from the background; one tap switches to it.
 
 This sets the version in js/app.js and sw.js (a new sw.js is what makes phones
-notice) and writes updates/iphone.json, whose notes show in the update sheet."""
+notice) and writes updates/iphone.json, whose notes show in the update sheet
+(its "webai" part, the Web AI server's address, is kept)."""
 import datetime, glob, json, os, re, sys
 
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -33,5 +34,10 @@ if missing: sys.exit("Add these to SHELL in sw.js first: " + ", ".join("js/" + o
 wr("js/app.js", app.replace('const VERSION = "%s";' % cur, 'const VERSION = "%s";' % new, 1))
 wr("sw.js", re.sub(r'const VERSION = "webs-[\d.]+";', 'const VERSION = "webs-%s";' % new, sw, count=1))
 os.makedirs(os.path.join(root, "updates"), exist_ok=True)
-wr("updates/iphone.json", json.dumps({ "version":new, "date":datetime.date.today().isoformat(), "notes":notes }, indent=2, ensure_ascii=False) + "\n")
+old = {}
+try: old = json.loads(rd("updates/iphone.json"))
+except (OSError, ValueError): pass
+manifest = { "version":new, "date":datetime.date.today().isoformat(), "notes":notes }
+if old.get("webai"): manifest["webai"] = old["webai"]      # the Web AI server's address (tools/set_webai_server.py)
+wr("updates/iphone.json", json.dumps(manifest, indent=2, ensure_ascii=False) + "\n")
 print("iPhone app %s -> %s. Commit, push and merge into main; phones offer it when Webs is next opened." % (cur, new))
