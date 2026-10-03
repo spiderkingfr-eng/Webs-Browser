@@ -1,8 +1,14 @@
-/* Webs Browser for iPhone - what's new in 2.4, 2.3, 2.2, 2.1 and 2.0, listed in the app
+/* Webs Browser for iPhone - what's new in 2.5, 2.4, 2.3, 2.2, 2.1 and 2.0, listed in the app
    (Menu → What's new) and offered once after each update. */
 "use strict";
 
 const WHATS_NEW = [
+  ["New in 2.5: the Phantom calendar", "sparkle", [
+    "The Phantom calendar: a start page card in the style of a Persona 5 phone theme, with five days in a V over a city at sunset and today stabbed by a dagger (Settings → Customize start page)",
+    "Set a deadline and the Q poll asks if you'll be ready, with the days left; without one it shows how much of today is left",
+    "Add up to four of your own pictures (✎ → Your pictures). They stand on the card as stickers, a different one each day, and stay on this iPhone",
+    "The time of day and the weather, the way the game's calendar shows them"
+  ]],
   ["New in 2.4: notifications", "bell", [
     "Notifications from Webs, even when it's closed: new versions and news (Settings → Notifications)",
     "A daily word reminder at the time you pick", "Tap a notification to go straight to the update, the news or the puzzle",
