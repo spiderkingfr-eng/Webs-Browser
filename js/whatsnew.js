@@ -1,8 +1,13 @@
-/* Webs Browser for iPhone - what's new in 2.3, 2.2, 2.1 and 2.0, listed in the app
+/* Webs Browser for iPhone - what's new in 2.4, 2.3, 2.2, 2.1 and 2.0, listed in the app
    (Menu → What's new) and offered once after each update. */
 "use strict";
 
 const WHATS_NEW = [
+  ["New in 2.4: notifications", "bell", [
+    "Notifications from Webs, even when it's closed: new versions and news (Settings → Notifications)",
+    "A daily word reminder at the time you pick", "Tap a notification to go straight to the update, the news or the puzzle",
+    "Send yourself a test notification to see how they look", "Works when Webs is on your Home Screen, with iOS 16.4 or newer"
+  ]],
   ["New in 2.3: talk with Web AI", "sparkle", [
     "Voice call with Web AI: tap 📞, ask out loud, and it answers out loud, then listens for your next question until you hang up",
     "🔊 under any answer reads it out loud", "If the phone can't listen, use the 🎤 on the keyboard: the answers are still spoken"

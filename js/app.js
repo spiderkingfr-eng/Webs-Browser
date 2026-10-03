@@ -15,7 +15,7 @@
    games, settings and backups - lives here and works offline. */
 "use strict";
 
-const VERSION = "2.3.0";
+const VERSION = "2.4.0";
 
 /* ---------------------------------------------------------------- look */
 const ACCENTS = ["#e8342a", "#ff7a1a", "#e0a100", "#2fa35f", "#1f9bd1", "#3d6cf0", "#8a5cf5", "#e0408a"];
@@ -1433,6 +1433,7 @@ function settingsHTML() {
       SW("notify", "Timer notifications", "Get a notification when a timer or focus round ends", !!cfg.notify) +
       SW("awake", "Keep the screen on during timers", "", cfg.awake !== false) +
       SW("badge", "Reading list count on the app icon", "Works when Webs is on your Home Screen", !!cfg.badge)) +
+    (typeof pushGroup === "function" ? pushGroup() : "") +
     GROUP("Storage and backup",
       BTN("storage", "Storage", "", "", "db") +
       BTN("export", "Save a backup", "", "", "dl") +

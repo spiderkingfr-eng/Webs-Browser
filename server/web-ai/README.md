@@ -116,6 +116,25 @@ Add these to `"vars"` in `wrangler.jsonc` (for example `"vars": { "DAILY_LIMIT":
 | `TOTAL_DAILY_LIMIT` | `150` | Questions for everyone together per day |
 | `MODEL` | `claude-haiku-4-5` | A cheaper, faster model (about half the price). Default `claude-sonnet-5-5` |
 
+## Notifications on iPhones
+
+The same server sends the iPhone app's notifications (Settings → Notifications in the app). Nothing to
+set up: it makes its own signing key the first time a phone asks, and Cloudflare runs it every
+minute (the `"triggers"` line in `wrangler.jsonc`, which setup.cmd sends along).
+
+- **New versions:** when `updates/iphone.json` gets a new version, every iPhone that wants it is told
+  about 10 to 20 minutes later (so the update is really online by then). The first line of the
+  notes is the message.
+- **News:** open your dashboard (`https://…workers.dev/admin`), write a title and a message under
+  **Notifications on iPhones**, and press Send. It needs the code named `Me` (or an `ADMIN_CODE`
+  secret), never a code you've handed out.
+- **Daily word reminder:** at the hour each person picked.
+
+iPhones only get notifications from apps on the Home Screen, with iOS 16.4 or newer. The server
+keeps each phone's notification address and choices (not who it belongs to), and forgets a phone
+when it turns notifications off. Big sends go out 20 phones at a time, a batch a minute, so a free
+Cloudflare account is fine.
+
 ## Seeing what's happening
 
 - **Claude Console → Usage** shows what each day cost.
@@ -131,6 +150,7 @@ Add these to `"vars"` in `wrangler.jsonc` (for example `"vars": { "DAILY_LIMIT":
 ## For developers
 
 - `node test.mjs` tests the worker with a pretend Claude API and pretend storage.
+- `node test-push.mjs` tests notifications with a pretend Apple push service that decrypts each message with the phone's key and checks the signature.
 - `windows/tests/t_webai.js` runs the browser's Web AI against this worker end to end.
 - The browser sends `POST /chat` with `{ code, messages:[{ role, content }], web? }` and reads back one JSON object per line: `{ d }` for each piece of text, then `{ end, stop, left }`, or `{ error, message }`.
 - The model, answer length, effort, system prompt and tools are fixed here. The browser can't change them.
