@@ -1,16 +1,14 @@
 {
-  "version": "3.3.0",
+  "version": "3.3.1",
   "date": "2026-10-03",
   "notes": [
-    "Web AI: an assistant in the sidebar that answers questions about the page you're on, or anything else (the ✦ button, or Alt+Shift+A)",
-    "One click for a summary, the key points or a simple explanation of the page",
-    "Choose whether Web AI reads the page; private windows never send theirs",
-    "Answers appear word by word, with lists, tables and code you can copy"
+    "Web AI is ready by itself: no code to type",
+    "Shows how many questions are left today"
   ],
   "exe": {
-    "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.3.0.exe",
-    "sha256": "cac23774623efea68cee4318d0ce4d387b05abdfc06fad818d3a42ce2f4aa560",
-    "size": 2615296
+    "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.3.1.exe",
+    "sha256": "e0b047715e742ab13ba0f7f1552b6f7d8257bf99ae0b4297eda80ac539564bad",
+    "size": 2618368
   },
   "updater": {
     "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebsUpdate.exe",
@@ -22,6 +20,7 @@
     "clientSecret": ""
   },
   "webai": {
-    "server": "https://web-ai.spiderkingfr.workers.dev"
+    "server": "https://web-ai.spiderkingfr.workers.dev",
+    "code": "jcku563mgxwn"
   }
 }

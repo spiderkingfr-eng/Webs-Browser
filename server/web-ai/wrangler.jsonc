@@ -1,5 +1,4 @@
 // Cloudflare's settings for the Web AI server, used by setup.cmd (wrangler deploy).
-// LIMITS has no id on purpose: wrangler creates the storage on the first deploy and reuses it after.
 // The key and the codes are secrets, set by setup.cmd (wrangler secret put), never written here.
 {
   "name": "web-ai",
@@ -7,5 +6,9 @@
   "compatibility_date": "2026-09-01",
   "workers_dev": true,
   "observability": { "enabled": true },
-  "kv_namespaces": [{ "binding": "LIMITS" }]
+  // the storage for the daily counts (made by the first deploy; leave out "id" on a new account)
+  "kv_namespaces": [{ "binding": "LIMITS", "id": "ed2500363e6d4b50bdaf5469f80eb50e" }],
+  // OPEN: anyone using Webs Browser can ask without a code, 25 a day per device,
+  // 100 per internet connection and 150 for everyone together
+  "vars": { "OPEN": "true" }
 }

@@ -98,9 +98,11 @@ the answer back. That folder's README has the setup steps.
   the selection and the title) and hands the result back (`wsb.xaiPage.<window>`), where the
   sidebar removes it as soon as it has read it. Private windows answer "private" without reading
   the page. A page is sent once per chat; follow-up questions about it don't send it again.
-- **The server's address** comes with `updates/latest.json` (`"webai": {"server": …}`, set with
-  `python3 ../tools/set_webai_server.py <address>`), so people only type their code. Until then,
-  it can be typed in Web AI's settings.
+- **Ready by itself:** the server's address (and a shared code) come with `updates/latest.json`
+  (`"webai": {"server": …, "code": …}`, set with `python3 ../tools/set_webai_server.py <address> --code <code>`).
+  When the server is open (`OPEN`), Web AI asks without a code and the server counts per device
+  (`wsb.xaiDev`, a random id). Otherwise it uses the shared code. A personal code can still be
+  entered in Web AI's settings.
 - **Kept on the computer:** the code and the current chat (`wsb.xai`, `wsb.xaiChat`). Neither is
   synced to Google.
 - **Answers** are shown as Markdown that is escaped first. Links only go to http(s) addresses and

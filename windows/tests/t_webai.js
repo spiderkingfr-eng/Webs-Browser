@@ -208,9 +208,48 @@ const SERVER = "https://web-ai.test.workers.dev";
   const sr = await sp.evaluate(() => __sent.filter(m => m.startsWith("wsb-page\u0001TK\u0001tool\u0001")).map(m => JSON.parse(m.split("\u0001")[3])).pop());
   check(sr && sr.a === "x-ai" && /Foxes eat berries/.test(sr.t) && sr.sel === "Foxes eat berries in summer." && sr.title === "Fox page", "shield x-ai: " + JSON.stringify(sr));
 
+  // ready by itself (3.3.1): the shared code from the update, no typing
+  kv.clear();
+  env.WEB_AI_CODES = "Sam=abcd1234efgh,Friend4=shared12345678";
+  await s.evaluate(S => { localStorage.removeItem("wsb.xai"); localStorage.removeItem("wsb.xaiChat"); localStorage.setItem("wsb.xaiConfig", JSON.stringify({ server:S, code:"shared12345678" })); }, SERVER);
+  await s.reload(); await s.waitForTimeout(700);
+  check(!!(await s.$(".xai-hello .xai-sug")) && !(await s.isVisible("#xaiCode")), "shared code: ready by itself, no setup screen");
+  check(/^Web AI$/.test(await s.textContent(".xai-hello h3")), "no 'Hi Friend4' for the shared code");
+  check((await s.textContent(".xai-left")) === "6 left today", "shared code: left today shown");
+  await s.fill(".xai-in textarea", "Hello"); await s.press(".xai-in textarea", "Enter"); await s.waitForTimeout(700);
+  check(/Better now|ok|foxes/i.test(await s.evaluate(() => [...document.querySelectorAll(".xai-a")].pop().textContent)), "shared code: question answered");
+  const dev1 = await s.evaluate(() => JSON.parse(localStorage.getItem("wsb.xaiDev")));
+  check(/^[0-9a-f]{30}$/.test(dev1), "a device id is made: " + dev1);
+  // the gear still lets someone enter a personal code
+  await s.click(".xai-gear"); await s.waitForTimeout(100);
+  check(/ready for everyone, no code needed/.test(await s.textContent(".xai-p")) && /Use this code/.test(await s.textContent("#xaiGo")), "settings say no code is needed");
+  await s.click("#xaiBack"); await s.waitForTimeout(100);
+
+  // open server (OPEN=true): no code at all, counted per device
+  kv.clear(); env.OPEN = "true";
+  await s.evaluate(S => { localStorage.removeItem("wsb.xai"); localStorage.setItem("wsb.xaiConfig", JSON.stringify({ server:S })); }, SERVER);
+  await s.reload(); await s.waitForTimeout(700);
+  check(await s.evaluate(() => !document.querySelector("#xai").classList.contains("setup")) && JSON.parse(await s.evaluate(() => localStorage.getItem("wsb.xai"))).open === true, "open server: ready by itself without any code");
+  await s.fill(".xai-in textarea", "Open question"); await s.press(".xai-in textarea", "Enter"); await s.waitForTimeout(700);
+  check([...kv.keys()].some(k => /:d[0-9a-f]{16}$/.test(k)) && ![...kv.keys()].some(k => /:p[0-9a-f]{16}$/.test(k)), "open server: counted per device, no code sent");
+  // the server stops being open: Web AI falls back to the shared code by itself
+  env.OPEN = ""; kv.clear();
+  await s.evaluate(S => localStorage.setItem("wsb.xaiConfig", JSON.stringify({ server:S, code:"shared12345678" })), SERVER);
+  await s.fill(".xai-in textarea", "After the change"); await s.press(".xai-in textarea", "Enter"); await s.waitForTimeout(900);
+  await s.fill(".xai-in textarea", "Again"); await s.press(".xai-in textarea", "Enter"); await s.waitForTimeout(900);
+  check(/ok|Better/i.test(await s.evaluate(() => [...document.querySelectorAll(".xai-a")].pop().textContent)), "falls back to the shared code when the server closes");
+  delete env.OPEN;
+
+  // the update file brings the shared code (cloud.js)
+  await ctx.unroute("https://raw.githubusercontent.com/**");
+  await ctx.route("https://raw.githubusercontent.com/**", r => r.fulfill({ status:200, contentType:"application/json",
+    body:JSON.stringify({ version:"3.3.0", notes:[], updater:{ url:"https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebsUpdate.exe" }, webai:{ server:"https://web-ai.owner.workers.dev", code:"shared12345678" } }) }));
+  await c.evaluate(() => X3.checkUpdate(true)); await c.waitForTimeout(600); await c.evaluate(() => { if (overlay) closeOver(); });
+  check(await c.evaluate(() => localStorage.getItem("wsb.xaiConfig")) === JSON.stringify({ server:"https://web-ai.owner.workers.dev", code:"shared12345678" }), "the shared code comes with updates/latest.json");
+
   // dark and light both readable
   kv.clear();
-  await s.evaluate(S => { localStorage.setItem("wsb.settings", JSON.stringify({ theme:"light" })); localStorage.setItem("wsb.xaiConfig", JSON.stringify({ server:S })); }, SERVER);
+  await s.evaluate(S => { localStorage.setItem("wsb.settings", JSON.stringify({ theme:"light" })); localStorage.setItem("wsb.xaiConfig", JSON.stringify({ server:S, code:"shared12345678" })); }, SERVER);
   await s.reload(); await s.waitForTimeout(300);
   await s.fill(".xai-in textarea", "Light theme check"); await s.press(".xai-in textarea", "Enter"); await s.waitForTimeout(700);
   await s.screenshot({ path:SHOTS + "webai-light.png" });

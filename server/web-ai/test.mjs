@@ -158,5 +158,48 @@ reply = { status:200, text:"event: content_block_delta\r\ndata: " + JSON.stringi
 r = await call("POST", "/chat", kq([{ role:"user", content:"hi" }]), ORIGIN, fresh);
 ok(r.lines[0].d === "crlf ok" && r.lines[1].end === 1, "CRLF lines");
 
+// open: no code needed; limits per device, per internet connection and for everyone
+{
+  kv.clear(); reply = null;
+  const openEnv = { ...env, OPEN:"true", WEB_AI_CODES:"", DAILY_LIMIT:"2", NETWORK_DAILY_LIMIT:"3" };
+  const ask = async (device, ip, e = openEnv) => {
+    const waits = [];
+    const res = await worker.fetch(new Request("https://w.workers.dev/chat", { method:"POST", headers:{ Origin:ORIGIN, "CF-Connecting-IP":ip, "content-type":"application/json" },
+      body:JSON.stringify({ device, messages:[{ role:"user", content:"hi" }] }) }), e, { waitUntil:p => waits.push(p) });
+    const t = await res.text(); await Promise.all(waits);
+    let j = null; try { j = JSON.parse(t); } catch (x) {}
+    return { status:res.status, j, t };
+  };
+  r = await call("GET", "/", null, ORIGIN, openEnv);
+  ok(r.j.ready === true && r.j.open === true, "open: ready without any codes");
+  r = await call("POST", "/check", { device:"devAAAAAAAAAAAAAAAA" }, ORIGIN, openEnv);
+  ok(r.j.ok && r.j.open === true && r.j.left === 2 && r.j.name === "", "open: check without a code: " + r.text);
+  let a = await ask("devAAAAAAAAAAAAAAAA", "1.2.3.4");
+  ok(a.status === 200 && /"end":1/.test(a.t), "open: a question without a code");
+  a = await ask("devAAAAAAAAAAAAAAAA", "1.2.3.4");
+  ok(a.status === 200, "open: second question");
+  a = await ask("devAAAAAAAAAAAAAAAA", "1.2.3.4");
+  ok(a.status === 429 && a.j.error === "limit" && /your 2 questions/.test(a.j.message), "open: limit per device");
+  a = await ask("devBBBBBBBBBBBBBBBB", "1.2.3.4");
+  ok(a.status === 200, "open: another device on the same connection");
+  a = await ask("devCCCCCCCCCCCCCCCC", "1.2.3.4");
+  ok(a.status === 429 && /internet connection has asked its 3/.test(a.j.message), "open: limit per internet connection");
+  a = await ask("", "5.6.7.8");
+  ok(a.status === 200, "open: no device id counts by connection");
+  a = await ask("short", "5.6.7.8");
+  ok(a.status === 200, "open: a too-short device id counts by connection too");
+  a = await ask("", "5.6.7.8");
+  ok(a.status === 429, "open: and is limited");
+  ok(![...kv.keys()].some(k => /1\.2\.3\.4|5\.6\.7\.8|devAAAA/.test(k)), "open: addresses and device ids are stored only as hashes");
+  r = await call("POST", "/check", { code:"wrong-code-1234" }, ORIGIN, openEnv);
+  ok(r.res.status === 401, "open: a wrong code is still refused");
+  r = await call("POST", "/check", { code:"abcd1234efgh" }, ORIGIN, { ...openEnv, WEB_AI_CODES:env.WEB_AI_CODES });
+  ok(r.j.ok && r.j.name === "Sam", "open: codes still work");
+  r = await call("POST", "/check", { device:"devAAAAAAAAAAAAAAAA" }, ORIGIN, { ...openEnv, OPEN:"", WEB_AI_CODES:env.WEB_AI_CODES });
+  ok(r.res.status === 401 && r.j.error === "code", "not open: a code is needed");
+  r = await call("GET", "/", null, ORIGIN, { ...openEnv, OPEN:"" });
+  ok(r.j.ready === false && r.j.open === false, "not open and no codes: not ready");
+}
+
 console.log(pass + " passed, " + fail + " failed");
 process.exit(fail ? 1 : 0);
