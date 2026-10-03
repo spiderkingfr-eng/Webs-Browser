@@ -97,6 +97,7 @@ On an iPhone, an app can only show a website inside itself when that website all
 
 ## Files
 
+
 | File | What it is |
 | --- | --- |
 | `index.html`, `app.css` | The app's page and layout |
