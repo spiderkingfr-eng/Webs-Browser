@@ -51,8 +51,10 @@ export default {
     if (req.method === "OPTIONS") return new Response(null, { status:204, headers:{ ...cors, "Access-Control-Max-Age":"86400" } });
     const path = new URL(req.url).pathname.replace(/\/+$/, "") || "/";
     try {
-      if (req.method === "GET" && path === "/")
-        return json({ ok:true, name:"Web AI", ready:!setupProblem(env), model:model(env) }, 200, cors);
+      if (req.method === "GET" && path === "/") {      // says what's missing, never any value
+        const missing = setupProblem(env);
+        return json({ ok:true, name:"Web AI", ready:!missing, model:model(env), ...(missing ? { missing:"Still to do: " + missing } : {}) }, 200, cors);
+      }
       if (req.method !== "POST" || (path !== "/check" && path !== "/chat")) return json({ error:"not_found", message:"Nothing here." }, 404, cors);
       const problem = setupProblem(env);
       if (problem) return json({ error:"setup", message:"The Web AI server isn't finished: " + problem }, 503, cors);
@@ -75,7 +77,7 @@ export default {
 
       const up = await fetch(API, {
         method:"POST",
-        headers:{ "content-type":"application/json", "x-api-key":env.ANTHROPIC_API_KEY, "anthropic-version":"2023-06-01" },
+        headers:{ "content-type":"application/json", "x-api-key":String(env.ANTHROPIC_API_KEY).trim(), "anthropic-version":"2023-06-01" },
         body:JSON.stringify({
           model:model(env),
           max_tokens:MAX_TOKENS,
@@ -121,7 +123,9 @@ const model = env => String(env.MODEL || "").trim() || "claude-sonnet-5-5";
 const limit = (v, d) => { const n = parseInt(v, 10); return n > 0 ? n : d; };
 
 function setupProblem(env) {
-  if (!/^sk-ant-/.test(String(env.ANTHROPIC_API_KEY || "").trim())) return "add the ANTHROPIC_API_KEY secret.";
+  const key = String(env.ANTHROPIC_API_KEY || "").trim();
+  if (!key) return "add the ANTHROPIC_API_KEY secret.";
+  if (!/^sk-ant-/.test(key)) return "the ANTHROPIC_API_KEY secret isn't a Claude API key (those start with sk-ant-). Set it again.";
   if (!codes(env).length) return "add the WEB_AI_CODES secret (Name=code, one per line; codes need 8 or more letters and numbers).";
   if (!env.LIMITS || typeof env.LIMITS.get !== "function") return "bind a KV namespace called LIMITS.";
   return "";

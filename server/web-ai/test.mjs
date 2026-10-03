@@ -55,7 +55,11 @@ ok(r.res.status === 503 && /LIMITS/.test(r.j.message), "missing KV explained");
 r = await call("POST", "/chat", q("hi"), ORIGIN, { ...env, WEB_AI_CODES:"Bob=short" });
 ok(r.res.status === 503 && /WEB_AI_CODES/.test(r.j.message), "codes that are too short are ignored");
 r = await call("GET", "/", null, ORIGIN, { ...env, ANTHROPIC_API_KEY:"" });
-ok(r.j.ready === false, "GET / says not ready");
+ok(r.j.ready === false && /add the ANTHROPIC_API_KEY/.test(r.j.missing), "GET / says not ready, and why");
+r = await call("GET", "/", null, ORIGIN, { ...env, ANTHROPIC_API_KEY:"Me=ytqewzgd2mju,Friend1=crttv7gsxg7d" });
+ok(r.j.ready === false && /isn't a Claude API key/.test(r.j.missing) && !/ytqewzgd2mju/.test(r.text), "GET / spots codes pasted as the key, without showing them");
+r = await call("GET", "/");
+ok(!("missing" in r.j), "nothing missing when ready");
 
 // codes
 r = await call("POST", "/check", { code:"wrong-code-123" });
