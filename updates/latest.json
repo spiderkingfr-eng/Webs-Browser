@@ -1,15 +1,15 @@
 {
-  "version": "3.5.0",
+  "version": "3.5.1",
   "date": "2026-10-03",
   "notes": [
-    "Phantom calendar: a Persona 5-style card for the new tab page (New tab → Customize)",
-    "Set a deadline and see the days left, with this week's days crossed off",
-    "Shows the time of day and the weather, the way the game's calendar does"
+    "Phantom calendar redrawn like a Persona 5 phone theme: five days in a V over a city at sunset, today stabbed by a dagger",
+    "Add your own pictures to it (✎ → Your pictures); they stay on this computer",
+    "The Q poll shows your deadline and days left, or your battery, or how much of today is left"
   ],
   "exe": {
-    "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.5.0.exe",
-    "sha256": "9dbca71c17435c034ed267c853476d00c49ffc2c5a7554886fefc0173fe5e4b9",
-    "size": 2648064
+    "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.5.1.exe",
+    "sha256": "770477f2fb4c81e2fbc03342bf39522595e3a4e1ee3885e3d8bc19f8c9c7848a",
+    "size": 2657792
   },
   "updater": {
     "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebsUpdate.exe",
