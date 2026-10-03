@@ -47,6 +47,15 @@ amount). Private tabs never send their page. The server's address comes with
 `updates/iphone.json` (`python3 tools/set_webai_server.py <address>`), so people only type their
 code.
 
+## Notifications
+
+*Settings → Notifications* (2.4) lets Webs send notifications even when it's closed: when a new
+version is out, news from you (sent from the Web AI server's dashboard, `…workers.dev/admin`), and
+a daily word reminder at the time each person picks. They come from the same Web AI server
+(`server/web-ai/`, "Notifications on iPhones" in its README), so there's nothing else to set up
+once it's deployed. iPhones only allow notifications for apps on the Home Screen, with iOS 16.4
+or newer.
+
 ## What it does
 
 Version 2.0 adds 150 new things. They're all listed in the app under *Menu → What's new*.
@@ -103,6 +112,7 @@ On an iPhone, an app can only show a website inside itself when that website all
 | `js/extras.js` | The passcode lock, storage, alerts, page info, the reader view and keyboard shortcuts |
 | `js/whatsnew.js` | The list of what's new |
 | `js/webai.js` | Web AI (2.2) |
+| `js/push.js` | Notifications (2.4); `sw.js` shows them |
 | `js/qrcode.js` | [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) by Kazuhiko Arase (MIT license), for QR codes |
 | `games.html` | The offline games |
 | `manifest.webmanifest`, `icons/` | What iOS and Android use to install the app and draw its icon |

@@ -1,9 +1,10 @@
 {
-  "version": "2.3.0",
+  "version": "2.4.0",
   "date": "2026-10-03",
   "notes": [
-    "Voice call with Web AI: tap 📞, ask out loud, and Web AI answers out loud",
-    "🔊 under any answer reads it out loud"
+    "Notifications: new versions and news from Webs, even when it's closed (Settings → Notifications)",
+    "A daily word reminder at the time you pick",
+    "Send yourself a test notification to see how they look"
   ],
   "webai": {
     "server": "https://web-ai.spiderkingfr.workers.dev",

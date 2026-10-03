@@ -30,8 +30,17 @@
      POST /link/join { code?, device, pair } -> { link }
      POST /send    { link, me, from, url, title }            send a page to the other linked devices
      POST /inbox   { link, me, since }  -> { items:[{ id, ts, from, url, title }] }
-     GET  /admin   the owner's dashboard: questions per day, devices, cost, problem reports
+     GET  /admin   the owner's dashboard: questions per day, devices, cost, problem reports,
+                   and sending news to every iPhone with notifications on
                    (it signs in with ADMIN_CODE, or the code named Me / Owner, or the first code)
+
+     Notifications for the iPhone app (Web Push), see "notifications" below:
+     GET  /push/key                -> { key }   this server's public key, made the first time
+     POST /push/subscribe   { sub:{ endpoint, keys:{ p256dh, auth } }, key, updates, news, daily, utcHour }
+     POST /push/unsubscribe { endpoint }
+     POST /push/test        { endpoint }        one test notification to that phone (5 a day)
+     Cloudflare runs scheduled() every minute (wrangler.jsonc "triggers"): it announces new
+     versions of the iPhone app and sends the daily word reminders.
 
    The raw Messages API is called with fetch, so this one file can be pasted
    into the Cloudflare editor without a build step. */
@@ -65,8 +74,9 @@ export default {
     try {
       if (req.method === "GET" && path === "/") {      // says what's missing, never any value
         const missing = setupProblem(env);
-        return json({ ok:true, name:"Web AI", ready:!missing, open:isOpen(env), model:model(env), features:["report", "link", "admin"], ...(missing ? { missing:"Still to do: " + missing } : {}) }, 200, cors);
+        return json({ ok:true, name:"Web AI", ready:!missing, open:isOpen(env), model:model(env), features:["report", "link", "admin", "push"], ...(missing ? { missing:"Still to do: " + missing } : {}) }, 200, cors);
       }
+      if ((req.method === "GET" && path === "/push/key") || (req.method === "POST" && /^\/push\/(subscribe|unsubscribe|test)$/.test(path))) return await pushApi(path, req, env, cors);
       if (req.method === "GET" && path === "/admin") return new Response(ADMIN_PAGE, { headers:{ "content-type":"text/html; charset=utf-8", "cache-control":"no-store",
         "x-frame-options":"DENY", "referrer-policy":"no-referrer", "content-security-policy":"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'" } });
       if (req.method === "POST" && path === "/admin") return await admin(req, env);
@@ -121,6 +131,10 @@ export default {
       console.log("Web AI server error", e && e.stack || e);
       return json({ error:"server", message:"The Web AI server hit a problem. Try again in a moment." }, 500, cors);
     }
+  },
+  // every minute (wrangler.jsonc "triggers"): new versions of the iPhone app, daily reminders, big sends
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(pushCron(env, event && event.scheduledTime || Date.now()).catch(e => console.log("notifications:", e && e.stack || e)));
   }
 };
 
@@ -333,6 +347,197 @@ async function extras(path, req, env, cors) {
   return json({ error:"not_found", message:"Nothing here." }, 404, cors);
 }
 
+/* ---------------------------------------------------------------- notifications (Web Push) for the iPhone app
+   The app subscribes with the phone's push service (Apple's, on an iPhone) and sends the subscription
+   here. Each message is encrypted for that one phone (RFC 8291) and signed with this server's own key
+   (VAPID, RFC 8292), which it makes the first time the app asks for it and keeps in LIMITS.
+
+   Three kinds, each one a switch in the app: new versions of the app (updates/iphone.json is checked
+   every 10 minutes, and a new version is announced once it has been out for 10 minutes, so it's really
+   there), news (sent by the owner from /admin), and a daily word reminder at the hour the person picked.
+
+   Stored in LIMITS: ps:<id> one per phone (id = a hash of its push address), pd:<hour>:<id> for the
+   phones that want the reminder at that UTC hour, push:vapid the key, push:state the scheduled sends.
+   A free worker may make 50 requests at a time, so sends go out BATCH phones at a time, and a big one
+   carries on minute by minute. Writes are kept rare: a free account has 1,000 a day. */
+const PUSH_HOSTS = /^(web\.push\.apple\.com|[a-z0-9-]+\.push\.apple\.com|fcm\.googleapis\.com|android\.googleapis\.com|updates\.push\.services\.mozilla\.com|push\.services\.mozilla\.com|[a-z0-9-]+\.notify\.windows\.com)$/;
+const BATCH = 20;
+const APP_URL = "https://spiderkingfr-eng.github.io/Webs-Browser/";
+const IPHONE_UPDATES = "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/iphone.json";
+const DAILY = { title:"🧩 Today's word is ready", body:"Can you guess it in six tries? Keep your streak going.", url:"games.html#word", tag:"webs-daily" };
+const te = s => new TextEncoder().encode(s);
+const cat = (...a) => { const o = new Uint8Array(a.reduce((n, x) => n + x.length, 0)); let i = 0; for (const x of a) { o.set(x, i); i += x.length; } return o; };
+const b64u = buf => { const b = new Uint8Array(buf); let s = ""; for (let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]); return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); };
+const unb64u = s => { s = String(s).replace(/=+$/, "").replace(/-/g, "+").replace(/_/g, "/"); const bin = atob(s + "===".slice((s.length + 3) % 4)); return Uint8Array.from(bin, c => c.charCodeAt(0)); };
+const pad2 = n => String(n).padStart(2, "0");
+const pushId = async endpoint => b64u((await crypto.subtle.digest("SHA-256", te(endpoint))).slice(0, 16));
+const readJSON = async (env, k) => { try { return JSON.parse(await env.LIMITS.get(k) || "null"); } catch (e) { return null; } };
+
+async function vapid(env, make) {
+  const v = await readJSON(env, "push:vapid");
+  if (v && v.pub && v.jwk) return v;
+  if (!make) return null;
+  const k = await crypto.subtle.generateKey({ name:"ECDSA", namedCurve:"P-256" }, true, ["sign", "verify"]);
+  const n = { pub:b64u(await crypto.subtle.exportKey("raw", k.publicKey)), jwk:await crypto.subtle.exportKey("jwk", k.privateKey), at:Date.now() };
+  await env.LIMITS.put("push:vapid", JSON.stringify(n));
+  return n;
+}
+// one signature per push service and send (a send to many iPhones signs once)
+async function vapidAuth(c, endpoint) {
+  const aud = new URL(endpoint).origin;
+  if (c.auth.has(aud)) return c.auth.get(aud);
+  if (!c.key) c.key = await crypto.subtle.importKey("jwk", c.v.jwk, { name:"ECDSA", namedCurve:"P-256" }, false, ["sign"]);
+  const part = o => b64u(te(JSON.stringify(o)));
+  const data = part({ typ:"JWT", alg:"ES256" }) + "." + part({ aud, exp:Math.floor(Date.now() / 1000) + 12 * 3600, sub:c.contact });
+  const sig = await crypto.subtle.sign({ name:"ECDSA", hash:"SHA-256" }, c.key, te(data));
+  const h = "vapid t=" + data + "." + b64u(sig) + ", k=" + c.v.pub;
+  c.auth.set(aud, h);
+  return h;
+}
+// RFC 8291: only the phone with the subscription's private key can read the message
+async function encrypt(sub, text) {
+  const S = crypto.subtle, ua = unb64u(sub.p), auth = unb64u(sub.a);
+  const eph = await S.generateKey({ name:"ECDH", namedCurve:"P-256" }, true, ["deriveBits"]);
+  const asPub = new Uint8Array(await S.exportKey("raw", eph.publicKey));
+  const secret = new Uint8Array(await S.deriveBits({ name:"ECDH", public:await S.importKey("raw", ua, { name:"ECDH", namedCurve:"P-256" }, false, []) }, eph.privateKey, 256));
+  const hkdf = async (salt, ikm, info, n) => new Uint8Array(await S.deriveBits({ name:"HKDF", hash:"SHA-256", salt, info }, await S.importKey("raw", ikm, "HKDF", false, ["deriveBits"]), n * 8));
+  const ikm = await hkdf(auth, secret, cat(te("WebPush: info\0"), ua, asPub), 32);
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const [cek, nonce] = await Promise.all([hkdf(salt, ikm, te("Content-Encoding: aes128gcm\0"), 16), hkdf(salt, ikm, te("Content-Encoding: nonce\0"), 12)]);
+  const body = new Uint8Array(await S.encrypt({ name:"AES-GCM", iv:nonce }, await S.importKey("raw", cek, "AES-GCM", false, ["encrypt"]), cat(te(text), new Uint8Array([2]))));
+  const head = new Uint8Array(86);
+  head.set(salt, 0); new DataView(head.buffer).setUint32(16, 4096); head[20] = 65; head.set(asPub, 21);
+  return cat(head, body);
+}
+const pushCtx = (env, v) => ({ v, auth:new Map(), key:null, contact:/^(mailto:|https:\/\/)\S+$/.test(String(env.PUSH_CONTACT || "")) ? String(env.PUSH_CONTACT) : APP_URL });
+// one message to one phone; the push service's answer (201 = taken, 404/410 = that phone unsubscribed)
+async function pushOne(c, sub, msg) {
+  const r = await fetch(sub.e, { method:"POST", body:await encrypt(sub, JSON.stringify(msg)), headers:{
+    TTL:String(msg.ttl || 86400), "Content-Encoding":"aes128gcm", "Content-Type":"application/octet-stream", Urgency:"normal",
+    ...(msg.tag ? { Topic:msg.tag } : {}), Authorization:await vapidAuth(c, sub.e) } });
+  if (r.body) r.body.cancel().catch(() => {});
+  return r.status;
+}
+async function forget(env, id) {
+  const s = await readJSON(env, "ps:" + id);
+  if (s && s.d >= 0) await env.LIMITS.delete("pd:" + pad2(s.d) + ":" + id);
+  await env.LIMITS.delete("ps:" + id);
+}
+const WANT = { updates:s => s.u, news:s => s.n, daily:() => true };
+/* One batch of a send: the next BATCH phones under prefix (ps: everyone, pd:HH: that hour's reminders). */
+async function pushBatch(env, prefix, kind, msg, cursor) {
+  const c = pushCtx(env, await vapid(env, false));
+  const l = await env.LIMITS.list({ prefix, limit:BATCH, ...(cursor ? { cursor } : {}) });
+  const out = { sent:0, gone:0, failed:0, cursor:l.list_complete ? "" : l.cursor || "", done:!!l.list_complete || !l.cursor };
+  if (!c.v) return out;
+  const subs = await Promise.all(l.keys.map(async k => {
+    const id = k.name.split(":").pop(), m = k.metadata;
+    return m && m.e ? { id, ...m } : Object.assign({ id }, await readJSON(env, "ps:" + id));
+  }));
+  await Promise.all(subs.filter(s => s.e && WANT[kind](s)).map(async s => {
+    try {
+      const st = await pushOne(c, s, msg);
+      if (st >= 200 && st < 300) out.sent++;
+      else if (st === 404 || st === 410) { out.gone++; await forget(env, s.id); }
+      else { out.failed++; console.log("notification not taken:", st, new URL(s.e).host); }
+    } catch (e) { out.failed++; console.log("notification failed:", e && e.message); }
+  }));
+  return out;
+}
+const tidyMsg = m => {
+  const url = String(m.url || "").trim();
+  return { title:cut(m.title, 80).trim() || "Webs", body:cut(m.body, 300).trim(), url:/^(https:\/\/|\.\/|games\.html)[^\s"<>]*$/.test(url) ? url.slice(0, 500) : "./", tag:/^[A-Za-z0-9_-]{1,32}$/.test(m.tag || "") ? m.tag : "" };
+};
+
+async function pushApi(path, req, env, cors) {
+  if (!env.LIMITS || typeof env.LIMITS.get !== "function") return json({ error:"setup", message:"The Web AI server isn't finished: bind a KV namespace called LIMITS." }, 503, cors);
+  if (path === "/push/key") return json({ ok:true, key:(await vapid(env, true)).pub }, 200, cors);
+  let body = null;
+  try { body = await req.json(); } catch (e) {}
+  if (!body || typeof body !== "object") return json({ error:"bad", message:"The app sent something the server can't read." }, 400, cors);
+  const sub = body.sub && typeof body.sub === "object" ? body.sub : {}, endpoint = String(sub.endpoint || body.endpoint || "");
+  let u = null; try { u = new URL(endpoint); } catch (e) {}
+  if (!u || u.protocol !== "https:" || u.port || u.username || u.password || !PUSH_HOSTS.test(u.hostname) || endpoint.length > 1000)
+    return json({ error:"bad", message:"That isn't a notification service Webs knows." }, 400, cors);
+  const id = await pushId(endpoint);
+  if (path === "/push/unsubscribe") { await forget(env, id); return json({ ok:true }, 200, cors); }
+
+  if (path === "/push/test") {
+    const s = await readJSON(env, "ps:" + id), v = await vapid(env, false);
+    if (!s || !v) return json({ error:"gone", message:"This iPhone isn't signed up for notifications. Turn them off and on again." }, 404, cors);
+    if (await overLimit(env, "ptest:" + id, 5)) return json({ error:"limit", message:"That's enough tests for today." }, 429, cors);
+    const st = await pushOne(pushCtx(env, v), s, tidyMsg({ title:"Notifications are on 🎉", body:"This is how Webs will tell you about new versions and news.", url:"./", tag:"webs-test" }));
+    if (st === 404 || st === 410) { await forget(env, id); return json({ error:"gone", message:"Apple says this iPhone isn't signed up any more. Turn notifications off and on again." }, 410, cors); }
+    return st >= 200 && st < 300 ? json({ ok:true }, 200, cors) : json({ error:"push", message:"Apple didn't take the notification (" + st + "). Try again later." }, 502, cors);
+  }
+
+  // subscribe (also how the app updates its choices)
+  const keys = sub.keys && typeof sub.keys === "object" ? sub.keys : {};
+  const p = String(keys.p256dh || "").replace(/=+$/, ""), a = String(keys.auth || "").replace(/=+$/, "");
+  let pk = null, ak = null; try { pk = unb64u(p); ak = unb64u(a); } catch (e) {}
+  if (!/^[A-Za-z0-9_-]+$/.test(p + a) || !pk || pk.length !== 65 || pk[0] !== 4 || !ak || ak.length !== 16)
+    return json({ error:"bad", message:"The notification keys from the app aren't right." }, 400, cors);
+  const v = await vapid(env, true);
+  if (String(body.key || "") !== v.pub) return json({ error:"key", key:v.pub, message:"Sign up again with the server's current key." }, 409, cors);
+  const h = Number(body.utcHour), d = body.daily === true && Number.isInteger(h) && h >= 0 && h < 24 ? h : -1;
+  const rec = { e:endpoint, p, a, u:body.updates === false ? 0 : 1, n:body.news === false ? 0 : 1, d };
+  const old = await readJSON(env, "ps:" + id);
+  if (old && old.e === rec.e && old.p === rec.p && old.a === rec.a && old.u === rec.u && old.n === rec.n && old.d === rec.d && Date.now() - (old.t || 0) < 30 * 86400000)
+    return json({ ok:true }, 200, cors);      // nothing new (the app checks in now and then)
+  if (!old && await overLimit(env, "psub:" + (await hash("ip:" + (req.headers.get("CF-Connecting-IP") || ""))), 100))      // a school can be one connection
+    return json({ error:"limit", message:"Too many sign-ups from this connection today." }, 429, cors);
+  const meta = JSON.stringify(rec).length < 1000 ? { metadata:rec } : {};
+  if (old && old.d >= 0 && old.d !== d) await env.LIMITS.delete("pd:" + pad2(old.d) + ":" + id);
+  await env.LIMITS.put("ps:" + id, JSON.stringify({ ...rec, t:Date.now() }), { expirationTtl:400 * 86400, ...meta });
+  if (d >= 0) await env.LIMITS.put("pd:" + pad2(d) + ":" + id, "1", { expirationTtl:400 * 86400, ...meta });
+  return json({ ok:true }, 200, cors);
+}
+
+/* Every minute. push:state is only written when there's something to send: sends wait in s.jobs
+   ({ kind, prefix, msg, cursor, sent, tries }) and go out one batch a minute. Each batch is marked as
+   tried before it goes, so a run Cloudflare cuts short can't repeat it forever (3 tries, then skipped). */
+async function pushCron(env, now) {
+  if (!env.LIMITS || typeof env.LIMITS.get !== "function") return;
+  const t = new Date(now), minute = t.getUTCMinutes();
+  const s = await readJSON(env, "push:state") || {};
+  s.jobs = Array.isArray(s.jobs) ? s.jobs : [];
+  let dirty = false;
+  const save = () => env.LIMITS.put("push:state", JSON.stringify(s));
+
+  // a new version of the iPhone app
+  if (minute % 10 === 0) {
+    let ver = "", note = "";
+    try {
+      const r = await fetch(env.IPHONE_UPDATES || IPHONE_UPDATES, { headers:{ "cache-control":"no-cache" } });
+      const j = r.ok ? await r.json() : null;
+      if (j && /^\d+\.\d+\.\d+$/.test(j.version || "")) { ver = j.version; note = Array.isArray(j.notes) && typeof j.notes[0] === "string" ? j.notes[0] : ""; }
+    } catch (e) {}
+    if (ver && !s.sentVer) { s.sentVer = ver; dirty = true; }          // the first look: that version is old news
+    else if (ver && ver !== s.sentVer) {
+      if (s.newVer !== ver) { s.newVer = ver; s.newAt = now; dirty = true; }
+      else if (now - s.newAt >= 10 * 60000 - 5000) {
+        s.sentVer = ver; dirty = true;
+        s.jobs.push({ kind:"updates", prefix:"ps:", cursor:"", sent:0, msg:tidyMsg({ title:"Webs " + ver.replace(/\.0$/, "") + " is here ✨", body:(note ? note + ". " : "") + "Tap to update.", url:"./?go=update", tag:"webs-update" }) });
+      }
+    }
+  }
+  // the daily word reminders for this hour (only looked at when someone wants that hour)
+  if (minute === 0) {
+    const prefix = "pd:" + pad2(t.getUTCHours()) + ":";
+    if ((await env.LIMITS.list({ prefix, limit:1 })).keys.length) { s.jobs.push({ kind:"daily", prefix, cursor:"", sent:0, msg:tidyMsg(DAILY) }); dirty = true; }
+  }
+
+  const j = s.jobs[0];
+  if (!j) { if (dirty) await save(); return; }
+  if ((j.tries || 0) >= 3) { console.log("notifications: skipped a batch that failed 3 times", j.kind); s.jobs.shift(); await save(); return; }
+  j.tries = (j.tries || 0) + 1;
+  await save();
+  const r = await pushBatch(env, j.prefix, j.kind, j.msg, j.cursor);
+  j.tries = 0; j.sent = (j.sent || 0) + r.sent; j.cursor = r.cursor;
+  if (r.done) { s.last = s.last || {}; s.last[j.kind] = { at:now, sent:j.sent, title:j.msg.title }; s.jobs.shift(); }
+  await save();
+}
+
 /* ---------------------------------------------------------------- the owner's dashboard */
 function adminCode(env) {
   if (String(env.ADMIN_CODE || "").trim().length >= 8) return String(env.ADMIN_CODE).trim();
@@ -350,6 +555,17 @@ async function admin(req, env) {
   if (!want || !code || !same(code, want)) { await bump(env, failKey, day, await count(env, failKey, day)); return json({ error:"code", message:want ? "That isn't the owner's code." : "Add a Web AI code named Me (or ADMIN_CODE) to use this page." }, 401, h); }
   const op = body.op || "stats";
   if (op === "delete") { if (/^[0-9]{13}-[a-z0-9]{6}$/.test(String(body.id || ""))) await env.LIMITS.delete("report:" + body.id); return json({ ok:true }, 200, h); }
+  if (op === "push") {       // news to every iPhone that wants it, a batch per call (the page calls again with the cursor)
+    // only with an owner's code chosen on purpose: the first code could be one handed out to everyone
+    if (String(env.ADMIN_CODE || "").trim().length < 8 && !codes(env).some(x => /^(me|owner|admin)$/i.test(x.name)))
+      return json({ error:"code", message:"Sending news needs a Web AI code named Me (or an ADMIN_CODE secret)." }, 403, h);
+    if (!cut(body.title, 80).trim() || !cut(body.text, 300).trim()) return json({ error:"bad", message:"Write a title and a message first." }, 400, h);
+    const msg = tidyMsg({ title:body.title, body:body.text, url:String(body.url || "").trim() || "./", tag:"news-" + (+body.started || Date.now()).toString(36) });
+    if (body.url && msg.url !== String(body.url).trim()) return json({ error:"bad", message:"The link has to start with https://" }, 400, h);
+    const r = await pushBatch(env, "ps:", "news", msg, String(body.cursor || ""));
+    if (r.done) await env.LIMITS.put("push:news", JSON.stringify({ at:Date.now(), title:msg.title, sent:(+body.sentSoFar || 0) + r.sent }));
+    return json({ ok:true, ...r }, 200, h);
+  }
   if (op === "reports") {
     const l = await env.LIMITS.list({ prefix:"report:", limit:100 });
     const items = (await Promise.all(l.keys.map(k => env.LIMITS.get(k.name)))).map(v => { try { return JSON.parse(v); } catch (e) { return null; } }).filter(Boolean);
@@ -366,8 +582,12 @@ async function admin(req, env) {
   const people = await env.LIMITS.list({ prefix:"n:" + day + ":", limit:1000 });
   const who = people.keys.map(k => k.name.split(":")[2]).filter(x => /^[pd][0-9a-f]{16}$/.test(x));
   const reports = await env.LIMITS.list({ prefix:"report:", limit:100 });
+  const phones = await env.LIMITS.list({ prefix:"ps:", limit:1000 }), pm = phones.keys.map(k => k.metadata || {});
+  const ps = await readJSON(env, "push:state") || {}, last = ps.last || {};
+  const push = { phones:phones.keys.length, more:!phones.list_complete, updates:pm.filter(x => x.u).length, news:pm.filter(x => x.n).length, daily:pm.filter(x => x.d >= 0).length,
+    lastUpdate:last.updates || null, lastDaily:last.daily || null, lastNews:await readJSON(env, "push:news"), sending:(ps.jobs || []).length };
   return json({ ok:true, model:m, open:isOpen(env), limits:{ perDevice:limit(env.DAILY_LIMIT, 25), total:limit(env.TOTAL_DAILY_LIMIT, 150) },
-    days:rows, today:{ devices:who.filter(x => x[0] === "d").length, people:who.filter(x => x[0] === "p").length }, reports:reports.keys.length }, 200, h);
+    days:rows, today:{ devices:who.filter(x => x[0] === "d").length, people:who.filter(x => x[0] === "p").length }, reports:reports.keys.length, push }, 200, h);
 }
 const ADMIN_PAGE = `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
 <title>Web AI dashboard</title>
@@ -384,6 +604,9 @@ button{background:var(--accent);color:#fff;border:0;border-radius:10px;padding:1
 .bar em{font-style:normal;color:var(--dim);text-align:right;font-variant-numeric:tabular-nums}
 .rep{margin-bottom:10px}.rep h3{font-size:14px;margin:0 0 4px}.rep .meta{color:var(--dim);font-size:12.5px}.rep pre{white-space:pre-wrap;word-break:break-word;background:var(--bg3);border-radius:8px;padding:8px;font-size:12px;max-height:240px;overflow:auto}
 .err{color:#ff7a6e}.hide{display:none}
+.push label{display:block;margin:10px 0 0;font-size:13px;color:var(--dim)}.push input,.push textarea{display:block;width:100%;max-width:none;margin-top:4px}
+.push textarea{background:var(--bg3);border:1px solid var(--line);border-radius:10px;color:var(--fg);padding:10px 12px;font:inherit;resize:vertical;min-height:70px}
+.push .row{display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap}.push .row button{margin:0}.push .row span{color:var(--dim);font-size:13px}
 </style>
 <main><h1>Web AI dashboard</h1><p class="d">Questions, devices and cost for your Web AI server, and the problems people reported.</p>
 <div id="login" class="card"><label>Owner's code<br><input id="code" type="password" autocomplete="current-password"></label><button id="go">Open</button><p id="msg" class="err"></p></div>
@@ -392,6 +615,11 @@ button{background:var(--accent);color:#fff;border:0;border-radius:10px;padding:1
 <div class="card tile"><b id="tc">$0</b><span>cost today (about)</span></div><div class="card tile"><b id="tm">$0</b><span>last 14 days (about)</span></div></div>
 <h2>The last 14 days</h2><div class="card bars" id="bars"></div>
 <p class="d" id="lim"></p>
+<h2>Notifications on iPhones</h2><div class="card push"><p class="d" id="pn" style="margin:0"></p>
+<label>Title<input id="ptitle" maxlength="80" placeholder="New games are here!"></label>
+<label>Message<textarea id="ptext" maxlength="300" placeholder="Open Webs and try Pong and Breakout."></textarea></label>
+<label>Link when they tap it (optional)<input id="purl" maxlength="500" placeholder="https://… (leave empty to open Webs)"></label>
+<div class="row"><button id="psend">Send to everyone</button><span id="pmsg"></span></div></div>
 <h2>Problem reports (<span id="rn">0</span>)</h2><div id="reps"></div></div></main>
 <script>
 const $ = s => document.getElementById(s), E = (t, c) => { const e = document.createElement(t); if (c) e.className = c; return e; };
@@ -406,6 +634,10 @@ async function load() {
   $("bars").innerHTML = "";
   s.days.slice().reverse().forEach(d => { const r = E("div", "bar"), a = E("span"), b = E("i"), c = E("em"); a.textContent = d.day.slice(5); b.style.width = (d.questions / max * 100) + "%"; c.textContent = d.questions + " · " + money(d.cost); r.append(a, b, c); $("bars").append(r); });
   $("lim").textContent = "Model " + s.model + ". " + (s.open ? "Open to everyone: " : "With codes: ") + s.limits.perDevice + " questions a day each, " + s.limits.total + " in total. Costs are estimates from the token counts; the Claude Console has the real bill.";
+  const p = s.push || { phones:0 }, when = x => x ? new Date(x.at).toLocaleString() + " (" + x.sent + " iPhones)" : "not yet";
+  $("pn").textContent = p.phones + (p.more ? "+" : "") + " iPhones have notifications on: " + p.news + " get news, " + p.updates + " new versions, " + p.daily + " the daily word reminder. " +
+    "Last new-version notice: " + when(p.lastUpdate) + ". Last news: " + (p.lastNews ? "\u201c" + p.lastNews.title + "\u201d, " + when(p.lastNews) : "not yet") + "." + (p.sending ? " Still sending: " + p.sending + "." : "");
+  $("psend").textContent = "Send to " + p.news + (p.more ? "+" : "") + " iPhones";
   const r = await call({ op:"reports" });
   $("rn").textContent = r.items.length; $("reps").innerHTML = "";
   if (!r.items.length) { const p = E("p", "d"); p.textContent = "No reports. 🎉"; $("reps").append(p); }
@@ -417,6 +649,25 @@ async function load() {
     c.append(h, m, t, d, b); $("reps").append(c);
   });
 }
+$("psend").onclick = async () => {
+  const title = $("ptitle").value.trim(), text = $("ptext").value.trim(), url = $("purl").value.trim();
+  if (!title || !text) { $("pmsg").textContent = "Write a title and a message first."; return; }
+  if (!confirm("Send \u201c" + title + "\u201d to every iPhone that gets news?")) return;
+  $("psend").disabled = true;
+  let cursor = "", sent = 0, gone = 0, failed = 0;
+  const started = Date.now();
+  try {
+    for (;;) {
+      const r = await call({ op:"push", title, text, url, cursor, started, sentSoFar:sent });
+      sent += r.sent; gone += r.gone; failed += r.failed; cursor = r.cursor;
+      $("pmsg").textContent = "Sent to " + sent + " iPhones…";
+      if (r.done) break;
+    }
+    $("pmsg").textContent = "Sent to " + sent + " iPhones." + (gone ? " " + gone + " had turned notifications off." : "") + (failed ? " " + failed + " didn't go through." : "");
+    $("ptitle").value = $("ptext").value = $("purl").value = "";
+  } catch (e) { $("pmsg").textContent = e.message + (sent ? " (" + sent + " sent before that)" : ""); }
+  $("psend").disabled = false;
+};
 $("go").onclick = () => { code = $("code").value.trim(); $("msg").textContent = ""; load().catch(e => { $("msg").textContent = e.message; }); };
 $("code").onkeydown = e => { if (e.key === "Enter") $("go").click(); };
 if (code) load().catch(() => { sessionStorage.removeItem("c"); code = ""; });
