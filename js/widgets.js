@@ -525,7 +525,7 @@ setInterval(() => {
 HIDE_KEYS.push(["p5", "Phantom calendar (Persona 5 style)"]);
 DEFAULT_OFF.push("p5");
 ORDERABLE.unshift(["p5Sec", "Phantom calendar"]);       // near the top: it's the one you turned on to see
-BACKUP_KEYS.push("p5");                 // the deadline comes along in a backup
+BACKUP_KEYS.push("p5", "p5pics");      // the deadline and your pictures come along in a backup
 $("#homeFoot").insertAdjacentHTML("beforebegin", '<section id="p5Sec" class="wsec hide"><div id="p5Box"></div></section>');
 let p5Seen = false;
 HOME_HOOKS.push(() => {

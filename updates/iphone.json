@@ -1,10 +1,10 @@
 {
-  "version": "2.4.0",
+  "version": "2.5.0",
   "date": "2026-10-03",
   "notes": [
-    "Notifications: new versions and news from Webs, even when it's closed (Settings → Notifications)",
-    "A daily word reminder at the time you pick",
-    "Send yourself a test notification to see how they look"
+    "The Phantom calendar: a Persona 5-style start page card with a deadline countdown (Settings → Customize start page)",
+    "Add your own pictures to it (✎ → Your pictures); they stay on this iPhone",
+    "The time of day and the weather, the way the game's calendar shows them"
   ],
   "webai": {
     "server": "https://web-ai.spiderkingfr.workers.dev",

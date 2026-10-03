@@ -323,8 +323,8 @@ function injectCSS() {
 .p5form input:not([type=file]):focus{box-shadow:3px 3px 0 var(--r),0 0 0 2px #ffd21f}
 .p5form input[type=date]{font-style:normal;font-family:inherit;font-weight:700}
 .p5pics{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.p5th{position:relative;width:58px;height:58px;background:#2a282f;display:grid;place-items:center}
-.p5th img{max-width:100%;max-height:100%}
+.p5th{position:relative;width:58px;height:58px;flex:none;background:#2a282f}
+.p5th img{display:block;width:100%;height:100%;max-width:none;object-fit:contain}
 .p5th button{position:absolute;top:-6px;right:-6px;width:22px;height:22px;border-radius:50%;border:2px solid #000;background:#fff;color:#000;font-size:11px;cursor:pointer;padding:0;line-height:1}
 .p5form .p5add{position:relative;width:58px;height:58px;border:2px dashed #fff;justify-content:center;cursor:pointer;font-weight:900;font-style:italic}
 .p5form .p5add span{width:auto}
