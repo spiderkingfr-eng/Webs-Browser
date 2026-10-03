@@ -30,64 +30,50 @@ Days reset at midnight UTC.
 
 ## Setting it up (about 10 minutes)
 
-### 1. Put the worker on Cloudflare
+### 1. Make your codes
 
-Newer Cloudflare accounts can't edit Worker code in the dashboard, so a small
-script does it from your computer:
-
-1. Make a free account at [dash.cloudflare.com](https://dash.cloudflare.com/sign-up).
-2. Install **Node.js** (the **LTS** version) from [nodejs.org](https://nodejs.org). Keep all the
-   default options.
-3. Put `worker.js`, `wrangler.jsonc` and `deploy.cmd` from this folder together in one folder,
-   then double-click `deploy.cmd`.
-   - The first time, a browser window asks you to log in to Cloudflare and **Allow** Wrangler.
-   - If it asks whether to continue because the Worker was changed in the dashboard, type `y`.
-4. When it says **Deployed**, it shows the worker's address, something like
-   `https://web-ai.your-name.workers.dev`. Keep it for step 5.
-
-Later versions of `worker.js` go up the same way: run `deploy.cmd` again. Your key, codes and
-`LIMITS` stay as they are; check step 2 once afterwards.
-
-### 2. Make the storage for the daily counts
-
-1. Go to **Storage & Databases → KV** (it may be under **Workers & Pages → KV**) and choose **Create** (a namespace). Name it `web-ai-limits`.
-2. Open your `web-ai` worker, then **Settings → Bindings → Add → KV namespace** (not D1 database).
-   - Variable name: `LIMITS`
-   - KV namespace: `web-ai-limits`
-3. Click **Deploy** (or **Save**).
-
-### 3. Add your Claude API key
-
-1. In the Claude Console ([console.anthropic.com](https://console.anthropic.com)), go to **API keys → Create key**. Name it `Web AI` and copy it. It starts with `sk-ant-`.
-2. Open your `web-ai` worker, then **Settings → Variables and Secrets → Add**.
-   - Type: **Secret**
-   - Name: `ANTHROPIC_API_KEY`
-   - Value: the key
-3. Click **Deploy**.
-
-Paste the key only here. Don't email it, send it in a chat, or put it in this
-repository. If it ever leaks, delete it in the Console and make a new one.
-
-### 4. Add the Web AI codes
-
-Everyone who may use Web AI gets their own code. Add one more secret the same way:
-
-- Type: **Secret**
-- Name: `WEB_AI_CODES`
-- Value: one line per person, `Name=code`:
+Everyone who may use Web AI gets their own code. Write them as one line, `Name=code`,
+separated by commas:
 
 ```
-Me=k7m2qx9wfp3d
-Sam=r4tz8nv2hc6y
-Alex=w9pd3kx7mq2b
+Me=k7m2qx9wfp3d,Sam=r4tz8nv2hc6y,Alex=w9pd3kx7mq2b
 ```
 
 - Each code needs 8 or more letters and numbers. Make them random, not words.
-- To give one person a different daily limit, add it at the end: `Me=k7m2qx9wfp3d=60`.
+- `Me=k7m2qx9wfp3d=60` gives that person 60 questions a day instead of the usual 25.
 - The name is what Web AI greets them with.
-- To remove someone, delete their line and click **Deploy**. Their code stops working right away.
 
-### 5. Check it
+### 2. Get a Claude API key
+
+In the Claude Console ([console.anthropic.com](https://console.anthropic.com)), go to
+**API keys → Create key**. Name it `Web AI` and copy it. It starts with `sk-ant-`. Paste it only
+where setup.cmd asks for it. Don't email it, send it in a chat, or put it in this repository. If
+it ever leaks, delete it in the Console and make a new one.
+
+### 3. Run setup.cmd
+
+Newer Cloudflare accounts can't edit Worker code in the dashboard, so `setup.cmd` does
+everything from your computer:
+
+1. Make a free account at [dash.cloudflare.com](https://dash.cloudflare.com/sign-up). If you
+   already made a `web-ai` worker there by hand, delete it first: it → **Settings** → **Delete**
+   at the bottom.
+2. Install **Node.js** (the **LTS** version) from [nodejs.org](https://nodejs.org). Keep all the
+   default options.
+3. Put `worker.js`, `wrangler.jsonc` and `setup.cmd` from this folder together in one folder,
+   then double-click `setup.cmd`. It:
+   - puts the worker on Cloudflare and creates the storage for the daily counts (`LIMITS`). The
+     first time, a browser tab asks you to log in to Cloudflare. Click **Allow**.
+   - asks for your **Claude API key**. Paste it and press Enter. It's stored as a Cloudflare
+     secret, hidden even from the dashboard.
+   - asks for the **codes**. Paste the line from step 1 and press Enter.
+4. The worker's address is in the output, like `https://web-ai.your-name.workers.dev`. It's also
+   on the worker's page in the dashboard, under **Visit**.
+
+Run `setup.cmd` again any time to update the code, or to change the key or the codes. It asks
+before changing either. To remove someone, run it again and paste the codes without theirs.
+
+### 4. Check it
 
 Open the worker's address in a browser. It should say:
 
@@ -95,10 +81,10 @@ Open the worker's address in a browser. It should say:
 {"ok":true,"name":"Web AI","ready":true,"model":"claude-sonnet-5-5"}
 ```
 
-If `ready` is `false`, one of steps 2 to 4 is missing. In Webs Browser, Web AI
+If `ready` is `false`, the key or the codes are missing: run setup.cmd again and answer Y. In Webs Browser, Web AI
 explains which one when you click Connect.
 
-### 6. Tell the browsers where it is
+### 5. Tell the browsers where it is
 
 Send the worker's address to whoever looks after this repository (or run
 `python3 tools/set_webai_server.py https://web-ai.your-name.workers.dev`
@@ -110,7 +96,7 @@ Until then, anyone can still type the address themselves: Web AI → ⚙ → Ser
 
 ## Other settings (optional)
 
-Add these the same way, as **Text** rather than Secret:
+Add these to `"vars"` in `wrangler.jsonc` (for example `"vars": { "DAILY_LIMIT": "25" }`), then run setup.cmd again:
 
 | Name | Example | What it does |
 |---|---|---|
