@@ -410,13 +410,19 @@ async function encrypt(sub, text) {
   return cat(head, body);
 }
 const pushCtx = (env, v) => ({ v, auth:new Map(), key:null, contact:/^(mailto:|https:\/\/)\S+$/.test(String(env.PUSH_CONTACT || "")) ? String(env.PUSH_CONTACT) : APP_URL });
-// one message to one phone; the push service's answer (201 = taken, 404/410 = that phone unsubscribed)
+// one message to one phone; the push service's answer (201 = taken, 404/410 = that phone unsubscribed) and,
+// when it says no, its reason (Apple's are words like "BadJwtToken"). Only the headers every push service needs:
+// Apple turned down the optional Topic header (400), and the tag inside the message already replaces old ones.
 async function pushOne(c, sub, msg) {
   const r = await fetch(sub.e, { method:"POST", body:await encrypt(sub, JSON.stringify(msg)), headers:{
-    TTL:String(msg.ttl || 86400), "Content-Encoding":"aes128gcm", "Content-Type":"application/octet-stream", Urgency:"normal",
-    ...(msg.tag ? { Topic:msg.tag } : {}), Authorization:await vapidAuth(c, sub.e) } });
-  if (r.body) r.body.cancel().catch(() => {});
-  return r.status;
+    TTL:String(msg.ttl || 86400), "Content-Encoding":"aes128gcm", "Content-Type":"application/octet-stream", Authorization:await vapidAuth(c, sub.e) } });
+  let reason = "";
+  if (r.status >= 300) {
+    const t = await r.text().catch(() => "");
+    try { const j = JSON.parse(t); reason = String(j.reason || j.error || j.message || ""); } catch (e) { reason = t; }
+    reason = reason.replace(/\s+/g, " ").trim().slice(0, 100);
+  } else if (r.body) r.body.cancel().catch(() => {});
+  return { status:r.status, reason };
 }
 async function forget(env, id) {
   const s = await readJSON(env, "ps:" + id);
@@ -428,7 +434,7 @@ const WANT = { updates:s => s.u, news:s => s.n, daily:() => true };
 async function pushBatch(env, prefix, kind, msg, cursor) {
   const c = pushCtx(env, await vapid(env, false));
   const l = await env.LIMITS.list({ prefix, limit:BATCH, ...(cursor ? { cursor } : {}) });
-  const out = { sent:0, gone:0, failed:0, cursor:l.list_complete ? "" : l.cursor || "", done:!!l.list_complete || !l.cursor };
+  const out = { sent:0, gone:0, failed:0, why:"", cursor:l.list_complete ? "" : l.cursor || "", done:!!l.list_complete || !l.cursor };
   if (!c.v) return out;
   const subs = await Promise.all(l.keys.map(async k => {
     const id = k.name.split(":").pop(), m = k.metadata;
@@ -436,11 +442,11 @@ async function pushBatch(env, prefix, kind, msg, cursor) {
   }));
   await Promise.all(subs.filter(s => s.e && WANT[kind](s)).map(async s => {
     try {
-      const st = await pushOne(c, s, msg);
+      const { status:st, reason } = await pushOne(c, s, msg);
       if (st >= 200 && st < 300) out.sent++;
       else if (st === 404 || st === 410) { out.gone++; await forget(env, s.id); }
-      else { out.failed++; console.log("notification not taken:", st, new URL(s.e).host); }
-    } catch (e) { out.failed++; console.log("notification failed:", e && e.message); }
+      else { out.failed++; out.why = out.why || st + (reason ? " " + reason : ""); console.log("notification not taken:", st, reason, new URL(s.e).host); }
+    } catch (e) { out.failed++; out.why = out.why || "error: " + (e && e.message || e); console.log("notification failed:", e && e.message); }
   }));
   return out;
 }
@@ -466,9 +472,12 @@ async function pushApi(path, req, env, cors) {
     const s = await readJSON(env, "ps:" + id), v = await vapid(env, false);
     if (!s || !v) return json({ error:"gone", message:"This iPhone isn't signed up for notifications. Turn them off and on again." }, 404, cors);
     if (await overLimit(env, "ptest:" + id, 5)) return json({ error:"limit", message:"That's enough tests for today." }, 429, cors);
-    const st = await pushOne(pushCtx(env, v), s, tidyMsg({ title:"Notifications are on 🎉", body:"This is how Webs will tell you about new versions and news.", url:"./", tag:"webs-test" }));
+    let st = 0, reason = "";
+    try { ({ status:st, reason } = await pushOne(pushCtx(env, v), s, tidyMsg({ title:"Notifications are on 🎉", body:"This is how Webs will tell you about new versions and news.", url:"./", tag:"webs-test" }))); }
+    catch (e) { console.log("notification failed:", e && e.message); return json({ error:"push", message:"The server couldn't send it (" + String(e && e.message || e).slice(0, 80) + ")." }, 502, cors); }
     if (st === 404 || st === 410) { await forget(env, id); return json({ error:"gone", message:"Apple says this iPhone isn't signed up any more. Turn notifications off and on again." }, 410, cors); }
-    return st >= 200 && st < 300 ? json({ ok:true }, 200, cors) : json({ error:"push", message:"Apple didn't take the notification (" + st + "). Try again later." }, 502, cors);
+    if (st < 200 || st >= 300) console.log("test notification not taken:", st, reason);
+    return st >= 200 && st < 300 ? json({ ok:true }, 200, cors) : json({ error:"push", message:"Apple didn't take the notification (" + st + (reason ? " " + reason : "") + "). Try again later.", status:st, reason }, 502, cors);
   }
 
   // subscribe (also how the app updates its choices)
@@ -654,16 +663,16 @@ $("psend").onclick = async () => {
   if (!title || !text) { $("pmsg").textContent = "Write a title and a message first."; return; }
   if (!confirm("Send \u201c" + title + "\u201d to every iPhone that gets news?")) return;
   $("psend").disabled = true;
-  let cursor = "", sent = 0, gone = 0, failed = 0;
+  let cursor = "", sent = 0, gone = 0, failed = 0, why = "";
   const started = Date.now();
   try {
     for (;;) {
       const r = await call({ op:"push", title, text, url, cursor, started, sentSoFar:sent });
-      sent += r.sent; gone += r.gone; failed += r.failed; cursor = r.cursor;
+      sent += r.sent; gone += r.gone; failed += r.failed; cursor = r.cursor; why = why || r.why || "";
       $("pmsg").textContent = "Sent to " + sent + " iPhones…";
       if (r.done) break;
     }
-    $("pmsg").textContent = "Sent to " + sent + " iPhones." + (gone ? " " + gone + " had turned notifications off." : "") + (failed ? " " + failed + " didn't go through." : "");
+    $("pmsg").textContent = "Sent to " + sent + " iPhones." + (gone ? " " + gone + " had turned notifications off." : "") + (failed ? " " + failed + " didn't go through" + (why ? " (Apple said: " + why + ")" : "") + "." : "");
     $("ptitle").value = $("ptext").value = $("purl").value = "";
   } catch (e) { $("pmsg").textContent = e.message + (sent ? " (" + sent + " sent before that)" : ""); }
   $("psend").disabled = false;
