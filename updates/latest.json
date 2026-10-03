@@ -1,14 +1,15 @@
 {
-  "version": "3.3.1",
+  "version": "3.4.0",
   "date": "2026-10-03",
   "notes": [
-    "Web AI is ready by itself: no code to type",
-    "Shows how many questions are left today"
+    "Voice call with Web AI: tap 📞, ask out loud, and Web AI answers out loud",
+    "🔊 under any answer reads it out loud",
+    "Works without a microphone too: use Windows voice typing (Windows key + H), answers are still spoken"
   ],
   "exe": {
-    "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.3.1.exe",
-    "sha256": "e0b047715e742ab13ba0f7f1552b6f7d8257bf99ae0b4297eda80ac539564bad",
-    "size": 2618368
+    "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.4.0.exe",
+    "sha256": "1a3742eb1b7dd7f4460fa7554336ad5f67f0ebbf396368855af713470f8705c4",
+    "size": 2627072
   },
   "updater": {
     "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebsUpdate.exe",

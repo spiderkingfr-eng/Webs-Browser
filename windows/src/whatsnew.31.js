@@ -1,3 +1,8 @@
+"3.4 · Talk with Web AI": [
+  ["Voice call with Web AI", "Tap 📞, ask out loud, and Web AI answers out loud, then listens for your next question until you hang up.", "Web AI → the 📞 button by the box you type in"],
+  ["Hear any answer", "The 🔊 button under an answer reads it out loud. Tap it again to stop.", "Web AI → under an answer"],
+  ["Works without a microphone too", "If the PC can't listen, the call goes on with Windows voice typing (Windows key + H) or typing, and the answers are still spoken.", "Web AI → 📞"]
+],
 "3.3 · Web AI": [
   ["Web AI", "An assistant in the sidebar that answers questions about the page you're on, or anything else. It runs on Claude, made by Anthropic.", "The ✦ button in the toolbar, or Alt+Shift+A"],
   ["Summarize, explain, key points", "One click for a summary, the key points or a simple explanation of the page. Select text first to ask about just that part.", "Web AI → the suggestions"],

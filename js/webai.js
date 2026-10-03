@@ -114,7 +114,8 @@ function openAI() {
   chat = chatLoad();
   openSheet("Web AI", '<div class="ai"><div class="ailog"></div><div class="aifoot">' +
     '<button type="button" class="aipage"><span></span></button>' +
-    '<div class="aiin"><textarea rows="1" maxlength="' + Q_MAX + '" placeholder="Ask Web AI…" enterkeyhint="send"></textarea><button type="button" class="aisend" aria-label="Send">' + ico("up") + "</button></div>" +
+    '<div class="aicallbar hide"><span class="dot"></span><span class="t"></span><button type="button" class="btn">Hang up</button></div>' +
+    '<div class="aiin"><textarea rows="1" maxlength="' + Q_MAX + '" placeholder="Ask Web AI…" enterkeyhint="send"></textarea><button type="button" class="aicall" aria-label="Voice call">📞</button><button type="button" class="aisend" aria-label="Send">' + ico("up") + "</button></div>" +
     '<div class="aifine">Web AI can make mistakes. Check anything important.</div></div></div>', { full:true, kind:"ai" });
   const b = $("#sheetBody");
   b.querySelector(".aipage").onclick = () => { setSt({ noPage:!st().noPage }); paintPage(); };
@@ -122,6 +123,10 @@ function openAI() {
   ta.addEventListener("input", grow);
   ta.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); ask(ta.value); } });
   b.querySelector(".aisend").onclick = () => { if (busy) busy.abort(); else ask(ta.value); };
+  b.querySelector(".aicall").onclick = () => call ? hangUp() : startCall();
+  b.querySelector(".aicallbar .btn").onclick = hangUp;
+  ta.addEventListener("keydown", e => { if (call && e.key === "Enter" && !e.shiftKey) { stopListening(); stopTalking(); } }, true);
+  paintCall();
   b.onclick = e => {
     const a = e.target.closest(".ai a[href]");
     if (a) { e.preventDefault(); if (/^https?:\/\//i.test(a.getAttribute("href"))) go(a.getAttribute("href"), { newTab:true }); return; }
@@ -191,9 +196,10 @@ function fill(d, m) {
     return;
   }
   d.innerHTML = (m.text ? md(m.text) : "") + (m.pending && !m.text ? '<div class="aidots"><i></i><i></i><i></i></div>' : "") +
-    (m.note ? '<div class="ainote"></div>' : "") + (!m.pending && m.text ? '<div class="aiacts"><button type="button" class="aicopy">' + ico("copy") + "Copy</button></div>" : "");
+    (m.note ? '<div class="ainote"></div>' : "") + (!m.pending && m.text ? '<div class="aiacts"><button type="button" class="aicopy">' + ico("copy") + 'Copy</button>' + (synth ? '<button type="button" class="aisay" aria-label="Read it out loud">🔊</button>' : "") + "</div>" : "");
   if (m.note) d.querySelector(".ainote").textContent = m.note;
   const c = d.querySelector(".aicopy"); if (c) c.onclick = () => copyText(m.text);
+  const v = d.querySelector(".aisay"); if (v) v.onclick = () => { if (speaking) { stopTalking(); paintCall(); } else { unlock(); say(m.text); } };
 }
 let raf = 0;
 function repaintLast() {
@@ -317,6 +323,7 @@ async function ask(text) {
   } finally {
     if (busy === ctl) busy = null;
     working(false); keep(); paint();
+    afterAnswer(a);
   }
 }
 function retry(i) {
@@ -346,6 +353,82 @@ openMenu = function () {
   if (card) card.insertAdjacentHTML("afterbegin", '<button type="button" class="mrow" data-act="webai">' + ico("sparkle") + "<span>Web AI</span><em>Ask about this page</em></button>");
 };
 ACTIONS.webai = openAI;
+
+/* ---------------------------------------------------------------- 2.3: a voice call with Web AI
+   📞 starts a call: Web AI listens, sends what you said, says the answer out loud, then listens
+   again, until you hang up. 🔊 on an answer says it out loud. Where the phone can't listen
+   (no speech recognition, or no microphone permission), the call carries on with the
+   keyboard's own 🎤 dictation, and the answers are still spoken. */
+const SRc = window.SpeechRecognition || window.webkitSpeechRecognition, synth = window.speechSynthesis;
+let call = false, rec = null, speaking = false, heard = "", quiet = 0, noMic = "";
+const plain = md => String(md || "").replace(/```[\s\S]*?```/g, " (a code example) ").replace(/`([^`]*)`/g, "$1").replace(/!?\[([^\]]+)\]\([^)]*\)/g, "$1")
+  .replace(/https?:\/\/\S+/g, "a link").replace(/^\s*[-*+]\s+/gm, "").replace(/^\s*#+\s*/gm, "").replace(/[*_~]+/g, "").replace(/[>|]+/g, " ").replace(/\s+/g, " ").replace(/\s+([.,!?;:])/g, "$1").trim();
+function voice() {
+  const vs = synth ? synth.getVoices() : [], lang = (navigator.language || "en-US").toLowerCase();
+  return vs.find(v => v.lang.toLowerCase() === lang && /enhanced|premium/i.test(v.name)) || vs.find(v => v.lang.toLowerCase() === lang) || vs.find(v => v.lang.toLowerCase().startsWith(lang.slice(0, 2))) || null;
+}
+function unlock() { try { if (synth) synth.speak(new SpeechSynthesisUtterance("")); } catch (e) {} }   // iOS speaks later only after a tap has started it once
+function say(text, done) {
+  stopTalking();
+  if (!synth) { if (done) done(); return; }
+  const chunks = [];
+  (plain(text).match(/[^.!?;:]+[.!?;:]*\s*/g) || []).forEach(x => { const l = chunks[chunks.length - 1]; if (l && (l + x).length < 220) chunks[chunks.length - 1] = l + x; else chunks.push(x); });
+  let i = 0;
+  speaking = true; paintCall();
+  const next = () => {
+    if (!speaking || i >= chunks.length) { speaking = false; paintCall(); if (done) done(); return; }
+    const u = new SpeechSynthesisUtterance(chunks[i++].trim());
+    u.lang = navigator.language || "en-US"; const v = voice(); if (v) u.voice = v;
+    u.onend = next; u.onerror = next;
+    synth.speak(u);
+  };
+  next();
+}
+function stopTalking() { speaking = false; if (synth) synth.cancel(); }
+function listen() {
+  if (!call || busy || !isOpen()) { paintCall(); return; }
+  const ta = $("#sheetBody textarea");
+  if (!SRc || noMic) { paintCall(); return; }
+  heard = "";
+  try {
+    rec = new SRc();
+    rec.lang = navigator.language || "en-US"; rec.interimResults = true; rec.continuous = false;
+    rec.onresult = e => {
+      let t = ""; for (let i = 0; i < e.results.length; i++) t += e.results[i][0].transcript;
+      if (ta) { ta.value = t; grow(); }
+      if (e.results[e.results.length - 1].isFinal) heard = t;
+    };
+    rec.onerror = e => { if (/not-allowed|service-not-allowed|network|audio-capture|language-not-supported/.test(e.error)) noMic = e.error; else if (e.error === "no-speech") quiet++; };
+    rec.onend = () => {
+      rec = null;
+      const t = (heard || (ta ? ta.value : "")).trim();
+      if (!call) { paintCall(); return; }
+      if (t) { quiet = 0; if (ta) { ta.value = ""; grow(); } ask(t); }
+      else if (!noMic && quiet < 3) setTimeout(listen, 250);
+      else if (quiet >= 3) { hangUp(); toast("The call ended because it was quiet for a while"); return; }
+      paintCall();
+    };
+    rec.start();
+  } catch (e) { rec = null; noMic = "start"; }
+  paintCall();
+}
+function stopListening() { if (rec) { const r = rec; rec = null; r.onend = r.onresult = r.onerror = null; try { r.abort(); } catch (e) {} } }
+function startCall() { call = true; quiet = 0; stopTalking(); unlock(); listen(); paintCall(); }
+function hangUp() { call = false; stopListening(); stopTalking(); paintCall(); }
+function afterAnswer(a) {
+  if (!call) return;
+  const text = a.err || a.text || a.note || "";
+  if (text && isOpen()) say(text, () => setTimeout(listen, 200)); else listen();
+}
+function paintCall() {
+  const btn = $("#sheetBody .aicall"), bar = $("#sheetBody .aicallbar");
+  if (!btn || !bar) return;
+  btn.classList.toggle("on", call); btn.textContent = call ? "✕" : "📞"; btn.setAttribute("aria-label", call ? "Hang up" : "Voice call");
+  bar.className = "aicallbar" + (call ? "" : " hide") + (rec ? " listening" : speaking ? " speaking" : busy ? " thinking" : "");
+  bar.querySelector(".t").textContent = rec ? "Listening… say your question" : speaking ? "Web AI is talking… (tap ✕ to stop)" : busy ? "Thinking…"
+    : noMic || !SRc ? "Type, or tap 🎤 on the keyboard to talk. Web AI answers out loud." : "On a call with Web AI";
+}
+document.addEventListener("visibilitychange", () => { if (document.hidden && call) hangUp(); });
 // app.js wired the menu button to the menu before this file loaded; point it at the menu that has Web AI in it
 $("#menuBtn").onclick = () => openMenu();
 // and a Web AI button on the start page, first among Bookmarks, History...
@@ -353,7 +436,8 @@ const foot = $("#homeFoot");
 if (foot && !foot.querySelector('[data-act="webai"]')) foot.insertAdjacentHTML("afterbegin", '<button type="button" data-act="webai" class="aihome">✦ Web AI</button>');
 // the header buttons only belong to the Web AI sheet
 const closeSheet0 = closeSheet;
-closeSheet = function () { if (busy && isOpen()) busy.abort(); closeSheet0(); const h = $("#aiHead"); if (h) h.remove(); };
+closeSheet = function () { if (isOpen()) { if (busy) busy.abort(); hangUp(); } closeSheet0(); const h = $("#aiHead"); if (h) h.remove(); };
+$("#sheetDone").addEventListener("click", () => { if (call) hangUp(); });      // Done was wired to the plain close before this file loaded
 const openSheet0 = openSheet;
 openSheet = function (title, html, opts) { const h = $("#aiHead"); if (h) h.remove(); return openSheet0(title, html, opts); };
 window.WebAI = { open:openAI };

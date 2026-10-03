@@ -88,3 +88,19 @@ nav .xai-tab svg{color:var(--accent)}
 .xai-fine{color:var(--dim2);font-size:10.5px;text-align:center;margin-top:6px}
 html[data-motion="off"] .xai *{animation:none!important;transition:none!important}
 @media (prefers-reduced-motion:reduce){.xai *{animation:none!important;transition:none!important}}
+/* 3.4: the voice call */
+.xai-call{flex:none;width:30px;height:30px;border:0;border-radius:9px;background:var(--bg2);color:var(--fg);font-size:14px;cursor:pointer;transition:transform .12s,background .15s}
+.xai-call:hover{transform:scale(1.06)}
+.xai-call.on{background:#d93a30;color:#fff}
+.xai-say{border:0;background:none;color:var(--dim2);font-size:12px;padding:2px 0;cursor:pointer;opacity:0;transition:opacity .15s}
+.xai-a:hover .xai-say,.xai-a:last-child .xai-say{opacity:1}
+.xai-callbar{display:flex;align-items:center;gap:8px;margin-bottom:6px;padding:7px 8px 7px 10px;border-radius:10px;font-size:12px;
+  background:color-mix(in srgb,var(--accent) 12%,var(--bg3));border:1px solid color-mix(in srgb,var(--accent) 35%,var(--line))}
+.xai-callbar.hide{display:none}
+.xai-callbar .t{flex:1;line-height:1.35}
+.xai-callbar .b{height:26px;font-size:11.5px;padding:0 10px}
+.xai-callbar .dot{width:9px;height:9px;border-radius:50%;background:var(--dim);flex:none}
+.xai-callbar.listening .dot{background:#4ec98a;animation:xaiPulse 1.1s ease-in-out infinite}
+.xai-callbar.speaking .dot{background:var(--accent);animation:xaiPulse .7s ease-in-out infinite}
+.xai-callbar.thinking .dot{background:#ffb35c;animation:xaiPulse 1.4s ease-in-out infinite}
+@keyframes xaiPulse{50%{transform:scale(1.5);opacity:.5}}

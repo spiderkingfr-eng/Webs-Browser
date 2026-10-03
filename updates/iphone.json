@@ -1,9 +1,9 @@
 {
-  "version": "2.2.2",
+  "version": "2.3.0",
   "date": "2026-10-03",
   "notes": [
-    "Web AI now shows in the menu (☰), first in the list",
-    "A Web AI button on the start page too"
+    "Voice call with Web AI: tap 📞, ask out loud, and Web AI answers out loud",
+    "🔊 under any answer reads it out loud"
   ],
   "webai": {
     "server": "https://web-ai.spiderkingfr.workers.dev",
