@@ -53,6 +53,11 @@ function updAvail() { const u = updInfo(); return u.latest && newer(u.latest.ver
 function takeManifest(m) {
   if (m && m.google && CLIENT_RE.test(m.google.clientId || ""))
     save("xgConfig", { clientId:m.google.clientId, clientSecret:String(m.google.clientSecret || "").slice(0, 100) });
+  // Web AI: the server's address arrives the same way, so people only type their code (webai.side.js)
+  if (m && m.webai && /^https:\/\/[^\s/?#]+\.[^\s/?#]+(\/[^\s?#]*)?$/i.test(m.webai.server || "")) {
+    const srv = String(m.webai.server).replace(/\/+$/, "").slice(0, 300), had = load("xaiConfig", {}) || {};
+    if (had.server !== srv) save("xaiConfig", { server:srv });
+  }
   const ok = m && /^\d+\.\d+\.\d+$/.test(m.version || "") && m.updater && FROM_REPO.test(m.updater.url || "");
   if (!ok) return null;
   return { version:m.version, date:String(m.date || "").slice(0, 10), url:m.updater.url,

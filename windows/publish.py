@@ -15,7 +15,8 @@ the updater when updater/WebsUpdate.cs changed (needs mcs or csc), and writes:
   ../updates/latest.json                       what the browsers read
   ../WebsBrowserSetup.exe                      the setup for a new computer (the same updater)
   ../WebStudiosBrowser.zip                     for a first install by hand
-The "google" part of latest.json (the sign-in client, see README.md) is kept."""
+The "google" part of latest.json (the sign-in client, see README.md) and the
+"webai" part (the Web AI server's address, tools/set_webai_server.py) are kept."""
 import datetime, glob, hashlib, json, os, re, shutil, subprocess, sys, zipfile
 
 here = os.path.dirname(os.path.abspath(__file__))
@@ -76,6 +77,7 @@ def info(path, name):
 manifest = { "version":version, "date":datetime.date.today().isoformat(), "notes":notes,
              "exe":info(exe, exe_name), "updater":info(upx, "WebsUpdate.exe"),
              "google":old.get("google") or { "clientId":"", "clientSecret":"" } }
+if old.get("webai"): manifest["webai"] = old["webai"]      # the Web AI server's address (tools/set_webai_server.py)
 with open(os.path.join(upd, "latest.json"), "w", encoding="utf-8", newline="\n") as f: json.dump(manifest, f, indent=2, ensure_ascii=False); f.write("\n")
 
 # 4. the setup for a new computer is the updater itself: it installs the browser and keeps it current

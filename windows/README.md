@@ -5,7 +5,8 @@
 The browser's window, new tab page, Settings, sidebar, games and the script it runs inside web
 pages (`shield.js`) are HTML and JavaScript files embedded in `WebStudiosBrowser.exe`. Webs 3.0
 adds its 150 features to those files only, without changing a line of the program code, so the
-exe could be updated without its C# source. Version 3.1 adds Google sign-in and updates the same way, plus a small separate updater:
+exe could be updated without its C# source. Version 3.1 adds Google sign-in and updates the same way, plus a small separate updater.
+Version 3.3 adds Web AI, which talks to a small server of its own (`../server/web-ai/`):
 
 | Path | What it is |
 | --- | --- |
@@ -84,6 +85,28 @@ and trades for a refresh token (OAuth for installed apps, with PKCE). If Google 
 inside Webs Browser, the account panel offers to sign in with Chrome or Edge and paste the address
 it ends up on. Synced data is one JSON file in the app's hidden Drive folder.
 
+## Web AI
+
+Web AI (3.3) is a chat with Claude in the sidebar (`src/webai.side.js`, `src/webai.side.css`),
+opened by the ✦ toolbar button, the menu, the command palette or Alt+Shift+A (`src/webai.js`).
+It never holds an API key. It talks to the Web AI server in `../server/web-ai/`, a Cloudflare
+Worker that keeps the key, checks each person's Web AI code, counts questions per day and streams
+the answer back. That folder's README has the setup steps.
+
+- **The page:** with "Use this page" on, the sidebar asks the browser window for the page through
+  storage (`wsb.xaiAsk.<window>`). The window runs the `x-ai` page tool in `shield.js` (the text,
+  the selection and the title) and hands the result back (`wsb.xaiPage.<window>`), where the
+  sidebar removes it as soon as it has read it. Private windows answer "private" without reading
+  the page. A page is sent once per chat; follow-up questions about it don't send it again.
+- **The server's address** comes with `updates/latest.json` (`"webai": {"server": …}`, set with
+  `python3 ../tools/set_webai_server.py <address>`), so people only type their code. Until then,
+  it can be typed in Web AI's settings.
+- **Kept on the computer:** the code and the current chat (`wsb.xai`, `wsb.xaiChat`). Neither is
+  synced to Google.
+- **Answers** are shown as Markdown that is escaped first. Links only go to http(s) addresses and
+  open only when clicked. Pictures are never loaded, so a page can't make Web AI send anything
+  anywhere by itself.
+
 ## Making the exe by hand
 
 ```
@@ -100,8 +123,8 @@ hash) before and after, and every embedded file read back by the .NET runtime ma
 ```
 npm install playwright
 python3 build.py
-node tests/t_chrome.js     # also t_side, t_ntp, t_games, t_shield, t_misc, t_examples, t_cloud, t_updated, t_autoupdate and t_studio; `sh tests/t_updater.sh` tests the updater under Mono (15 checks)
+node tests/t_chrome.js     # also t_side, t_ntp, t_games, t_shield, t_misc, t_examples, t_cloud, t_updated, t_autoupdate, t_studio and t_webai; `sh tests/t_updater.sh` tests the updater under Mono (15 checks)
 ```
 
-311 checks pass (`t_cloud` fakes Google's sign-in, token and Drive endpoints and the update file). The exe itself was not run on Windows here: the tests run the same pages in
+359 checks pass (`t_cloud` fakes Google's sign-in, token and Drive endpoints and the update file; `t_webai` runs Web AI against the real server code with a pretend Claude; `node ../server/web-ai/test.mjs` tests the server alone, 53 checks). The exe itself was not run on Windows here: the tests run the same pages in
 Chromium, the engine WebView2 uses.

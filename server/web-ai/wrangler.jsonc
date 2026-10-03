@@ -1,0 +1,11 @@
+// Cloudflare's settings for the Web AI server, used by setup.cmd (wrangler deploy).
+// LIMITS has no id on purpose: wrangler creates the storage on the first deploy and reuses it after.
+// The key and the codes are secrets, set by setup.cmd (wrangler secret put), never written here.
+{
+  "name": "web-ai",
+  "main": "worker.js",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": true,
+  "observability": { "enabled": true },
+  "kv_namespaces": [{ "binding": "LIMITS" }]
+}

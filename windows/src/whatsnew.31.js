@@ -1,3 +1,9 @@
+"3.3 · Web AI": [
+  ["Web AI", "An assistant in the sidebar that answers questions about the page you're on, or anything else. It runs on Claude, made by Anthropic.", "The ✦ button in the toolbar, or Alt+Shift+A"],
+  ["Summarize, explain, key points", "One click for a summary, the key points or a simple explanation of the page. Select text first to ask about just that part.", "Web AI → the suggestions"],
+  ["Use this page switch", "Choose whether Web AI reads the page you have open. Pages in private windows are never sent.", "Web AI → the page button above the box you type in"],
+  ["Answers as they're written", "Answers appear word by word with lists, tables and code you can copy, and you can stop one any time.", "Web AI"]
+],
 "3.2 · Updates by themselves": [
   ["Updates by themselves", "New versions download and install in the background. Nothing to download, and Windows doesn't ask.", "Automatic, after one last update"],
   ["Restart to update", "When a new version is installed while you browse, one click restarts into it, with your tabs.", "The button in the tab strip"],
