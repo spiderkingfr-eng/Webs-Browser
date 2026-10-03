@@ -13,6 +13,7 @@ the updater when updater/WebsUpdate.cs changed (needs mcs or csc), and writes:
   ../updates/WebStudiosBrowser-<version>.exe   the browser (older ones removed)
   ../updates/WebsUpdate.exe                    the updater
   ../updates/latest.json                       what the browsers read
+  ../WebsBrowserSetup.exe                      the setup for a new computer (the same updater)
   ../WebStudiosBrowser.zip                     for a first install by hand
 The "google" part of latest.json (the sign-in client, see README.md) is kept."""
 import datetime, glob, hashlib, json, os, re, shutil, subprocess, sys, zipfile
@@ -77,7 +78,10 @@ manifest = { "version":version, "date":datetime.date.today().isoformat(), "notes
              "google":old.get("google") or { "clientId":"", "clientSecret":"" } }
 with open(os.path.join(upd, "latest.json"), "w", encoding="utf-8", newline="\n") as f: json.dump(manifest, f, indent=2, ensure_ascii=False); f.write("\n")
 
-# 4. the zip for installing by hand
+# 4. the setup for a new computer is the updater itself: it installs the browser and keeps it current
+shutil.copy(upx, os.path.join(root, "WebsBrowserSetup.exe"))
+
+# 5. the zip for installing by hand
 z = os.path.join(root, "WebStudiosBrowser.zip")
 with zipfile.ZipFile(z, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
     zf.write(exe, "WebStudiosBrowser.exe")

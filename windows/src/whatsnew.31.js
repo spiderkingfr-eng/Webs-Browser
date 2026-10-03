@@ -1,3 +1,8 @@
+"3.2 · Updates by themselves": [
+  ["Updates by themselves", "New versions download and install in the background. Nothing to download, and Windows doesn't ask.", "Automatic, after one last update"],
+  ["Restart to update", "When a new version is installed while you browse, one click restarts into it, with your tabs.", "The button in the tab strip"],
+  ["Install updates by itself switch", "Turn it off to update only when you click Update now.", "Settings → Updates"]
+],
 "3.1 · Your Google account and updates": [
   ["Sign in with Google", "Sign in once on each computer you use Webs Browser on.", "Menu → Sign in with Google, or Settings → Google account"],
   ["Your layout on every computer", "Your look, new tab shortcuts and widgets, sidebar panels, Shield and site zoom follow you. The newest copy wins.", "Settings → Google account"],

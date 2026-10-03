@@ -7,6 +7,17 @@ Double-click WebStudiosBrowser.exe and it runs. In the browser, Menu >
 Ctrl+/ shows every keyboard shortcut.
 
 
+NEW IN WEBS 3.2
+---------------
+  Updates by themselves  After one last update (or the setup below), a small
+                  updater starts with Windows and installs new versions in
+                  the background. Nothing to download, and Windows doesn't
+                  ask. A version installed while you browse starts the next
+                  time you open the browser, or at once with the "Restart to
+                  update" button. Settings > Updates > "Install updates by
+                  itself" turns it off.
+
+
 NEW IN WEBS 3.1
 ---------------
   Google account  Menu > Sign in with Google. Your layout and settings, new
@@ -68,6 +79,17 @@ NEW IN WEBS 3.0 (150 features)
 
 INSTALL, AND MAKE IT YOUR DEFAULT BROWSER
 -----------------------------------------
+Easiest: WebsBrowserSetup.exe (from the browser's GitHub page) installs the
+browser, keeps it updated, and opens it. Windows asks once, because the
+program isn't signed: choose More info, then Run anyway.
+
+"Are you sure you want to run this software?" every time you open it? That
+is Windows remembering that the zip came from the internet. Right-click the
+zip, Properties, tick Unblock, OK, then extract it again; or install with the
+setup above, which doesn't have that tag. The first automatic update also
+replaces the browser with a copy that doesn't.
+
+By hand, from this zip:
   powershell -ExecutionPolicy Bypass -File install.ps1
 
 Copies the exe to %LOCALAPPDATA%\Programs\Webs Browser\, registers it with
@@ -79,9 +101,8 @@ The same button is in the browser under Settings > Default browser.
 
 To undo:  "%LOCALAPPDATA%\Programs\Webs Browser\WebStudiosBrowser.exe" --unregister
 
-Updating: run install.ps1 again after a rebuild. If the browser is open it is
-not closed - the running copy is renamed aside and the update takes over the
-next time you start it.
+Updating happens by itself (see NEW IN WEBS 3.2). To stop the background
+updater:  "%LOCALAPPDATA%\Programs\Webs Browser\WebsUpdate.exe" --uninstall
 
 
 VPN

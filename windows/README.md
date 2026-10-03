@@ -16,7 +16,7 @@ exe could be updated without its C# source. Version 3.1 adds Google sign-in and 
 | `Check.cs` | Loads an exe with .NET or Mono and prints its embedded files and a hash of its code, to compare two builds |
 | `tests/` | Browser tests (Playwright): the pages run with a fake Windows host, and the page tools run inside a test page |
 | `VERSION` | The version being built; `build.py` writes it into the browser |
-| `updater/WebsUpdate.cs` | The updater (C#, .NET Framework 4, no other files needed) |
+| `updater/WebsUpdate.cs` | The updater and setup (C#, .NET Framework 4, no other files needed) |
 | `publish.py` | Makes a release: builds, repacks, compiles the updater and writes `../updates/` and `../WebStudiosBrowser.zip` |
 | `google.py` | Switches on Google sign-in for every copy (see below) |
 | `dist/` | `README.txt` and `install.ps1`, which go into the zip |
@@ -26,23 +26,39 @@ first), lists such as search engines, bangs, commands and widgets are extended, 
 the pages' own helpers. Tools that work on web pages are `x-…` actions in `shield.js`, reached
 through the host's existing `page-tool` command, which passes any action name through.
 
-## Publishing an update
+## How updates reach people
 
-Every copy of the browser (3.1 and later) reads `updates/latest.json` from the `main` branch on
-GitHub every few hours. When it names a newer version, an Update button appears in the tab strip.
-Clicking it downloads `updates/WebsUpdate.exe` and opens it; the updater downloads the new exe,
-checks its SHA-256 against `latest.json`, closes the browser the way the X button does (so the
-tabs are saved), swaps the exe and opens it again. Nothing is installed without that click.
+`updater/WebsUpdate.cs` is a small program that installs the browser and keeps it current. It is
+set up once: by `WebsBrowserSetup.exe` (the same program) on a new computer, or by the browser's
+Update button on a copy from before 3.2, which downloads it this one last time. It then:
+
+- copies itself to `%LOCALAPPDATA%\Programs\Webs Browser\` and starts with Windows
+  (`HKCU\...\Run`, no admin), with no window;
+- reads `updates/latest.json` from `main` every three hours, downloads the new exe with its own
+  connection, checks its SHA-256, and puts it in place. With the browser closed that's all; while
+  it's open, the running exe is renamed aside and the new one starts next time;
+- tells the browser in `ui\user\webs-update.json` in the browser's data folder, which the browser
+  reads as `https://browser.example/user/webs-update.json`;
+- takes requests from the browser in its `inbox` folder. The browser writes them with the folder
+  sync command (`sync-write`): "check" (get a new version ready now), "update" (install it, close
+  the browser the way the X button does, so the tabs are saved, and open the new one), and
+  "auto-on"/"auto-off" (the Settings switch). That's what the Update / Restart to update button does;
+- replaces itself when `latest.json` names a newer updater.
+
+Nothing goes through the browser's downloads, so Windows has no download to warn about, and the
+installed exe isn't marked as coming from the internet, so it opens without asking. Only addresses
+in this repository are accepted, and every exe must match its checksum. Anyone who can push to
+`main` can publish an update, so keep that limited to you. `WebsUpdate.exe --uninstall` stops it.
+
+## Publishing an update
 
 1. Make the changes (in `src/`) and test them.
 2. Raise the number in `VERSION`, for example to `3.2.0`.
 3. `python3 publish.py "What changed" "Another change"` (the notes show in the update panel).
 4. Commit everything, push, and merge into `main`. That's the release.
 
-Only addresses in this repository are accepted for the updater and the exe, and the exe must match
-its checksum. Anyone who can push to `main` can publish an update, so keep that limited to you.
-Copies from before 3.1 have no Update button, so people on 3.0 or older install 3.1 by hand once
-(the zip, or just `WebsUpdate.exe`, which also does a first install).
+Copies from before 3.1 have no Update button, so people on 3.0 or older install once by hand
+(`WebsBrowserSetup.exe`, or the zip).
 
 ## Turning on "Sign in with Google"
 
@@ -84,8 +100,8 @@ hash) before and after, and every embedded file read back by the .NET runtime ma
 ```
 npm install playwright
 python3 build.py
-node tests/t_chrome.js     # also t_side, t_ntp, t_games, t_shield, t_misc, t_examples, t_cloud and t_updated; `sh tests/t_updater.sh` tests the updater under Mono
+node tests/t_chrome.js     # also t_side, t_ntp, t_games, t_shield, t_misc, t_examples, t_cloud, t_updated and t_autoupdate; `sh tests/t_updater.sh` tests the updater under Mono (15 checks)
 ```
 
-288 checks pass (`t_cloud` fakes Google's sign-in, token and Drive endpoints and the update file). The exe itself was not run on Windows here: the tests run the same pages in
+303 checks pass (`t_cloud` fakes Google's sign-in, token and Drive endpoints and the update file). The exe itself was not run on Windows here: the tests run the same pages in
 Chromium, the engine WebView2 uses.

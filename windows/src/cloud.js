@@ -58,27 +58,62 @@ function takeManifest(m) {
   return { version:m.version, date:String(m.date || "").slice(0, 10), url:m.updater.url,
            notes:(Array.isArray(m.notes) ? m.notes : []).slice(0, 40).map(s => String(s).slice(0, 240)) };
 }
+/* The background updater (WebsUpdate.exe, started with Windows) reports in
+   ui\user\webs-update.json, served as /user/webs-update.json. When it is
+   running, updates need no download: the browser asks it through its inbox
+   folder ("sync-write" writes a file into any folder) and it installs the new
+   version, then closes and reopens the browser. Without it, "Update now"
+   downloads it once, which sets it up for every update after. */
+let auto = null, autoT = 0, asked = 0, askWatch = 0, inboxPending = false;
+async function readAuto() {
+  try {
+    const r = await fetch("user/webs-update.json?t=" + Date.now(), { cache:"no-store" });
+    const j = r.ok ? await r.json() : null;
+    auto = j && j.auto && j.inbox && Date.now() - (+j.alive || 0) < 15 * 60000 ? j : null;
+  } catch (e) { auto = null; }
+  return auto;
+}
+const autoReady = () => !!(auto && auto.ready && auto.latest && newer(auto.latest, VERSION));   // installed, starts after a restart
+function askUpdater(action) {
+  if (!auto) return false;
+  inboxPending = true; asked = Date.now();
+  send("sync-write", auto.inbox, JSON.stringify({ action, from:VERSION, t:Date.now() }));
+  // watch it work, and say if it couldn't
+  clearInterval(askWatch);
+  askWatch = setInterval(async () => {
+    await readAuto();
+    if (autoReady() && action === "check") { clearInterval(askWatch); paintUpd(); publish(); }
+    if (action === "update" && auto && auto.error && !auto.busy && Date.now() - asked > 4000) { clearInterval(askWatch); toast("The update didn't install: " + auto.error, { label:"Try again", fn:startUpdate }); }
+    if (Date.now() - asked > 180000) clearInterval(askWatch);
+  }, action === "update" ? 2000 : 10000);
+  return true;
+}
 let checking = false;
 async function checkUpdate(manual) {
-  if (checking || (!manual && cfg.xUpdates === false)) return;
+  if (checking) return;   // "Install updates by itself" off still shows what's new; it just waits for the click
   checking = true;
   const u = updInfo();
   try {
     const r = await fetch(MANIFEST + "?t=" + Math.floor(Date.now() / 300000), { cache:"no-store" });
+    if (r.status === 404) throw new Error("none");
     if (!r.ok) throw new Error("HTTP " + r.status);
     const latest = takeManifest(await r.json());
     if (!latest) throw new Error("The update information looks wrong");
     u.latest = latest; u.err = "";
-  } catch (e) { u.err = /HTTP|wrong/.test(e.message) ? e.message : "Couldn't reach GitHub"; }
+  } catch (e) { u.err = e.message === "none" ? "No update has been published yet" : /HTTP|wrong/.test(e.message) ? e.message : "Couldn't reach GitHub"; }
   u.checked = Date.now(); checking = false;
-  save(UPD_KEY, u); paintUpd(); publish();
+  save(UPD_KEY, u);
+  await readAuto(); syncAutoPref();
   const a = updAvail();
-  if (manual) { if (a) updPanel(); else toast(u.err ? "Couldn't check for updates: " + u.err : "You have the newest version (" + VERSION + ")"); return; }
+  // the background updater gets it ready now, rather than at its next round
+  if (a && auto && !autoReady() && !auto.busy && Date.now() - asked > 600000) askUpdater("check");
+  paintUpd(); publish();
+  if (manual) { if (a) updPanel(); else toast(u.err ? (u.err === "No update has been published yet" ? u.err : "Couldn't check for updates: " + u.err) : "You have the newest version (" + VERSION + ")"); return; }
   if (a) {
     const told = load("xUpdTold", {}) || {};
     if (told.v !== a.version || Date.now() - (told.ts || 0) > 20 * 3600000) {
       save("xUpdTold", { v:a.version, ts:Date.now() });
-      toast("Webs Browser " + a.version + " is ready", { label:"Update now", fn:updPanel });
+      toast("Webs Browser " + a.version + " is ready", { label:autoReady() ? "Restart now" : "Update now", fn:updPanel });
     }
   }
 }
@@ -88,30 +123,39 @@ function paintUpd() {
   const a = updAvail();
   if (!a) { if (pill) pill.remove(); return; }
   if (!pill) { pill = el("span", "xupd"); pill.onclick = updPanel; box.insertBefore(pill, box.firstChild); }
-  pill.innerHTML = ico("upd") + "Update";
-  pill.title = "Webs Browser " + a.version + " is ready - click to update";
+  pill.innerHTML = ico("upd") + (autoReady() ? "Restart to update" : "Update");
+  pill.title = "Webs Browser " + a.version + (autoReady() ? " is installed - restart to use it" : " is ready - click to update");
 }
 function updPanel() {
-  const u = updInfo(), a = updAvail();
+  const u = updInfo(), a = updAvail(), ready = autoReady();
   const p = el("div", "xpane");
   p.innerHTML = '<div class="xhead"><div class="xic">' + ico(a ? "upd" : "sparkle") + '</div><div><b></b><span></span></div></div><ul class="xnotes"></ul><div class="xsmall"></div><div class="xbtns"></div>';
-  p.querySelector("b").textContent = a ? "Webs Browser " + a.version + " is ready" : "You have the newest version";
+  p.querySelector("b").textContent = a ? "Webs Browser " + a.version + (ready ? " is installed" : " is ready") : "You have the newest version";
   p.querySelector(".xhead span").textContent = "You have " + VERSION + (u.checked ? " · checked " + ago(u.checked) : "") + (u.err ? " · " + u.err : "");
   const ul = p.querySelector("ul");
   (a ? a.notes : []).forEach(n => { const li = el("li"); li.textContent = n; ul.appendChild(li); });
   if (!ul.children.length) ul.remove();
-  p.querySelector(".xsmall").textContent = a ? "Update now downloads a small updater from GitHub. It closes the browser, installs " + a.version +
-    " and opens it again, with your tabs. If Windows asks, choose More info, then Run anyway." : "Webs Browser checks for updates by itself every few hours.";
+  p.querySelector(".xsmall").textContent = !a ? (auto ? "Updates install by themselves in the background." : "Webs Browser checks for updates by itself every few hours.")
+    : ready ? "It's ready: Webs Browser closes and opens again with your tabs, now or the next time you start it."
+    : auto ? "It installs in the background, then Webs Browser closes and opens again with your tabs. Nothing to download."
+    : "Update now downloads a small updater from GitHub, this one last time: after that, updates install by themselves. It closes the browser, installs " + a.version +
+      " and opens it again, with your tabs. If Windows asks, choose More info, then Run anyway.";
   const bt = p.querySelector(".xbtns");
   const b1 = el("button", "btn2"); b1.textContent = a ? "Later" : "Check now"; b1.onclick = () => { if (a) closeOver(); else { closeOver(); checkUpdate(true); } };
   bt.appendChild(b1);
-  if (a) { const b2 = el("button", "btn2 main"); b2.textContent = "Update now"; b2.onclick = startUpdate; bt.appendChild(b2); }
+  if (a) { const b2 = el("button", "btn2 main"); b2.textContent = ready ? "Restart now" : "Update now"; b2.onclick = startUpdate; bt.appendChild(b2); }
   const n = openOver("xupdp", p); n.style.right = "8px";
 }
 let updUrl = "", updVer = "";
-function startUpdate() {
+async function startUpdate() {
   const a = updAvail(); if (!a) return;
   closeOver();
+  await readAuto();
+  if (auto) {
+    askUpdater("update");
+    toast(autoReady() ? "Restarting Webs Browser…" : "Updating to " + a.version + ". Webs Browser closes and opens again by itself in a moment.");
+    return;
+  }
   updUrl = a.url; updVer = a.version;
   toast("Downloading the updater…");
   // "dl-retry" with an unknown id downloads the address: in the page you are on, or a background tab
@@ -132,6 +176,21 @@ function onUpdDl(p) {
     updUrl = "";
     toast("The update didn't download", { label:"Try again", fn:startUpdate });
   }
+}
+// Settings → "Install updates by itself" is kept by the background updater too
+function syncAutoPref() {
+  if (!auto || typeof auto.autoInstall !== "boolean") return;
+  const want = cfg.xUpdates !== false;
+  if (auto.autoInstall !== want && !inboxPending) { auto.autoInstall = want; askUpdater(want ? "auto-on" : "auto-off"); }
+}
+const reloadSettings1 = reloadSettings;
+reloadSettings = function () { reloadSettings1(); syncAutoPref(); };
+// the folder-sync reply for a request written to the updater's inbox is not about sync
+function onInboxDone(p) {
+  if (!inboxPending) return false;
+  inboxPending = false;
+  if (p[1] !== "1") { auto = null; toast("Couldn't reach the background updater", { label:"Update another way", fn:startUpdate }); }
+  return true;
 }
 X3.checkUpdate = checkUpdate; X3.updPanel = updPanel; X3.startUpdate = startUpdate;
 // The first start after an update says so. (3.1.0 didn't note its version, so an
@@ -164,7 +223,8 @@ function setState(s) { save("xgState", s); publish(); }
 function publish() {
   const s = gState();
   save("xgStatus", { configured:!!gConfig(), signedIn:G_ON(), expired:!!(auth && auth.expired), email:auth ? auth.email : "", name:auth ? auth.name : "",
-    pic:auth ? auth.pic : "", last:s.lastSync || 0, err:lastErr, busy, signingIn:!!pending, prefs:gPrefs(), private:PRIVATE, version:VERSION, upd:updInfo() });
+    pic:auth ? auth.pic : "", last:s.lastSync || 0, err:lastErr, busy, signingIn:!!pending, prefs:gPrefs(), private:PRIVATE, version:VERSION, upd:updInfo(),
+    auto:auto ? { on:true, ready:autoReady(), latest:auto.latest || "" } : null });
 }
 
 async function signIn(viaBrowser) {
@@ -459,6 +519,7 @@ const onCloud0 = on;
 on = function (p) {
   const c = p[0];
   if (pending && (c === "tab-url" || c === "tab-created") && catchCode(+p[1], c === "tab-url" ? p[2] : p[3])) { if (c === "tab-created") onCloud0(p); return; }
+  if (c === "sync-done" && onInboxDone(p)) return;
   onCloud0(p);
   if (c === "download") onUpdDl(p);
 };
@@ -499,6 +560,8 @@ if (!PRIVATE) {
   publish(); paintUpd(); paintAcctBtn();
   setTimeout(() => checkUpdate(false), 25000);
   setInterval(() => checkUpdate(false), 6 * 3600000);
+  // the background updater may have installed a new version while the browser was open
+  setInterval(async () => { const was = autoReady(); await readAuto(); if (autoReady() !== was) { paintUpd(); publish(); } }, 5 * 60000);
   if (G_ON()) setTimeout(() => syncG(false), 12000);
   setInterval(() => { if (G_ON()) syncG(false); }, 4 * 60000);
   setInterval(paintAcctBtn, 60000);

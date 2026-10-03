@@ -36,9 +36,12 @@ function paint() {
   if (sub) sub.textContent = on ? "Stored on this computer, and synced with your Google account (" + (s.email || "signed in") + ")." : subText;
   const u = s.upd || {}, L = u.latest, avail = L && newer(L.version, s.version);
   $("#xuVer").textContent = "Webs Browser " + (s.version || "");
-  $("#xuNote").textContent = avail ? "Version " + L.version + " is ready" + (L.notes && L.notes.length ? ": " + L.notes.slice(0, 3).join(" · ") : ".")
-    : (u.err ? "Couldn't check: " + u.err : u.checked ? "You have the newest version · checked " + ago(u.checked) : "Not checked yet");
+  const A = s.auto, ready = avail && A && A.ready;
+  $("#xuNote").textContent = (avail ? "Version " + L.version + (ready ? " is installed: restart to use it" : " is ready") + (L.notes && L.notes.length ? ": " + L.notes.slice(0, 3).join(" · ") : ".")
+    : (u.err ? (u.err === "No update has been published yet" ? u.err : "Couldn't check: " + u.err) : u.checked ? "You have the newest version · checked " + ago(u.checked) : "Not checked yet")) +
+    (A ? " Updates install by themselves in the background." : " Update once with the button and they install by themselves from then on.");
   $("#xuGo").style.display = avail ? "" : "none";
+  $("#xuGo").textContent = ready ? "Restart to update" : "Update now";
 }
 [["xgLayout", "layout"], ["xgLists", "lists"], ["xgExtras", "extras"]].forEach(([id, k]) => {
   $("#" + id).onclick = () => { const pr = Object.assign({ layout:true, lists:true, extras:true }, get("xgPrefs", {}) || {}); pr[k] = !pr[k]; put("xgPrefs", pr);

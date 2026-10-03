@@ -1,19 +1,21 @@
 {
-  "version": "3.1.1",
+  "version": "3.2.0",
   "date": "2026-10-02",
   "notes": [
-    "Test update: after updating, the browser says so",
-    "Settings shows Sign in with Google as soon as it's switched on"
+    "Updates install by themselves in the background: nothing to download, and Windows doesn't ask",
+    "This is the last update you download by hand",
+    "Restart to update: one click switches to a version installed while you browse",
+    "Settings → Updates → Install updates by itself"
   ],
   "exe": {
-    "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.1.1.exe",
-    "sha256": "297162bec1c6dc213e30dbc3dce1e24373c9265488e86da9657de1c3957eb8fb",
-    "size": 2571776
+    "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.2.0.exe",
+    "sha256": "85611034a370d19230bdd251dd446a7e27b55931459eb98dd6bfcc1e5291297d",
+    "size": 2576896
   },
   "updater": {
     "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebsUpdate.exe",
-    "sha256": "c6464be8c66ff85068f804271929a33f2a8471c8dc8a45a2a2c4391800e105f4",
-    "size": 20480
+    "sha256": "be8e0bf8a2d466c935ac6ea1f6818f7d382941c53d7326876145af4c46639c65",
+    "size": 30208
   },
   "google": {
     "clientId": "",
