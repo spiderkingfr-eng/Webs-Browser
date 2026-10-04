@@ -146,6 +146,15 @@ web pages cover the window; special achievements join Menu → Achievements; and
 follows the owner's rollout or going back (`src/cloud.js`). The window checks in about once an
 hour with the version only (Settings → Webs 3.0 extras → Send anonymous counts turns it off).
 
+## Anime themes
+
+`../js/anime.js` (shared with the iPhone app) has the nine looks: colors, live wallpapers drawn on a
+canvas, start-page cards and the picker. Picking one sets the "custom" color theme and the accent,
+which every page already reads, so the whole browser changes at once; `src/anime.newtab.js` adds the
+wallpaper and card to the new tab page (and the picker to its Background panel), `src/anime.chrome.js`
+the band across the top of the window and Menu → Anime themes…, `src/anime.settings.js` the row in
+Settings → Appearance. The previous look is kept in `settings.animePrev` and comes back with No anime theme.
+
 ## Making the exe by hand
 
 ```
@@ -162,7 +171,7 @@ hash) before and after, and every embedded file read back by the .NET runtime ma
 ```
 npm install playwright
 python3 build.py
-node tests/t_chrome.js     # also t_side, t_ntp, t_games, t_shield, t_misc, t_examples, t_cloud, t_updated, t_autoupdate, t_studio, t_webai, t_voice, t_support and t_live; `sh tests/t_updater.sh` tests the updater under Mono (23 checks, with a gradual rollout and going back)
+node tests/t_chrome.js     # also t_side, t_ntp, t_games, t_shield, t_misc, t_examples, t_cloud, t_updated, t_autoupdate, t_studio, t_webai, t_voice, t_support, t_live and t_anime; `sh tests/t_updater.sh` tests the updater under Mono (23 checks, with a gradual rollout and going back)
 ```
 
 470 checks pass (`t_cloud` fakes Google's sign-in, token and Drive endpoints and the update file; `t_webai` runs Web AI against the real server code with a pretend Claude; `t_support` runs Help & support against it and the owner's dashboard; `t_live` runs From Webs and the rollout against it; the server's own tests in `../server/web-ai/` add 315 checks). The exe itself was not run on Windows here: the tests run the same pages in

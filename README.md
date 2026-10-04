@@ -87,6 +87,16 @@ sees, so the dashboard can show how many people use Webs and which versions. Nev
 browses. *Send anonymous counts* (iPhone: Settings → Privacy and security; Windows: Settings → Webs 3.0 extras)
 turns it off. Votes, reactions, scores and problem reports are sent only when someone chooses to.
 
+## Anime themes
+
+From iPhone 2.8 and Windows 3.8, *Anime themes* (iPhone: Settings → Appearance; Windows: the new tab
+page's Background panel, Menu → Anime themes…, or Settings) change the whole browser in one go:
+its colors and accent, a live wallpaper behind the start page, and a card with the time and date in
+the theme's style. There are nine, inspired by Bleach, Tokyo Ghoul, Demon Slayer, Jujutsu Kaisen,
+Naruto, Attack on Titan, One Piece, Death Note and Persona 5. Everything is drawn by code in
+`js/anime.js` (shared by both apps), with nothing taken from the shows: they're fan-made looks, and
+the picker says they're not official. *No anime theme* brings back the look from before.
+
 ## What it does
 
 Version 2.0 adds 150 new things. They're all listed in the app under *Menu → What's new*.
@@ -147,6 +157,7 @@ On an iPhone, an app can only show a website inside itself when that website all
 | `js/push.js` | Notifications (2.4); `sw.js` shows them |
 | `js/support.js` | Help & support (2.6): the chat, and support's changes with Undo |
 | `js/support.settings.js` | The only settings support may change, shared with Windows and the server |
+| `js/anime.js` | Anime themes (2.8): the looks, live wallpapers, cards and picker, shared with Windows; `js/anime.app.js` puts them in the app |
 | `js/live.js` | From Webs (2.7): what's on everyone's start page, shared with Windows; `js/live.app.js` puts it in the app and `js/live.games.js` in the games |
 | `js/qrcode.js` | [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) by Kazuhiko Arase (MIT license), for QR codes |
 | `games.html` | The offline games |

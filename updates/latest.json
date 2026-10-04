@@ -1,15 +1,16 @@
 {
-  "version": "3.7.3",
+  "version": "3.8.0",
   "date": "2026-10-04",
   "notes": [
-    "From Webs in the toolbar: the 📣 button shows news, polls, trivia, the countdown, the mystery box and more from the people who make Webs, whatever start page you use",
-    "News the people who make Webs send to everyone now opens in the window on PCs too",
-    "The From Webs panel says if this computer can't reach Webs's server"
+    "Anime themes: nine whole looks inspired by Bleach, Tokyo Ghoul, Demon Slayer, Jujutsu Kaisen, Naruto, Attack on Titan, One Piece, Death Note and Persona 5 (fan-made, not official)",
+    "The whole browser takes the theme's colors and accent, with its own band across the top of the window",
+    "A live wallpaper behind the new tab page and a card with the time and date in the theme's style",
+    "Its own sound if you want it: rain, wind, waves or a storm. No anime theme brings back your look"
   ],
   "exe": {
-    "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.7.3.exe",
-    "sha256": "7685f69fe00958a1be7a232a219c0c86980efb40bee8d96c6efd8f996a8d4f45",
-    "size": 2865152
+    "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.8.0.exe",
+    "sha256": "977e0b8cfe1369bf3f9a81f8dbaae8c688857526a580d01384b6c86b7c124897",
+    "size": 3079168
   },
   "updater": {
     "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebsUpdate.exe",
@@ -25,11 +26,11 @@
     "code": "jcku563mgxwn"
   },
   "previous": {
-    "version": "3.7.2",
+    "version": "3.7.3",
     "exe": {
-      "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.7.2.exe",
-      "sha256": "d12dad25de66483b7c01175decd0e7532399147a0e417116dd9141c608176ce7",
-      "size": 2856448
+      "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.7.3.exe",
+      "sha256": "7685f69fe00958a1be7a232a219c0c86980efb40bee8d96c6efd8f996a8d4f45",
+      "size": 2865152
     }
   }
 }

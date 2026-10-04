@@ -1,13 +1,10 @@
 {
-  "version": "2.7.0",
+  "version": "2.8.0",
   "date": "2026-10-04",
   "notes": [
-    "From Webs: news, polls, trivia, a countdown, a mystery box and more right under the search box (Customize start page can hide it)",
-    "Calling cards, theme days, the owner's quote and the wallpaper of the week, if you want it",
-    "Secret words and a secret code hunt in the address bar, limited-time achievements and Phantom calendar stickers",
-    "Games: a weekly leaderboard with a nickname you pick, community goals, and sometimes the owner's daily word",
-    "Help & support: common questions, problem reports with their answers, and rating the help",
-    "Anonymous counts (the version and your country, never what you browse); Settings → Privacy and security turns them off"
+    "Anime themes: nine whole looks inspired by Bleach, Tokyo Ghoul, Demon Slayer, Jujutsu Kaisen, Naruto, Attack on Titan, One Piece, Death Note and Persona 5 (Settings → Appearance)",
+    "All of Webs takes the theme's colors, with a live wallpaper behind the start page and a card in its style",
+    "Fan-made looks drawn by Webs, not official. No anime theme brings back your look"
   ],
   "webai": {
     "server": "https://web-ai.spiderkingfr.workers.dev",
