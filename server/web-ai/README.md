@@ -1,6 +1,6 @@
 # Web AI server
 
-Web AI in Webs Browser (Windows 3.3 and iPhone 2.2) talks to this small server.
+Web AI in Webs Browser (Windows 3.3 and iPhone 2.2 and later) talks to this small server.
 The server holds the Claude API key, so the key never ships inside the browser,
 which anyone can download and take apart. It counts the questions asked per day
 and passes Claude's answer back word by word.
@@ -13,8 +13,13 @@ copy uses the shared code that comes with the update files
 someone who should get their own limit.
 
 It runs on Cloudflare Workers. The free plan is plenty: 100,000 requests a day.
-`worker.js` is a single file you paste into Cloudflare's editor. There's nothing
-to install.
+The same server runs your dashboard (`/admin`): Help & support, notifications,
+what's on everyone's start page, updates and settings (see **Your dashboard** below).
+
+The server is this whole folder: `worker.js` (Web AI, notifications, support),
+`owner.js` (the owner's settings and security), `live.js` (what's on everyone's
+start page), `dash.js` and `icons.js` (the dashboard), `wrangler.jsonc` and `setup.cmd`.
+Keep them together: `setup.cmd` puts all of them on Cloudflare at once.
 
 ## What it costs
 
@@ -70,8 +75,8 @@ everything from your computer:
    at the bottom.
 2. Install **Node.js** (the **LTS** version) from [nodejs.org](https://nodejs.org). Keep all the
    default options.
-3. Put `worker.js`, `wrangler.jsonc` and `setup.cmd` from this folder together in one folder,
-   then double-click `setup.cmd`. It:
+3. Put every file from this folder together in one folder (`worker.js`, `owner.js`, `live.js`,
+   `dash.js`, `icons.js`, `wrangler.jsonc`, `setup.cmd`), then double-click `setup.cmd`. It:
    - puts the worker on Cloudflare and creates the storage for the daily counts (`LIMITS`). The
      first time, a browser tab asks you to log in to Cloudflare. Click **Allow**.
    - asks for your **Claude API key**. Paste it and press Enter. It's stored as a Cloudflare
@@ -152,6 +157,44 @@ only the chat and the values of the settings on that list.
 **Close this chat** when you're done; they can end it too. A chat and its settings are deleted
 from the server 30 days after the last message. One internet connection can start 5 chats a day.
 
+## Your dashboard
+
+Open `https://…workers.dev/admin` on your computer or phone and sign in with the owner's code (the
+code named `Me`, an `ADMIN_CODE`, or one you set on the dashboard). Tick **Remember this browser**
+so you don't type it each time. On a phone, **Add to Home Screen** makes it an app, which can send
+you alerts.
+
+- **Overview:** questions today and what they cost, people using Webs right now, today and this
+  week, their countries and versions, the last 14 days, and **Run the checks** (is the Claude key
+  working, the storage, notifications, your websites).
+- **Support:** the chats and problem reports (reply, mark fixed, block a device that misbehaves),
+  saved replies, an away message, how long finished chats are kept, and the help articles people see.
+- **Start page:** what everyone sees under the search box: an announcement (with emoji reactions),
+  a calling card, a poll, a countdown, your pick of the week, Webs's birthday, quotes, trivia,
+  mystery boxes and theme days by date, tomorrow's daily word, a community goal, a secret code hunt,
+  secret words, limited-time achievements, the wallpaper of the week and sticker packs. Each part
+  opens with a click and shows its results (votes, right answers, reactions, finds).
+- **Notifications:** send to every iPhone, to your own phone first, or at a time you pick; and the
+  history of what was sent.
+- **Updates:** a new version can reach some people first (a gradual rollout: 10%, 50%, everyone),
+  and every PC can go back to the version before while a problem is fixed. On iPhones (2.7 and
+  later) a rollout can be paused; to undo an iPhone version, put the old files back on GitHub.
+- **Settings:** Web AI (pause it, the model, answer length, daily limits, a spending cap per day),
+  maintenance mode, the owner's code, Web AI codes, alerts on your phone (support messages, new
+  sign-ins, websites going down, the spending cap), two-step login, blocked devices and codes,
+  websites to watch, and **Download a backup**.
+- **Log:** what was changed from the dashboard, and when.
+
+**Two-step login:** turn it on in Settings once alerts reach your phone. A new browser then needs
+your approval from a notification, or the recovery code shown when you turned it on (write it down).
+Wrong codes send you an alert (the 3rd and the 10th of the day), and one internet connection gets 20 wrong tries a day.
+
+**What it costs to run:** Cloudflare's free plan allows 1,000 storage writes a day. Each Web AI
+question uses about 4; each device checks in about once an hour but is written at most every hour
+or few (less often when there are many), and the numbers on the dashboard are worked out once an
+hour. **Run the checks** shows today's estimate. Past about 200 questions a day, Cloudflare's $5
+plan removes the limit.
+
 ## Seeing what's happening
 
 - **Claude Console → Usage** shows what each day cost.
@@ -162,13 +205,16 @@ from the server 30 days after the last message. One internet connection can star
 - **Windows:** the question, and the text of the page you have open while "Use this page" is on (up to about 16,000 characters). Private windows never send their page.
 - **Help & support:** what's written in the chat, the app's version, and the values of the settings support may change (`js/support.settings.js`). Kept until 30 days after the last message.
 - **iPhone:** the question, and the page's address while "Use this page" is on. The app can't read pages itself, so Claude may open that address once, reading at most about 6,000 tokens. Private tabs never send their page.
-- The server keeps no chats. It keeps only a number per person per day, for 3 days.
+- **Anonymous counts** (Windows 3.7 and iPhone 2.7, unless *Send anonymous counts* is off): about once an hour, the app's version, whether it's on Windows or iPhone, and the country Cloudflare sees. Each device is a random id the server keeps only as a hash, for 90 days after it was last seen. Never what anyone browses.
+- **What people choose to send:** a vote, a trivia answer, a reaction, a found code, a nickname and best score for the weekly leaderboard, and a problem report (what they wrote, the version, the window size, recent errors). Problem reports are kept 90 days.
+- The server keeps no Web AI chats. It keeps only a number per person per day, for 3 days.
 - Claude is made by Anthropic. Questions go to the Claude API under your Console account's terms.
 
 ## For developers
 
 - `node test.mjs` tests the worker with a pretend Claude API and pretend storage.
 - `node test-support.mjs` tests Help & support: what's kept, who can read it, access, the list of settings and its time limit.
+- `node test-owner.mjs` tests the dashboard's settings and security (two-step login, codes, alerts, the spending cap, blocking, backups); `node test-live.mjs` tests the start page parts, check-ins, votes, scores and the hourly numbers.
 - `node test-push.mjs` tests notifications with a pretend Apple push service that decrypts each message with the phone's key and checks the signature.
 - `windows/tests/t_webai.js` runs the browser's Web AI against this worker end to end.
 - The browser sends `POST /chat` with `{ code, messages:[{ role, content }], web? }` and reads back one JSON object per line: `{ d }` for each piece of text, then `{ end, stop, left }`, or `{ error, message }`.

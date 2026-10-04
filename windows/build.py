@@ -29,7 +29,7 @@ ch = once(ch, '  m.appendChild(row("sparkle", "What\'s new (287 features)", "", 
 ch = once(ch, '  m.appendChild(row("code", "Your CSS for this site…", "", cssPanel));\n',
   '  m.appendChild(row("code", "Your CSS for this site…", "", cssPanel));\n  m.appendChild(row("grid", "40 more page tools…", "", () => X3.toolsPanel()));\n', "chrome: tools panel row")
 ch = once(ch, "    [\"Close\", () => closeTab(id)]\n  ];\n  ctxMenu(e, items);", "    [\"Close\", () => closeTab(id)]\n  ];\n  if (window.X3) X3.tabItems(items, id);\n  ctxMenu(e, items);", "chrome: tab menu")
-ch = once(ch, "relayout();\n</script>", "relayout();\n</script>\n<script>\n" + rd(S, "chrome.add.js") + "\n</script>\n<script>\n" + rd(S, "cloud.js").replace("@@WEBS_VERSION@@", VERSION) + "\n</script>\n<script>\n" + rd(S, "studio.js") + "\n</script>\n<script>\n" + rd(S, "webai.js") + "\n</script>\n<script>\n" + rd(S, "../../js/support.settings.js") + "\n</script>\n<script>\n" + rd(S, "support.js") + "\n</script>", "chrome: script")   # Help & support: the list is shared with the iPhone app and the server
+ch = once(ch, "relayout();\n</script>", "relayout();\n</script>\n<script>\n" + rd(S, "chrome.add.js") + "\n</script>\n<script>\n" + rd(S, "../../js/live.js") + "\n</script>\n<script>\n" + rd(S, "cloud.js").replace("@@WEBS_VERSION@@", VERSION) + "\n</script>\n<script>\n" + rd(S, "studio.js") + "\n</script>\n<script>\n" + rd(S, "webai.js") + "\n</script>\n<script>\n" + rd(S, "../../js/support.settings.js") + "\n</script>\n<script>\n" + rd(S, "support.js") + "\n</script>\n<script>\n" + rd(S, "live.chrome.js").replace("@@WEBS_VERSION@@", VERSION) + "\n</script>", "chrome: script")   # Help & support: the list is shared with the iPhone app and the server
 chrome_html = ch   # written once the feature count is known
 
 def page(name, css=None, js=None, edits=()):
@@ -41,8 +41,8 @@ def page(name, css=None, js=None, edits=()):
         s = s[:i + 9] + "\n<script>\n" + rd(S, f).replace("@@WEBS_VERSION@@", VERSION) + "\n</script>" + s[i + 9:]
     write(name, s)
 
-page("side.html", ["side.add.css", "webai.side.css", "support.side.css"], ["side.add.js", "webai.side.js", "webai.voice.js", "../../js/support.settings.js", "support.side.js"])
-page("newtab.html", "newtab.add.css", ["../../js/phantom.js", "newtab.add.js"])     # the Phantom calendar is shared with the iPhone app
+page("side.html", ["side.add.css", "webai.side.css", "support.side.css"], ["side.add.js", "webai.side.js", "webai.voice.js", "../../js/support.settings.js", "../../js/live.js", "support.side.js"])
+page("newtab.html", "newtab.add.css", ["../../js/phantom.js", "newtab.add.js", "../../js/live.js", "live.newtab.js"])     # the Phantom calendar and "From Webs" (js/live.js) are shared with the iPhone app
 page("settings.html", None, ["settings.add.js", "settings.acct.js"], edits=[
   ('  <h2 id="vpn">VPN</h2>', rd(S, "settings.acct.html") + '  <h2 id="vpn">VPN</h2>', "account section"),
   ('<a href="#vpn">VPN</a>', '<a href="#account">Account</a><a href="#vpn">VPN</a>', "account link"),
@@ -65,16 +65,25 @@ gm = once(gm, '<!-- Offline games: Web Runner, Snake and 2048.', '<!-- Offline g
 gm = once(gm, '<div class="sub">Small games that work without internet.', '<div class="sub">Twelve small games that work without internet.', "games: sub")
 gm = once(gm, "</style>\n", rd(S, "games.add.css") + "</style>\n", "games: css")
 gm = once(gm, "</main>", rd(S, "games.add.html") + "</main>", "games: sections")
+# Webs 3.7 (js/live.js): the weekly leaderboard, the community goal, and the daily word the owner picked
+gm = once(gm, "</main>\n<script>\n", "</main>\n<script>\n" + rd(S, "../../js/live.js") + "\n</script>\n<script>\n", "games: live")
+gm = once(gm, "ANSWER = WORDS[(dayN * 7919) % WORDS.length];", "ANSWER = (window.Live && Live.wordToday()) || WORDS[(dayN * 7919) % WORDS.length];     // the owner may pick the word (js/live.js)", "games: word")
+gm = once(gm, "if (!ws || ws.day !== dayN) ws = { day:dayN, guesses:[], done:0 };", "if (!ws || ws.day !== dayN || (ws.ans && ws.ans !== ANSWER)) ws = { day:dayN, guesses:[], done:0, ans:ANSWER };", "games: word state")
+gm = once(gm, "{ snDead = true; const b = bests();", "{ snDead = true; if (window.Live) Live.gameOver(\"snake\", snScore); const b = bests();", "games: snake over")
+gm = once(gm, "grid[(y + 1) * 4 + x].v));\n  draw2();", "grid[(y + 1) * 4 + x].v));\n  if (over2 && window.Live) Live.gameOver(\"2048\", score2);\n  draw2();", "games: 2048 over")
+gm = once(gm, "    put(\"wordState\", ws); wordPaint(true); return;", "    if (ws.done && window.Live) Live.gameOver(\"word\", 0);\n    put(\"wordState\", ws); wordPaint(true); return;", "games: word over")
 js = "".join(rd(S, f) for f in ("games.head.js", "games.port.js", "games.brk.js", "games.pong.js", "games.type.js", "games.react.js", "games.aim.js"))
 i = gm.rindex("</script>")
 gm = gm[:i] + js + "showBest();\n" + gm[i:]
+i = gm.rindex("</script>") + 9
+gm = gm[:i] + "\n<script>\n" + rd(S, "../../js/live.games.js") + "\n</script>" + gm[i:]
 write("games.html", gm)
 print("games built")
 
 # whatsnew.html: the newest features first; the count on the page is worked out from the list
 wn = rd(O, "whatsnew.html")
 wn = once(wn, "const F = {\n", "const F = {\n" + rd(S, "whatsnew.31.js") + rd(S, "whatsnew.add.js"), "whatsnew: list")
-wn = once(wn, "The groups marked New arrived in this update.", "The groups marked 3.6, 3.5, 3.4, 3.3, 3.2, 3.1 and 3.0 are the newest; the ones marked New came just before.", "whatsnew: sub")
+wn = once(wn, "The groups marked New arrived in this update.", "The groups marked 3.7, 3.6, 3.5, 3.4, 3.3, 3.2, 3.1 and 3.0 are the newest; the ones marked New came just before.", "whatsnew: sub")
 write("whatsnew.html", wn)
 body = wn[wn.index("const F = {"):wn.index("};\nlet n = 0;")]
 features = len(re.findall(r'^\s*\["', body, re.M))     # one card per line that starts a [title, what, where] entry

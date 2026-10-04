@@ -15,7 +15,7 @@
    games, settings and backups - lives here and works offline. */
 "use strict";
 
-const VERSION = "2.6.0";
+const VERSION = "2.7.0";
 
 /* ---------------------------------------------------------------- look */
 const ACCENTS = ["#e8342a", "#ff7a1a", "#e0a100", "#2fa35f", "#1f9bd1", "#3d6cf0", "#8a5cf5", "#e0408a"];
@@ -1427,7 +1427,8 @@ function settingsHTML() {
       SW("saveHistory", "Save history", "", cfg.saveHistory !== false) +
       ROW("Keep history", SEG("histKeep", [["0", "Always"], ["1", "1 day"], ["7", "1 week"], ["30", "1 month"]], String(+cfg.histKeep || 0))) +
       BTN("passcode", load("mlock", null) ? "Passcode lock" : "Set a passcode", load("mlock", null) ? "On" : "", "", "lock") +
-      BTN("clearHist", "Clear history…", "", "", "trash"),
+      BTN("clearHist", "Clear history…", "", "", "trash") +
+      SW("liveCounts", "Send anonymous counts", "This app's version and country, about once an hour, so Webs knows how many people use it. Never what you browse.", cfg.liveCounts !== false),
       "The passcode keeps people who pick up your phone out of Webs. It is stored on this iPhone only.") +
     GROUP("Alerts",
       SW("notify", "Timer notifications", "Get a notification when a timer or focus round ends", !!cfg.notify) +

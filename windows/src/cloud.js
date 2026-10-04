@@ -49,7 +49,24 @@ function fp(v) {
 /* ================================================================ updates */
 const UPD_KEY = "xUpd";
 function updInfo() { return load(UPD_KEY, {}) || {}; }
-function updAvail() { const u = updInfo(); return u.latest && newer(u.latest.version, VERSION) ? u.latest : null; }
+/* Webs 3.7: from the owner's dashboard, a new version can go to some PCs first (a gradual rollout),
+   and every PC can be put back on the version before while a problem is fixed. The Web AI server
+   says which (js/live.js); the background updater decides the same way, with its own number. */
+const liveNow = () => { try { return window.Live ? Live.data() : {}; } catch (e) { return {}; } };
+const myBucket = () => auto && auto.bucket >= 0 && auto.bucket < 100 ? +auto.bucket : window.Live ? Live.bucket() : 0;
+function updAvail() {
+  const u = updInfo(), L = u.latest; if (!L) return null;
+  const rb = (liveNow().rollback || {}).win, p = L.previous;
+  if (rb && p && p.version === rb) {      // going back: every PC is put on the version before
+    if (VERSION === rb) return null;
+    const back = newer(VERSION, rb);
+    return { version:rb, url:L.url, back, notes:back ? ["Going back to " + rb + " for now, while a problem in " + VERSION + " is fixed. Your tabs and settings stay."] : [] };
+  }
+  if (!newer(L.version, VERSION)) return null;
+  const ro = (liveNow().rollout || {}).win;
+  if (ro && ro.v === L.version && myBucket() >= ro.pct) return null;     // not this PC's turn yet
+  return L;
+}
 function takeManifest(m) {
   if (m && m.google && CLIENT_RE.test(m.google.clientId || ""))
     save("xgConfig", { clientId:m.google.clientId, clientSecret:String(m.google.clientSecret || "").slice(0, 100) });
@@ -62,7 +79,8 @@ function takeManifest(m) {
   }
   const ok = m && /^\d+\.\d+\.\d+$/.test(m.version || "") && m.updater && FROM_REPO.test(m.updater.url || "");
   if (!ok) return null;
-  return { version:m.version, date:String(m.date || "").slice(0, 10), url:m.updater.url,
+  const pv = m.previous && /^\d+\.\d+\.\d+$/.test(m.previous.version || "") ? { version:m.previous.version } : null;
+  return { version:m.version, date:String(m.date || "").slice(0, 10), url:m.updater.url, previous:pv,
            notes:(Array.isArray(m.notes) ? m.notes : []).slice(0, 40).map(s => String(s).slice(0, 240)) };
 }
 /* The background updater (WebsUpdate.exe, started with Windows) reports in
@@ -80,7 +98,8 @@ async function readAuto() {
   } catch (e) { auto = null; }
   return auto;
 }
-const autoReady = () => !!(auto && auto.ready && auto.latest && newer(auto.latest, VERSION));   // installed, starts after a restart
+// installed, starts after a restart (an updater from 3.7 on says which version it put in place: "target")
+const autoReady = () => !!(auto && auto.ready && (auto.target ? auto.target !== VERSION : auto.latest && newer(auto.latest, VERSION)));
 function askUpdater(action) {
   if (!auto) return false;
   inboxPending = true; asked = Date.now();
@@ -120,7 +139,7 @@ async function checkUpdate(manual) {
     const told = load("xUpdTold", {}) || {};
     if (told.v !== a.version || Date.now() - (told.ts || 0) > 20 * 3600000) {
       save("xUpdTold", { v:a.version, ts:Date.now() });
-      toast("Webs Browser " + a.version + " is ready", { label:autoReady() ? "Restart now" : "Update now", fn:updPanel });
+      toast(a.back ? "Webs Browser goes back to " + a.version + " for now" : "Webs Browser " + a.version + " is ready", { label:autoReady() ? "Restart now" : a.back ? "Go back" : "Update now", fn:updPanel });
     }
   }
 }
@@ -130,14 +149,14 @@ function paintUpd() {
   const a = updAvail();
   if (!a) { if (pill) pill.remove(); return; }
   if (!pill) { pill = el("span", "xupd"); pill.onclick = updPanel; box.insertBefore(pill, box.firstChild); }
-  pill.innerHTML = ico("upd") + (autoReady() ? "Restart to update" : "Update");
-  pill.title = "Webs Browser " + a.version + (autoReady() ? " is installed - restart to use it" : " is ready - click to update");
+  pill.innerHTML = ico("upd") + (autoReady() ? a.back ? "Restart to go back" : "Restart to update" : a.back ? "Go back to " + a.version : "Update");
+  pill.title = "Webs Browser " + a.version + (autoReady() ? " is installed - restart to use it" : a.back ? " - going back while a problem is fixed" : " is ready - click to update");
 }
 function updPanel() {
   const u = updInfo(), a = updAvail(), ready = autoReady();
   const p = el("div", "xpane");
   p.innerHTML = '<div class="xhead"><div class="xic">' + ico(a ? "upd" : "sparkle") + '</div><div><b></b><span></span></div></div><ul class="xnotes"></ul><div class="xsmall"></div><div class="xbtns"></div>';
-  p.querySelector("b").textContent = a ? "Webs Browser " + a.version + (ready ? " is installed" : " is ready") : "You have the newest version";
+  p.querySelector("b").textContent = a ? (a.back ? "Going back to Webs Browser " : "Webs Browser ") + a.version + (a.back ? "" : ready ? " is installed" : " is ready") : "You have the newest version";
   p.querySelector(".xhead span").textContent = "You have " + VERSION + (u.checked ? " · checked " + ago(u.checked) : "") + (u.err ? " · " + u.err : "");
   const ul = p.querySelector("ul");
   (a ? a.notes : []).forEach(n => { const li = el("li"); li.textContent = n; ul.appendChild(li); });
@@ -145,12 +164,12 @@ function updPanel() {
   p.querySelector(".xsmall").textContent = !a ? (auto ? "Updates install by themselves in the background." : "Webs Browser checks for updates by itself every few hours.")
     : ready ? "It's ready: Webs Browser closes and opens again with your tabs, now or the next time you start it."
     : auto ? "It installs in the background, then Webs Browser closes and opens again with your tabs. Nothing to download."
-    : "Update now downloads a small updater from GitHub, this one last time: after that, updates install by themselves. It closes the browser, installs " + a.version +
+    : (a.back ? "Go back now" : "Update now") + " downloads a small updater from GitHub, this one last time: after that, updates install by themselves. It closes the browser, installs " + a.version +
       " and opens it again, with your tabs. If Windows asks, choose More info, then Run anyway.";
   const bt = p.querySelector(".xbtns");
   const b1 = el("button", "btn2"); b1.textContent = a ? "Later" : "Check now"; b1.onclick = () => { if (a) closeOver(); else { closeOver(); checkUpdate(true); } };
   bt.appendChild(b1);
-  if (a) { const b2 = el("button", "btn2 main"); b2.textContent = ready ? "Restart now" : "Update now"; b2.onclick = startUpdate; bt.appendChild(b2); }
+  if (a) { const b2 = el("button", "btn2 main"); b2.textContent = ready ? "Restart now" : a.back ? "Go back now" : "Update now"; b2.onclick = startUpdate; bt.appendChild(b2); }
   const n = openOver("xupdp", p); n.style.right = "8px";
 }
 let updUrl = "", updVer = "";
@@ -231,7 +250,7 @@ function publish() {
   const s = gState();
   save("xgStatus", { configured:!!gConfig(), signedIn:G_ON(), expired:!!(auth && auth.expired), email:auth ? auth.email : "", name:auth ? auth.name : "",
     pic:auth ? auth.pic : "", last:s.lastSync || 0, err:lastErr, busy, signingIn:!!pending, prefs:gPrefs(), private:PRIVATE, version:VERSION, upd:updInfo(),
-    auto:auto ? { on:true, ready:autoReady(), latest:auto.latest || "" } : null });
+    auto:auto ? { on:true, ready:autoReady(), latest:auto.latest || "" } : null, avail:(a => a ? { version:a.version, back:!!a.back, notes:a.notes || [] } : null)(updAvail()) });
 }
 
 async function signIn(viaBrowser) {
@@ -534,7 +553,7 @@ X3.menuRows = function (m) {
   if (PRIVATE) return;
   const a = updAvail();
   m.appendChild(row("google", auth && auth.rt ? "Google account (" + (auth.email || "signed in") + ")" + (auth.expired ? " ●" : "") : "Sign in with Google…", "", acctPanel));
-  m.appendChild(row("upd", a ? "Update to Webs Browser " + a.version + " ●" : "Check for updates", "", () => a ? updPanel() : checkUpdate(true)));
+  m.appendChild(row("upd", a ? (a.back ? "Go back to Webs Browser " : "Update to Webs Browser ") + a.version + " ●" : "Check for updates", "", () => a ? updPanel() : checkUpdate(true)));
 };
 const commands1 = commands;
 commands = function () {
@@ -567,6 +586,8 @@ if (!PRIVATE) {
   publish(); paintUpd(); paintAcctBtn();
   setTimeout(() => checkUpdate(false), 25000);
   setInterval(() => checkUpdate(false), 6 * 3600000);
+  // the owner started, widened or paused a rollout, or is putting PCs back on the version before
+  if (window.Live) { let was = ""; Live.on(() => { const d = liveNow(), s = JSON.stringify([d.rollout && d.rollout.win, d.rollback]); if (s !== was) { was = s; paintUpd(); publish(); } }); }
   // the background updater may have installed a new version while the browser was open
   setInterval(async () => { const was = autoReady(); await readAuto(); if (autoReady() !== was) { paintUpd(); publish(); } }, 5 * 60000);
   if (G_ON()) setTimeout(() => syncG(false), 12000);

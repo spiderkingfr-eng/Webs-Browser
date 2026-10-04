@@ -10,13 +10,15 @@ against the SHA-256 written here before installing it.
 
 This builds the pages (build.py), puts them into the exe (repack.py), compiles
 the updater when updater/WebsUpdate.cs changed (needs mcs or csc), and writes:
-  ../updates/WebStudiosBrowser-<version>.exe   the browser (older ones removed)
+  ../updates/WebStudiosBrowser-<version>.exe   the browser (the one before stays, for going back; older ones are removed)
   ../updates/WebsUpdate.exe                    the updater
   ../updates/latest.json                       what the browsers read
   ../WebsBrowserSetup.exe                      the setup for a new computer (the same updater)
   ../WebStudiosBrowser.zip                     for a first install by hand
 The "google" part of latest.json (the sign-in client, see README.md) and the
-"webai" part (the Web AI server's address, tools/set_webai_server.py) are kept."""
+"webai" part (the Web AI server's address, tools/set_webai_server.py) are kept.
+"previous" names the version before, so the owner's dashboard can put every PC
+back on it (Updates → Go back) while a problem in the new one is fixed."""
 import datetime, glob, hashlib, json, os, re, shutil, subprocess, sys, zipfile
 
 here = os.path.dirname(os.path.abspath(__file__))
@@ -42,7 +44,7 @@ if not notes: sys.exit('Say what is new: python3 publish.py "First change" "Seco
 subprocess.run([sys.executable, os.path.join(here, "build.py")], check=True)
 
 # 2. the exe: any earlier build works as the base, since every changed page is replaced
-bases = sorted(glob.glob(os.path.join(upd, "WebStudiosBrowser-*.exe")), key=os.path.getmtime)
+bases = sorted(glob.glob(os.path.join(upd, "WebStudiosBrowser-*.exe")), key=lambda p: vt(re.sub(r"^WebStudiosBrowser-|\.exe$", "", os.path.basename(p))) if re.fullmatch(r"WebStudiosBrowser-\d+\.\d+\.\d+\.exe", os.path.basename(p)) else (0,))
 base = bases[-1] if bases else None
 if not base:
     for z in ("WebStudiosBrowser.zip", "WebStudiosBrowser-3.0.zip"):
@@ -56,7 +58,13 @@ exe_name = "WebStudiosBrowser-%s.exe" % version
 exe = os.path.join(upd, exe_name)
 tmp = os.path.join(here, "out", exe_name)
 subprocess.run([sys.executable, os.path.join(here, "repack.py"), base, os.path.join(here, "out"), tmp], check=True)
-for b in glob.glob(os.path.join(upd, "WebStudiosBrowser-*.exe")): os.remove(b)
+# the version before stays, for going back: the one published until now (or, publishing the same version again, the one before it)
+prev = old.get("previous") if old.get("version") == version else ({ "version":old["version"], "exe":old["exe"] } if old.get("version") and old.get("exe") else None)
+pname = prev and os.path.basename(str(prev["exe"].get("url", "")))
+if prev and not (re.fullmatch(r"WebStudiosBrowser-[\d.]+\.exe", pname or "") and os.path.exists(os.path.join(upd, pname))
+                 and hashlib.sha256(open(os.path.join(upd, pname), "rb").read()).hexdigest() == prev["exe"].get("sha256")): prev = None
+for b in glob.glob(os.path.join(upd, "WebStudiosBrowser-*.exe")):
+    if not prev or os.path.basename(b) != pname: os.remove(b)
 shutil.move(tmp, exe)
 
 # 3. the updater, rebuilt when its source changed
@@ -78,6 +86,7 @@ manifest = { "version":version, "date":datetime.date.today().isoformat(), "notes
              "exe":info(exe, exe_name), "updater":info(upx, "WebsUpdate.exe"),
              "google":old.get("google") or { "clientId":"", "clientSecret":"" } }
 if old.get("webai"): manifest["webai"] = old["webai"]      # the Web AI server's address (tools/set_webai_server.py)
+if prev: manifest["previous"] = prev
 with open(os.path.join(upd, "latest.json"), "w", encoding="utf-8", newline="\n") as f: json.dump(manifest, f, indent=2, ensure_ascii=False); f.write("\n")
 
 # 4. the setup for a new computer is the updater itself: it installs the browser and keeps it current

@@ -9,6 +9,7 @@
 const SS = window.SupportSettings;
 if (!SS) return;
 const VER = "@@WEBS_VERSION@@";
+if (window.Live) Live.init({ platform:"windows", version:VER, noPing:true, noFx:true });     // help articles and problem reports (js/live.js)
 const E = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
 const st = () => get("support", {}) || {};
 const setSt = o => put("support", Object.assign(st(), o));
@@ -55,6 +56,7 @@ function paintLog() {
       '<div class="sup-safe">🔒 Support only sees what you write here and, if you let them, the settings below. Never your history, bookmarks, tabs, passwords or the pages you visit.</div>' +
       '<details class="sup-what"><summary>What support can change, if you let them</summary><p>' + WHAT +
       "</p><p>For 30 minutes at most, and you see each change with Undo. Nothing that deletes anything, and nothing you typed in (no addresses, VPN servers or your own search engine).</p></details></div>";
+    extras();
     return;
   }
   for (const m of msgs) {
@@ -66,12 +68,53 @@ function paintLog() {
   }
   log.scrollTop = log.scrollHeight;
 }
+// Webs 3.7: help articles from the people who make Webs, and problem reports with their answers (js/live.js)
+let reporting = false, repAt = 0;
+function extras() {
+  if (!window.Live) return;
+  const faq = Live.faq(), reps = Live.myReports();
+  if (faq.length) {
+    const box = E("div", "sup-faq", "<h4>Common questions</h4>" + faq.map(x => "<details><summary>" + esc(x.q) + "</summary><p>" + esc(x.a) + "</p></details>").join(""));
+    log.appendChild(box);
+  }
+  const r = E("div", "sup-rep");
+  if (reporting) {
+    r.innerHTML = "<h4>Send a problem report</h4><p>What went wrong? Webs adds its version, the window size and any recent errors, nothing else.</p>" +
+      '<textarea rows="3" maxlength="4000" placeholder="Videos stopped playing after the update…"></textarea><div class="sup-rb"><button class="b m sup-go">Send report</button><button class="b sup-no2">Cancel</button><span></span></div>';
+    r.querySelector(".sup-no2").onclick = () => { reporting = false; logSig = ""; paintLog(); };
+    r.querySelector(".sup-go").onclick = async () => {
+      const t = r.querySelector("textarea").value.trim(), m = r.querySelector(".sup-rb span"); if (!t) return;
+      r.querySelector(".sup-go").disabled = true; m.textContent = "Sending…";
+      try { await Live.report(t, {}); reporting = false; logSig = ""; paintLog(); say("Report sent. Thank you!"); }
+      catch (e) { m.textContent = e.message; r.querySelector(".sup-go").disabled = false; }
+    };
+  } else r.innerHTML = '<button class="sup-link">Send a problem report instead</button>';
+  if (reps.length) {
+    r.appendChild(E("div", "sup-rl", "<h4>Your problem reports</h4>" + reps.slice(0, 5).map(x => '<div class="sup-ri"><b>' + esc(x.text.slice(0, 80)) + "</b><span>" +
+      (x.fixed ? "✅ Fixed · " : x.reply ? "💬 Answered · " : "Sent · ") + esc(new Date(x.ts).toLocaleDateString()) + "</span>" +
+      (x.reply ? '<div class="sup-a"><b>Webs support</b>' + esc(x.reply.t) + "</div>" : "") + "</div>").join("")));
+    Live.readReports();
+    if (Date.now() - repAt > 60000) { repAt = Date.now(); Live.replies(true); }      // answers since, at most once a minute
+  }
+  const b = r.querySelector(".sup-link");
+  if (b) b.onclick = () => { reporting = true; logSig = ""; paintLog(); const ta = log.querySelector(".sup-rep textarea"); if (ta) ta.focus(); };
+  log.appendChild(r);
+}
+async function rate(v) {
+  const s = st();
+  setSt({ rated:v });
+  paintFoot();
+  try { await api("/support/rate", { id:s.id, token:s.token, r:v }); } catch (e) {}
+}
 let wantAccess = false, confirmEnd = false;
 function paintFoot() {
   const s = st();
   if (s.id && s.ended) {
     footSig = "ended";
-    foot.innerHTML = '<button class="b m sup-new">Start a new chat</button>';
+    foot.innerHTML = (s.rated ? s.rated > 0 ? '<div class="sup-rate">Thanks! 😊</div>' : '<div class="sup-rate">Thanks for telling us. We\'ll do better.</div>'
+      : '<div class="sup-rate"><span>How was the help?</span><button class="b" data-r="1" title="Good">👍</button><button class="b" data-r="-1" title="Not good">👎</button></div>') +
+      '<button class="b m sup-new">Start a new chat</button>';
+    foot.querySelectorAll("[data-r]").forEach(b => b.onclick = () => rate(+b.dataset.r));
     foot.querySelector(".sup-new").onclick = () => { put("support", {}); wantAccess = false; paint(); };
     return;
   }
@@ -109,7 +152,7 @@ async function sendMsg(text) {
   say("Sending…");
   try {
     if (!chatOn()) {
-      const j = await api("/support/open", { platform:"windows", version:VER, text, access:wantAccess });
+      const j = await api("/support/open", { platform:"windows", version:VER, text, access:wantAccess, device:window.Live ? Live.dev() : "" });
       put("support", { id:j.id, token:j.token, since:0, msgs:[{ f:"u", t:text, ts:Date.now() }], until:j.access > 0 ? Date.now() + 30 * 60000 : 0, applied:[], done:[], sent:"", av:1 });
       wantAccess = false;
     } else {
@@ -156,7 +199,8 @@ const visible = () => pane.classList.contains("on") && document.visibilityState 
 function ping() { if (visible()) { put("supportPing", Date.now()); if (st().unread) setSt({ unread:false }); } }
 setInterval(ping, 3000);
 setInterval(() => { if (visible() && accessOn()) { const i = foot.querySelector(".sup-acc i"); if (i) i.textContent = "On · " + mins() + " min left. Turn off any time."; } }, 15000);
-addEventListener("storage", e => { if (e.key === "wsb.support") paint(); });
+if (window.Live) Live.on(() => { if (!(st().msgs || []).length) { logSig = ""; paintLog(); } });
+addEventListener("storage", e => { if (e.key === "wsb.support") paint(); if ((e.key === "wsb.live" || e.key === "wsb.liveReports") && !(st().msgs || []).length) { logSig = ""; paintLog(); } });
 
 function routeS() {
   const h = decodeURIComponent(location.hash.slice(1));

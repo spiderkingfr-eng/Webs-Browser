@@ -55,6 +55,7 @@ const phones = new Map();
 globalThis.fetch = async (url, init = {}) => {
   url = String(url);
   if (url.startsWith("https://raw.githubusercontent.com/")) return new Response(JSON.stringify(iphoneJson), { status:200 });
+  if (url.startsWith("https://spiderkingfr-eng.github.io/")) return new Response("ok", { status:200 });      // the iPhone app's site, which the server watches
   if (!url.startsWith("https://web.push.apple.com/")) return new Response("no", { status:599 });
   const p = phones.get(url), h = init.headers || {};
   // the signature: a JWT for Apple's address, signed with the key the app subscribed with
@@ -172,8 +173,8 @@ console.log("  (CPU for 46 messages here, encryption and signing: " + ((cpu.user
 // the dashboard numbers
 r = await call("POST", "/admin", { code:"ownercode123" });
 ok(r.j.push && r.j.push.phones === 45 && r.j.push.daily === 24 && r.j.push.news === 36, "dashboard: " + JSON.stringify(r.j.push && { phones:r.j.push.phones, news:r.j.push.news, daily:r.j.push.daily }));
-r = await worker.fetch(new Request("https://web-ai.example.workers.dev/admin"), env, { waitUntil(){} });
-ok(/Notifications on iPhones/.test(await r.text()), "the dashboard page has the notifications part");
+r = await worker.fetch(new Request("https://web-ai.example.workers.dev/admin/app.js"), env, { waitUntil(){} });
+ok(/Send a notification/.test(await r.text()), "the dashboard has the notifications part");
 
 // ---- new versions, checked every 10 minutes
 pushes = []; w = writes;
@@ -229,7 +230,7 @@ ok(/\(429 TooManyRequests\)/.test(r.j.message), "the app is told Apple's reason:
 applesAnswer = 400;
 r = await call("POST", "/admin", { code:"ownercode123", op:"push", title:"Lunch", text:"Eat food" });
 ok(r.j.ok && r.j.sent === 0 && r.j.failed > 0 && r.j.why === "400 BadSomething", "the dashboard is told Apple's reason: " + r.j.why);
-r = await worker.fetch(new Request("https://web-ai.example.workers.dev/admin"), env, { waitUntil(){} });
+r = await worker.fetch(new Request("https://web-ai.example.workers.dev/admin/app.js"), env, { waitUntil(){} });
 ok(/Apple said: /.test(await r.text()), "and shows it");
 applesAnswer = 0;
 ok(badSig === 0, "every signature was good");

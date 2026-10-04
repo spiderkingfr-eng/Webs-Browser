@@ -67,6 +67,26 @@ choices: the list in `js/support.settings.js`. Nothing typed in, nothing that de
 Each change shows on their screen with Undo. You never see their history, bookmarks, tabs, notes,
 passwords or the pages they visit.
 
+## From Webs: your dashboard on everyone's start page
+
+From iPhone 2.7 and Windows 3.7, what you put on the dashboard's **Start page** tab
+(`…workers.dev/admin`) shows on everyone's start page within a few minutes: an announcement with
+emoji reactions, a poll, today's trivia, a countdown, your pick of the week, a mystery box, a
+Phantom Thieves calling card, theme days (snow, hearts, fireworks…), quotes, the wallpaper of the
+week, a community goal for the games, a secret code hunt, secret words for the address bar,
+limited-time achievements, tomorrow's daily word, sticker packs for the Phantom calendar, and the
+help articles in Help & support. The games get a weekly leaderboard (with a nickname people pick).
+The code is shared by both apps: `js/live.js`. People can hide it (*Customize → From Webs*).
+
+The **Updates** tab sends a new version to some people first (a gradual rollout) and, on Windows,
+puts every PC back on the version before while a problem is fixed (`windows/publish.py` keeps that
+version in `updates/`).
+
+About once an hour each app checks in with the server: its version, and the country Cloudflare
+sees, so the dashboard can show how many people use Webs and which versions. Never what anyone
+browses. *Send anonymous counts* (iPhone: Settings → Privacy and security; Windows: Settings → Webs 3.0 extras)
+turns it off. Votes, reactions, scores and problem reports are sent only when someone chooses to.
+
 ## What it does
 
 Version 2.0 adds 150 new things. They're all listed in the app under *Menu → What's new*.
@@ -127,6 +147,7 @@ On an iPhone, an app can only show a website inside itself when that website all
 | `js/push.js` | Notifications (2.4); `sw.js` shows them |
 | `js/support.js` | Help & support (2.6): the chat, and support's changes with Undo |
 | `js/support.settings.js` | The only settings support may change, shared with Windows and the server |
+| `js/live.js` | From Webs (2.7): what's on everyone's start page, shared with Windows; `js/live.app.js` puts it in the app and `js/live.games.js` in the games |
 | `js/qrcode.js` | [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) by Kazuhiko Arase (MIT license), for QR codes |
 | `games.html` | The offline games |
 | `manifest.webmanifest`, `icons/` | What iOS and Android use to install the app and draw its icon |

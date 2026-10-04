@@ -108,6 +108,7 @@ button.act{height:32px;padding:0 14px;border-radius:9px;border:1px solid var(--l
     <div class="gseg" id="mineMode"><button data-v="dig" class="on">⛏️ Dig</button><button data-v="flag">🚩 Flag</button></div></div>
     <div id="mine"></div><div id="mineMsg">Tap to dig. Press and hold (or switch to 🚩) to flag a mine.</div><div class="hud" style="justify-content:center"><button class="act" id="mineNew">New game</button></div></section>
 </main>
+<script src="js/live.js"></script>
 <script>
 "use strict";
 /* Color themes (Settings → Appearance), for the dark theme. */
@@ -276,7 +277,7 @@ function placeFood() { do { food = [Math.random() * N | 0, Math.random() * RH | 
 function snStep() {
   dir = nextDir;
   const h = [(snake[0][0] + dir[0] + N) % N, (snake[0][1] + dir[1] + RH) % RH];
-  if (snake.some(p => p[0] === h[0] && p[1] === h[1])) { snDead = true; const b = bests(); if (snScore > (b.snake || 0)) { b.snake = snScore; put("games", b); showBest(); } return; }
+  if (snake.some(p => p[0] === h[0] && p[1] === h[1])) { snDead = true; if (window.Live) Live.gameOver("snake", snScore); const b = bests(); if (snScore > (b.snake || 0)) { b.snake = snScore; put("games", b); showBest(); } return; }
   snake.unshift(h);
   if (h[0] === food[0] && h[1] === food[1]) { snScore++; snSpeed = Math.max(60, snSpeed - 3); placeFood(); } else snake.pop();
 }
@@ -370,6 +371,7 @@ function move(dirn) {
   add2();
   const b = bests(); if (score2 > (b.g2048 || 0)) { b.g2048 = score2; put("games", b); showBest(); }
   over2 = !grid.some(t => !t) && ![0, 1, 2, 3].some(y => [0, 1, 2].some(x => grid[y * 4 + x].v === grid[y * 4 + x + 1].v)) && ![0, 1, 2].some(y => [0, 1, 2, 3].some(x => grid[y * 4 + x].v === grid[(y + 1) * 4 + x].v));
+  if (over2 && window.Live) Live.gameOver("2048", score2);
   draw2();
 }
 $("new2048").onclick = new2048;
@@ -380,9 +382,9 @@ addEventListener("resize", () => draw2());
 new2048();
 // ---------------------------------------------------------------- daily word: guess today's five-letter word in six tries
 const WORDS = "apple beach brave bread brick cabin candy chair chalk charm chess cloud clown coast coral crane crown dance delta diary dream eagle earth fable feast field flame flute frost fruit ghost giant glass globe grape grass heart honey horse house jelly jewel juice kayak knife koala lemon light lucky magic mango maple march metal model money moose mouse music night noble ocean olive onion orbit otter paint panda party peach pearl piano pilot pizza plant plaza polar queen quiet radio raven river robot rocky royal salad sauce scarf score shark sheep shelf shine skate sleep smile snack snake spark spice spoon sport squid stage storm story sugar sunny sweet table tiger toast torch tower train treat tulip uncle vapor video vivid voice water whale wheat witch world yacht young zebra".split(" ");
-const dayN = Math.floor((Date.now() - new Date().getTimezoneOffset() * 6e4) / 864e5), ANSWER = WORDS[(dayN * 7919) % WORDS.length];
+const dayN = Math.floor((Date.now() - new Date().getTimezoneOffset() * 6e4) / 864e5), ANSWER = (window.Live && Live.wordToday()) || WORDS[(dayN * 7919) % WORDS.length];     // the owner may pick the word (js/live.js)
 let ws = get("wordState", null);
-if (!ws || ws.day !== dayN) ws = { day:dayN, guesses:[], done:0 };
+if (!ws || ws.day !== dayN || (ws.ans && ws.ans !== ANSWER)) ws = { day:dayN, guesses:[], done:0, ans:ANSWER };
 let wcur = "";
 function wordPaint(flip) {
   const b = $("wboard"); b.innerHTML = "";
@@ -418,6 +420,7 @@ function wordKey(k) {
     ws.guesses.push(wcur); const won = wcur === ANSWER; wcur = "";
     if (won) { ws.done = 1; const b = bests(); b.wordWins = (b.wordWins || 0) + 1; put("games", b); showBest(); }
     else if (ws.guesses.length >= 6) ws.done = 2;
+    if (ws.done && window.Live) Live.gameOver("word", 0);
     put("wordState", ws); wordPaint(true); return;
   } else if (wcur.length < 5) wcur += k;
   wordPaint(false);
@@ -594,3 +597,4 @@ showBest();
 (function () { const h = location.hash.slice(1); if (h) pickGame(h === "ttt" ? "tttG" : h === "memory" ? "memG" : h === "mines" ? "mineG" : h); })();
 
 </script>
+<script src="js/live.games.js"></script>

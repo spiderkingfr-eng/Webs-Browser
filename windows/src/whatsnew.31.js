@@ -1,3 +1,15 @@
+"3.7 · From Webs": [
+  ["News, polls and fun on the new tab page", "The people who make Webs can put news (with emoji reactions), a poll, today's trivia, a countdown, their pick of the week and a mystery box under the search box. Customize turns it off.", "New tab → under the search box"],
+  ["Calling cards and theme days", "Now and then a Phantom Thieves calling card, and on special days snow, hearts, leaves or fireworks drift past (not with Seasonal effects off).", "New tab"],
+  ["The wallpaper of the week", "A new picture each week behind your new tab page, if you want it. Your own picture or moving background always comes first.", "New tab → Wallpaper of the week → Use it"],
+  ["Secret words and the code hunt", "Some words typed in the address bar do something special. And sometimes a secret code is hidden in the news: find it for an achievement.", "Address bar"],
+  ["Special achievements", "Limited-time ones, one for helping reach a community goal, and one for finding the secret code join your list.", "Menu → Achievements"],
+  ["Weekly leaderboard and community goals", "Pick a nickname and your best Snake and 2048 scores this week go on the board. Play together toward a goal, like 500 Snake games.", "Games"],
+  ["The owner's daily word", "Sometimes the daily word puzzle is picked by the people who make Webs.", "Games → Daily word"],
+  ["Help articles and problem reports", "Answers to common questions, a problem report in a few clicks, and the answer to it when it comes. Rate the help when a chat ends.", "Help & support"],
+  ["Safer updates", "New versions can reach some computers first, and if one has a problem, every computer can go back to the one before until it's fixed. It all happens by itself.", "Menu → Check for updates"],
+  ["Anonymous counts, your choice", "About once an hour Webs says which version it is (and your country comes from your internet address), never what you browse. Turn it off in Settings.", "Settings → Webs 3.0 extras → Send anonymous counts"]
+],
 "3.6 · Help & support": [
   ["Help & support", "Stuck? Write to the people who make Webs, right in the sidebar, and the answer comes back there.", "Menu → Help & support"],
   ["Let support fix a setting", "Turn on “Let support adjust my settings” and support can change a few switches and choices for you, for 30 minutes at most. Turn it off any time, or click ✕ on the 🛟 in the toolbar.", "Help & support → the switch"],

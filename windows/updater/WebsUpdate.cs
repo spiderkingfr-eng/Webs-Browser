@@ -17,6 +17,15 @@
 // folder, which the browser reads as https://browser.example/user/webs-update.json.
 // Nothing is downloaded through the browser any more, so Windows doesn't ask.
 //
+// 2.1 (Webs 3.7): the owner's dashboard can send a new version to some computers
+// first (a gradual rollout: "rollout.win" {v, pct} in the Web AI server's /live),
+// and put every computer back on the version before ("rollback.win", the version
+// that latest.json names as "previous", checked against its own SHA-256 too).
+// Each computer has a number from 0 to 99 (from a random id kept in the install
+// folder); during a rollout to pct%, numbers below pct get it by themselves.
+// Asking for the update in the browser (or opening this program) installs it at
+// once. If the server can't be reached, updates work the way they always did.
+//
 // Build: csc /target:winexe /r:System.Web.Extensions.dll WebsUpdate.cs
 //    or: mcs -target:winexe -r:System.Web.Extensions -r:System.Windows.Forms -r:System.Drawing WebsUpdate.cs
 //
@@ -24,7 +33,7 @@
 // --uninstall    stop it and don't start it with Windows any more
 // For testing: --quiet (no window), --once (one background round, then exit),
 // --manifest <url>, --target <exe>, --install-dir <dir>, --data-dir <dir>,
-// --no-restart, --no-close, --no-autostart.
+// --no-restart, --no-close, --no-autostart, --bucket <0-99>.
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -43,11 +52,11 @@ using Microsoft.Win32;
 
 [assembly: System.Reflection.AssemblyTitle("Webs Browser updater")]
 [assembly: System.Reflection.AssemblyProduct("Webs Browser")]
-[assembly: System.Reflection.AssemblyVersion("2.0.0.0")]
+[assembly: System.Reflection.AssemblyVersion("2.1.0.0")]
 
 static class Updater
 {
-    public const string Version = "2.0.0";
+    public const string Version = "2.1.0";
     const string DefaultManifest = "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/latest.json";
     const string ExeName = "WebStudiosBrowser.exe", SelfName = "WebsUpdate.exe", RunName = "WebsBrowserUpdater";
     static readonly Regex FromRepo = new Regex(@"^https://(raw\.githubusercontent\.com|github\.com)/spiderkingfr-eng/Webs-Browser/", RegexOptions.IgnoreCase);
@@ -55,6 +64,7 @@ static class Updater
 
     public static bool Quiet, NoRestart, NoClose, NoAutostart, CustomManifest, Background, Once, Uninstall;
     public static string ManifestUrl = DefaultManifest, Target, InstallDirArg, DataDirArg;
+    public static int BucketArg = -1;
     static string logPath;
 
     [STAThread]
@@ -74,6 +84,7 @@ static class Updater
             else if (a == "--target" && i + 1 < args.Length) Target = Path.GetFullPath(args[++i]);
             else if (a == "--install-dir" && i + 1 < args.Length) InstallDirArg = Path.GetFullPath(args[++i]);
             else if (a == "--data-dir" && i + 1 < args.Length) DataDirArg = Path.GetFullPath(args[++i]);
+            else if (a == "--bucket" && i + 1 < args.Length) { int b; if (int.TryParse(args[++i], out b) && b >= 0 && b < 100) BucketArg = b; }
         }
         // GitHub only speaks TLS 1.2 and newer; older .NET Framework setups don't turn it on by themselves.
         try { ServicePointManager.SecurityProtocol |= (SecurityProtocolType)3072; } catch { }
@@ -95,7 +106,9 @@ static class Updater
     }
 
     public class Result { public bool Ok; public string Message; public string Launch; }
-    public class Manifest { public string Version, Url, Sha; public long Size; public string UpdUrl, UpdSha; }
+    public class Manifest { public string Version, Url, Sha; public long Size; public string UpdUrl, UpdSha, Server; public Manifest Prev; }
+    // what the owner's dashboard says (the Web AI server's /live): a gradual rollout, or going back
+    public class Gate { public string RollV, Back; public int Pct = 100; }
 
     public static void Log(string s)
     {
@@ -147,7 +160,62 @@ static class Updater
         if (!Regex.IsMatch(r.Sha, "^[0-9a-f]{64}$")) throw new Exception("The update has no checksum, so it can't be checked.");
         if (upd != null && Allowed(Str(upd, "url")) && Regex.IsMatch((Str(upd, "sha256") ?? "").ToLowerInvariant(), "^[0-9a-f]{64}$"))
         { r.UpdUrl = Str(upd, "url"); r.UpdSha = Str(upd, "sha256").ToLowerInvariant(); }
+        // the version before, for going back (the same checks as the newest one)
+        var prev = Dict(m, "previous"); var pexe = Dict(prev, "exe");
+        if (prev != null && pexe != null && Regex.IsMatch(Str(prev, "version") ?? "", @"^\d+\.\d+\.\d+$") && Allowed(Str(pexe, "url")) && Regex.IsMatch((Str(pexe, "sha256") ?? "").ToLowerInvariant(), "^[0-9a-f]{64}$"))
+        {
+            r.Prev = new Manifest { Version = Str(prev, "version"), Url = Str(pexe, "url"), Sha = Str(pexe, "sha256").ToLowerInvariant() };
+            long.TryParse(Convert.ToString(pexe.ContainsKey("size") ? pexe["size"] : "0"), out r.Prev.Size);
+        }
+        // the Web AI server, which says how the owner wants new versions handed out
+        string srv = (Str(Dict(m, "webai"), "server") ?? "").TrimEnd('/');
+        if (Regex.IsMatch(srv, @"^https://[^\s/?#]+\.[^\s/?#]+(/[^\s?#]*)?$", RegexOptions.IgnoreCase) || (CustomManifest && Loopback.IsMatch(srv + "/"))) r.Server = srv;
         return r;
+    }
+
+    public static Gate ReadGate(Manifest m)
+    {
+        var g = new Gate();
+        if (m == null || m.Server == null) return g;
+        try
+        {
+            var req = (HttpWebRequest)WebRequest.Create(m.Server + "/live");
+            req.Timeout = 10000; req.ReadWriteTimeout = 10000; req.UserAgent = "WebsBrowserUpdater/" + Version;
+            string json;
+            using (var res = req.GetResponse()) using (var sr = new StreamReader(res.GetResponseStream(), Encoding.UTF8)) json = sr.ReadToEnd();
+            var d = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(json);
+            var w = Dict(Dict(d, "rollout"), "win");
+            int pct;
+            if (w != null && Regex.IsMatch(Str(w, "v") ?? "", @"^\d+\.\d+\.\d+$") && int.TryParse(Str(w, "pct"), out pct)) { g.RollV = Str(w, "v"); g.Pct = Math.Max(0, Math.Min(100, pct)); }
+            string back = Str(Dict(d, "rollback"), "win");
+            if (Regex.IsMatch(back ?? "", @"^\d+\.\d+\.\d+$")) g.Back = back;
+        }
+        catch (Exception e) { Log("server: " + e.Message); }
+        return g;
+    }
+    // which version this computer should have: the newest, the one before (going back), or null: not its turn yet
+    public static Manifest Pick(Manifest m, Gate g, bool byItself)
+    {
+        if (g.Back != null && m.Prev != null && g.Back == m.Prev.Version) return m.Prev;
+        if (byItself && g.RollV == m.Version && Bucket() >= g.Pct) return null;
+        return m;
+    }
+    // this computer's place in a gradual rollout, 0 to 99
+    public static int Bucket()
+    {
+        if (BucketArg >= 0) return BucketArg;
+        string f = Path.Combine(InstallDir(), "device-id"), id = null;
+        try { if (File.Exists(f)) id = File.ReadAllText(f).Trim(); } catch { }
+        if (id == null || !Regex.IsMatch(id, "^[0-9a-f]{20,64}$"))
+        {
+            var b = new byte[15];
+            using (var rng = RandomNumberGenerator.Create()) rng.GetBytes(b);
+            id = BitConverter.ToString(b).Replace("-", "").ToLowerInvariant();
+            try { Directory.CreateDirectory(InstallDir()); File.WriteAllText(f, id); } catch { }
+        }
+        uint h = 2166136261;
+        foreach (char c in id) { h ^= c; h *= 16777619; }
+        return (int)(h % 100);
     }
 
     // downloads and checks a file; returns its path in the temp folder
@@ -192,14 +260,27 @@ static class Updater
     }
 
     // Brings the browser up to the newest version. restart: close it (tabs are saved) and open the new one.
-    public static Result Install(Action<string, int> say, bool restart)
+    // byItself: the background copy's own round (a gradual rollout waits for this computer's turn)
+    public static Manifest Picked; public static bool Waiting, Back;
+    public static Result Install(Action<string, int> say, bool restart, bool byItself = false)
     {
         var res = new Result();
         try
         {
             say("Checking for the newest version…", -1);
-            var m = ReadManifest();
-            Log("manifest " + m.Version);
+            var latest = ReadManifest();
+            Log("manifest " + latest.Version);
+            var gate = ReadGate(latest);
+            var m = Pick(latest, gate, byItself);
+            Picked = m; Waiting = m == null; Back = m != null && !Eq(m, latest);
+            if (m == null)
+            {
+                Log("rollout of " + latest.Version + " at " + gate.Pct + "%: not this computer's turn yet (" + Bucket() + ")");
+                WriteStatus(latest, true, "", false);
+                res.Ok = true; res.Message = "Webs Browser " + latest.Version + " comes to this computer soon: it goes to some computers first.";
+                return res;
+            }
+            if (Back) Log("going back to " + m.Version);
             var running = Running();
             var targets = Targets(running);
             bool fresh = targets.Count == 0;
@@ -218,7 +299,7 @@ static class Updater
                     try { var r = Process.Start(new ProcessStartInfo(targets[0], "--register") { UseShellExecute = false }); if (r != null) r.WaitForExit(20000); } catch (Exception e) { Log("register: " + e.Message); }
                 }
             }
-            WriteStatus(m, true, "", false);
+            WriteStatus(latest, true, "", false);
             var mine = running.Where(p => targets.Any(t => Same(t, p.Value)) || Path.GetFileName(p.Value).Contains(".old-")).Select(p => p.Key).ToList();
             bool closed = true;
             if (restart && mine.Count > 0 && !NoClose)
@@ -315,7 +396,15 @@ static class Updater
         var o = new Dictionary<string, object>();
         o["v"] = 1; o["auto"] = on; o["updater"] = Version; o["alive"] = UnixMs(); o["busy"] = busy; o["error"] = error ?? "";
         o["inbox"] = InboxDir(); o["autoInstall"] = AutoInstall();
-        if (m != null) { o["latest"] = m.Version; o["ready"] = sha == m.Sha; }
+        o["bucket"] = Bucket();
+        if (m != null)
+        {
+            // what this computer should have: the newest, or the one before when going back
+            var t = Eq(Picked, m) || Eq(Picked, m.Prev) ? Picked : Waiting ? null : m;
+            o["latest"] = m.Version; o["ready"] = t != null && sha == t.Sha; o["target"] = t != null ? t.Version : "";
+            if (t == null) o["wait"] = true;
+            else if (!Eq(t, m)) o["back"] = true;
+        }
         string json = new JavaScriptSerializer().Serialize(o);
         var dirs = new List<string> { Path.Combine(DataDir(), "ui") };
         try { var pd = Path.Combine(DataDir(), "Profiles"); if (Directory.Exists(pd)) dirs.AddRange(Directory.GetDirectories(pd).Select(d => Path.Combine(d, "ui"))); } catch { }
@@ -345,7 +434,9 @@ static class Updater
     static long UnixMs() { return (long)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalMilliseconds; }
 
     // ---------------------------------------------------------------- helpers
-    public static string Str(Dictionary<string, object> d, string k) { object v; return d != null && d.TryGetValue(k, out v) && v != null ? Convert.ToString(v) : null; }
+    public static string Str(Dictionary<string, object> d, string k) { object v; return d != null && d.TryGetValue(k, out v) && v != null ? Convert.ToString(v, System.Globalization.CultureInfo.InvariantCulture) : null; }
+    static bool Eq(Manifest a, Manifest b) { return a != null && b != null && a.Version == b.Version && a.Sha == b.Sha; }
+    public static Dictionary<string, object> Dict(Dictionary<string, object> d, string k) { object v; return d != null && d.TryGetValue(k, out v) ? v as Dictionary<string, object> : null; }
     public static string Hex(byte[] b) { using (var h = SHA256.Create()) return BitConverter.ToString(h.ComputeHash(b)).Replace("-", "").ToLowerInvariant(); }
     static bool Same(string a, string b) { try { return string.Equals(Path.GetFullPath(a), Path.GetFullPath(b), StringComparison.OrdinalIgnoreCase); } catch { return false; } }
     public static bool OnWindows { get { return Environment.OSVersion.Platform == PlatformID.Win32NT; } }
@@ -502,7 +593,7 @@ static class Daemon
             last = Updater.ReadManifest();
             if (SelfUpdate(last)) Environment.Exit(0);
             if (!restart && !Updater.AutoInstall()) { Updater.WriteStatus(last, true, "", false); return; }   // switched off in the browser: only when asked
-            var r = Updater.Install((msg, pct) => { }, restart);
+            var r = Updater.Install((msg, pct) => { }, restart, !restart);
             lastError = r.Ok ? "" : r.Message;
             Updater.WriteStatus(last, true, lastError, false);
             if (r.Launch != null) Updater.Launch(r.Launch);

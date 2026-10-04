@@ -1,20 +1,24 @@
 {
-  "version": "3.6.0",
-  "date": "2026-10-03",
+  "version": "3.7.0",
+  "date": "2026-10-04",
   "notes": [
-    "Help & support: stuck? Write to the people who make Webs from the menu, and the answer comes back in the sidebar",
-    "Let support fix a setting for you: turn on the switch and support can change a few switches and choices for 30 minutes at most, each with Undo",
-    "Support only sees what you write and the settings on the list, never your history, bookmarks, tabs, passwords or pages"
+    "From Webs: news, polls, trivia, a countdown, a mystery box and more under the search box on the new tab page (Customize can hide it)",
+    "Calling cards, theme days and the wallpaper of the week, if you want it",
+    "Secret words and a secret code hunt in the address bar, and limited-time achievements",
+    "Games: a weekly leaderboard with a nickname you pick, community goals, and sometimes the owner's daily word",
+    "Help & support: common questions, problem reports with their answers, and rating the help",
+    "Safer updates: new versions can reach some computers first, and every computer can go back if one has a problem",
+    "Anonymous counts (the version and your country, never what you browse); turn them off in Settings"
   ],
   "exe": {
-    "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.6.0.exe",
-    "sha256": "0e588ec28dcdadd21226ba7d47be9e62f0fbae151b0f75e983ef5526e3af3053",
-    "size": 2696704
+    "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.7.0.exe",
+    "sha256": "219552205ac331ff7bc0c453982722a66e825fececf0a74f2d9be9348aa10172",
+    "size": 2849792
   },
   "updater": {
     "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebsUpdate.exe",
-    "sha256": "be8e0bf8a2d466c935ac6ea1f6818f7d382941c53d7326876145af4c46639c65",
-    "size": 30208
+    "sha256": "b5750dbfecd73a991e85c98425c353c6db2361376ca4527299ff938acecfdd09",
+    "size": 33792
   },
   "google": {
     "clientId": "",
@@ -23,5 +27,13 @@
   "webai": {
     "server": "https://web-ai.spiderkingfr.workers.dev",
     "code": "jcku563mgxwn"
+  },
+  "previous": {
+    "version": "3.6.0",
+    "exe": {
+      "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.6.0.exe",
+      "sha256": "0e588ec28dcdadd21226ba7d47be9e62f0fbae151b0f75e983ef5526e3af3053",
+      "size": 2696704
+    }
   }
 }

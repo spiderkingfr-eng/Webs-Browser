@@ -34,14 +34,15 @@ function paint() {
   [["xgLayout", "layout"], ["xgLists", "lists"], ["xgExtras", "extras"]].forEach(([id, k]) => $("#" + id).classList.toggle("on", pr[k] !== false));
   $("#xgLast").textContent = "Every few minutes while the browser is open · last " + ago(s.last);
   if (sub) sub.textContent = on ? "Stored on this computer, and synced with your Google account (" + (s.email || "signed in") + ")." : subText;
-  const u = s.upd || {}, L = u.latest, avail = L && newer(L.version, s.version);
+  // the browser window says what's on offer (3.7: a gradual rollout, or going back); older ones didn't
+  const u = s.upd || {}, L = "avail" in s ? s.avail : u.latest && newer(u.latest.version, s.version) ? u.latest : null, avail = !!L;
   $("#xuVer").textContent = "Webs Browser " + (s.version || "");
   const A = s.auto, ready = avail && A && A.ready;
-  $("#xuNote").textContent = (avail ? "Version " + L.version + (ready ? " is installed: restart to use it" : " is ready") + (L.notes && L.notes.length ? ": " + L.notes.slice(0, 3).join(" · ") : ".")
+  $("#xuNote").textContent = (avail ? (L.back ? "Going back to version " : "Version ") + L.version + (ready ? " is installed: restart to use it" : L.back ? " for now, while a problem is fixed" : " is ready") + (L.notes && L.notes.length ? ": " + L.notes.slice(0, 3).join(" · ") : ".")
     : (u.err ? (u.err === "No update has been published yet" ? u.err : "Couldn't check: " + u.err) : u.checked ? "You have the newest version · checked " + ago(u.checked) : "Not checked yet")) +
     (A ? " Updates install by themselves in the background." : " Update once with the button and they install by themselves from then on.");
   $("#xuGo").style.display = avail ? "" : "none";
-  $("#xuGo").textContent = ready ? "Restart to update" : "Update now";
+  $("#xuGo").textContent = ready ? "Restart to update" : L && L.back ? "Go back now" : "Update now";
 }
 [["xgLayout", "layout"], ["xgLists", "lists"], ["xgExtras", "extras"]].forEach(([id, k]) => {
   $("#" + id).onclick = () => { const pr = Object.assign({ layout:true, lists:true, extras:true }, get("xgPrefs", {}) || {}); pr[k] = !pr[k]; put("xgPrefs", pr);

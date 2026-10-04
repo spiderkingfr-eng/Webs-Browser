@@ -1,8 +1,19 @@
-/* Webs Browser for iPhone - what's new in 2.6, 2.5, 2.4, 2.3, 2.2, 2.1 and 2.0, listed in the app
+/* Webs Browser for iPhone - what's new in 2.7, 2.6, 2.5, 2.4, 2.3, 2.2, 2.1 and 2.0, listed in the app
    (Menu → What's new) and offered once after each update. */
 "use strict";
 
 const WHATS_NEW = [
+  ["New in 2.7: From Webs", "sparkle", [
+    "News, polls, today's trivia, a countdown, the pick of the week and a mystery box from the people who make Webs, right under the search box (Customize start page → From Webs turns it off)",
+    "Phantom Thieves calling cards, and theme days with snow, hearts, leaves or fireworks",
+    "The wallpaper of the week, if you want it, and the owner's quote of the day",
+    "Secret words for the address bar, a secret code hunt, and limited-time achievements",
+    "A weekly leaderboard for Snake and 2048 with a nickname you pick, community goals, and sometimes the owner's daily word",
+    "Help & support: common questions, problem reports with their answers, and rating the help",
+    "Sticker packs for the Phantom calendar",
+    "New versions can reach some iPhones first, so a problem is caught before it reaches everyone",
+    "Anonymous counts (the version, and the country from your internet address, never what you browse) about once an hour. Settings → Privacy and security → Send anonymous counts turns them off"
+  ]],
   ["New in 2.6: Help & support", "lifebuoy", [
     "Help & support: stuck? Write to the people who make Webs and the answer comes back in the app, with a notification if those are on (Menu → Help & support)",
     "Let support adjust your settings: turn on the switch and support can change a few looks, browsing and start page settings for you, for 30 minutes at most",
