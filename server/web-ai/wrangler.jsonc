@@ -11,7 +11,8 @@
   // OPEN: anyone using Webs Browser can ask without a code, 25 a day per device,
   // 100 per internet connection and 150 for everyone together
   "vars": { "OPEN": "true" },
-  // iPhone notifications: every minute the worker looks for a new version of the iPhone app
-  // (every 10 minutes), sends the daily word reminders, and carries on big sends
+  // every minute the worker looks for a new version of the iPhone app (every 10 minutes), sends the
+  // daily word reminders and scheduled news, carries on big sends, checks the websites you watch
+  // (every 5 minutes), works out the dashboard's numbers (hourly) and sends the weekly report
   "triggers": { "crons": ["* * * * *"] }
 }

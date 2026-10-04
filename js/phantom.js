@@ -168,6 +168,9 @@ function editor(el, st, due, pics) {
     '<b class="p5ft">YOUR PICTURES</b><div class="p5pics">' +
     pics.map((p, i) => '<span class="p5th"><img alt="" src="' + h(p) + '"><button type="button" data-del="' + i + '" aria-label="Remove this picture">✕</button></span>').join("") +
     (pics.length < MAX_PICS ? '<label class="p5add"><span>+ Add</span><input type="file" accept="image/*" aria-label="Add a picture"></label>' : "") + "</div>" +
+    // stickers the people who make Webs shared (js/live.js), added like your own pictures
+    (window.Live && Live.stickers().length && pics.length < MAX_PICS ? '<b class="p5ft">STICKERS FROM WEBS</b><div class="p5pics p5stk">' +
+      Live.stickers().map(x => '<button type="button" class="p5th" data-stk="' + h(x.url) + '" title="' + h(x.name || "Sticker") + '"><img alt="" crossorigin="anonymous" src="' + h(x.url) + '"></button>').join("") + "</div>" : "") +
     '<p class="p5note">They stay on this device. Pictures with a see-through background look best; tap one on the card to switch.</p><p class="p5err" role="alert"></p>' +
     '<div class="p5btns"><button type="button" class="ok">Save</button>' + (due ? '<button type="button" class="clr">Remove deadline</button>' : "") +
     '<button type="button" class="no">Close</button></div></div>';
@@ -210,6 +213,17 @@ function wire(el) {
     draft();
     const list = pictures(); list.splice(+b.dataset.del, 1); write(PICS, list.length ? list : null);
     render(el, {});
+  });
+  el.querySelectorAll(".p5form [data-stk]").forEach(b => b.onclick = async () => {
+    draft();
+    try {
+      const r = await fetch(b.dataset.stk, { mode:"cors" }); if (!r.ok) throw new Error("That sticker couldn't be loaded.");
+      const blob = await r.blob(), url = await shrink(new File([blob], "sticker.png", { type:blob.type || "image/png" })), list = pictures();
+      list.push(url);
+      if (!write(PICS, list)) { err("There isn't room for another picture. Remove one first."); return; }
+      const n = list.length; el.dataset.pic = String((((n - 1 - dayNo(new Date())) % n) + n) % n);
+      render(el, {});
+    } catch (x) { err(x && x.message || "That sticker couldn't be added."); }
   });
   const add = q(".p5add input");
   if (add) add.onchange = async () => {
@@ -323,6 +337,7 @@ function injectCSS() {
 .p5form input:not([type=file]):focus{box-shadow:3px 3px 0 var(--r),0 0 0 2px #ffd21f}
 .p5form input[type=date]{font-style:normal;font-family:inherit;font-weight:700}
 .p5pics{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.p5stk button.p5th{padding:0;border:2px solid #fff;background:rgba(255,255,255,.08);cursor:pointer}
 .p5th{position:relative;width:58px;height:58px;flex:none;background:#2a282f}
 .p5th img{display:block;width:100%;height:100%;max-width:none;object-fit:contain}
 .p5th button{position:absolute;top:-6px;right:-6px;width:22px;height:22px;border-radius:50%;border:2px solid #000;background:#fff;color:#000;font-size:11px;cursor:pointer;padding:0;line-height:1}

@@ -49,8 +49,20 @@
      POST /support/access { id, token, on }     the person lets support adjust their settings (30 minutes)
      POST /support/close  { id, token }
 
-   The raw Messages API is called with fetch, so this one file can be pasted
-   into the Cloudflare editor without a build step. */
+     POST /support/rate   { id, token, r }       👍 (1) or 👎 (-1) once the chat is over
+
+     What the owner puts on everyone's start page, and the counts that come back (live.js):
+     GET  /live                     the announcement, poll, calling card, countdown, trivia...
+     GET  /live/img/<id>            the wallpaper of the week and stickers
+     POST /live/ping | /live/act | /live/replies
+     The owner's tools behind /admin (owner.js): codes, Web AI settings, two-step login, alerts on
+     the owner's phone, scheduled notifications, the health panel, outage alerts, the weekly report.
+     GET  /admin/app.js, /admin/app.css, /admin/sw.js, /admin/manifest.json   the dashboard itself (dash.js)
+
+   setup.cmd sends this folder to Cloudflare (wrangler puts the files together). */
+import { ownerCfg, ownerGate, ownerAdmin, ownerCron, ownerChosen, allCodes, aiSettings, isBlocked, pushOwner, logA, addHist, dueScheduled } from "./owner.js";
+import { liveApi, liveAdmin, liveCron } from "./live.js";
+import { ADMIN_PAGE, DASH_JS, DASH_CSS, DASH_SW, DASH_MANIFEST, DASH_ICON, DASH_PNG } from "./dash.js";
 
 const API = "https://api.anthropic.com/v1/messages";
 const ORIGINS = ["https://browser.example", "https://spiderkingfr-eng.github.io"];
@@ -81,16 +93,23 @@ export default {
     try {
       if (req.method === "GET" && path === "/") {      // says what's missing, never any value
         const missing = setupProblem(env);
-        return json({ ok:true, name:"Web AI", ready:!missing, open:isOpen(env), model:model(env), features:["report", "link", "admin", "push", "support"], ...(missing ? { missing:"Still to do: " + missing } : {}) }, 200, cors);
+        return json({ ok:true, name:"Web AI", ready:!missing, open:isOpen(env), model:model(env), features:["report", "link", "admin", "push", "support", "live", "owner"], ...(missing ? { missing:"Still to do: " + missing } : {}) }, 200, cors);
       }
+      if ((req.method === "GET" && /^\/live(\/img\/[a-z0-9]{10})?$/.test(path)) || (req.method === "POST" && /^\/live\/(ping|act|replies)$/.test(path))) {
+        if (!env.LIMITS || typeof env.LIMITS.get !== "function") return json({ error:"setup", message:"The storage (LIMITS) isn't set up." }, 503, cors);
+        return await liveApi(path, req, env, cors);
+      }
+      const asset = req.method === "GET" && DASH_FILES[path];
+      if (asset) return new Response(asset[1], { headers:{ "content-type":asset[0], "cache-control":"no-cache", ...(path === "/admin/sw.js" ? { "service-worker-allowed":"/" } : {}) } });
+      if (req.method === "GET" && DASH_PNG[path]) return new Response(Uint8Array.from(atob(DASH_PNG[path]), c => c.charCodeAt(0)), { headers:{ "content-type":"image/png", "cache-control":"public, max-age=86400" } });
       if ((req.method === "GET" && path === "/push/key") || (req.method === "POST" && /^\/push\/(subscribe|unsubscribe|test)$/.test(path))) return await pushApi(path, req, env, cors);
-      if (req.method === "POST" && /^\/support\/(open|send|poll|access|close)$/.test(path)) return await supportApi(path, req, env, cors);
+      if (req.method === "POST" && /^\/support\/(open|send|poll|access|close|rate)$/.test(path)) return await supportApi(path, req, env, cors);
       if (req.method === "GET" && path === "/admin") return new Response(ADMIN_PAGE, { headers:{ "content-type":"text/html; charset=utf-8", "cache-control":"no-store",
-        "x-frame-options":"DENY", "referrer-policy":"no-referrer", "content-security-policy":"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'" } });
+        "x-frame-options":"DENY", "referrer-policy":"no-referrer", "content-security-policy":"default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'" } });
       if (req.method === "POST" && path === "/admin") return await admin(req, env);
       if (req.method === "POST" && /^\/(report|link\/new|link\/join|send|inbox)$/.test(path)) return await extras(path, req, env, cors);
       if (req.method !== "POST" || (path !== "/check" && path !== "/chat")) return json({ error:"not_found", message:"Nothing here." }, 404, cors);
-      const problem = setupProblem(env);
+      const problem = await problemNow(env);
       if (problem) return json({ error:"setup", message:"The Web AI server isn't finished: " + problem }, 503, cors);
 
       let body = null;
@@ -98,11 +117,25 @@ export default {
       if (!body || typeof body !== "object") return json({ error:"bad", message:"The browser sent something the server can't read." }, 400, cors);
       const who = await person(env, body, req);
       if (!who) return json({ error:"code", message:"That Web AI code isn't right. Ask the person who runs Web AI for yours." }, 401, cors);
+      const oc = await ownerCfg(env), ai = aiSettings(env, oc);
+      if (isBlocked(oc, who)) return json({ error:"blocked", message:"Web AI isn't available on this device." }, 403, cors);
+      if (oc.maint.on) return json({ error:"maintenance", message:oc.maint.text || "Web AI is down for maintenance. It'll be back soon." }, 503, cors);
+      if (oc.ai.paused) return json({ error:"paused", message:oc.ai.pauseMsg || "Web AI is taking a break. Try again later." }, 503, cors);
 
       const day = new Date().toISOString().slice(0, 10);
       const [used, all, net] = await Promise.all([count(env, who.id, day), count(env, "everyone", day), who.net ? count(env, who.net, day) : 0]);
-      const total = limit(env.TOTAL_DAILY_LIMIT, 150), netLimit = limit(env.NETWORK_DAILY_LIMIT, 100);
-      if (path === "/check") return json({ ok:true, name:who.name, left:Math.max(0, who.limit - used), limit:who.limit, open:isOpen(env), model:model(env) }, 200, cors);
+      const total = ai.total, netLimit = ai.network;
+      if (path === "/check") return json({ ok:true, name:who.name, left:Math.max(0, who.limit - used), limit:who.limit, open:isOpen(env), model:ai.model }, 200, cors);
+      // the owner's daily spending limit
+      if (oc.ai.cap > 0) {
+        let t = {}; try { t = JSON.parse(await env.LIMITS.get("u:" + day) || "{}") || {}; } catch (e) {}
+        if (cost(t, ai.model) >= oc.ai.cap) {
+          if (!(await env.LIMITS.get("capnote:" + day))) {
+            ctx.waitUntil(env.LIMITS.put("capnote:" + day, "1", { expirationTtl:2 * 86400 }).then(() => pushOwner(env, { title:"💸 Spending limit reached", body:"Web AI stopped for today at about $" + oc.ai.cap.toFixed(2) + ". It starts again at midnight UTC.", tag:"webs-cap" }, "cap")).catch(() => {}));
+          }
+          return json({ error:"cap", message:"Web AI has done all it can for today. It's back tomorrow (midnight UTC).", left:0 }, 429, cors);
+        }
+      }
 
       if (used >= who.limit) return json({ error:"limit", message:"You've asked your " + who.limit + " questions for today. Web AI is back tomorrow (midnight UTC).", left:0 }, 429, cors);
       if (who.net && net >= netLimit) return json({ error:"limit", message:"This internet connection has asked its " + netLimit + " questions for today. Web AI is back tomorrow (midnight UTC).", left:0 }, 429, cors);
@@ -114,12 +147,12 @@ export default {
         method:"POST",
         headers:{ "content-type":"application/json", "x-api-key":String(env.ANTHROPIC_API_KEY).trim(), "anthropic-version":"2023-06-01" },
         body:JSON.stringify({
-          model:model(env),
-          max_tokens:MAX_TOKENS,
+          model:ai.model,
+          max_tokens:ai.maxTokens,
           system:SYSTEM(new Date().toUTCString().slice(0, 16)),
           messages,
           // chat: short or no thinking, a quick first word (Haiku 4.5 has no effort setting)
-          ...(/haiku/i.test(model(env)) ? {} : { output_config:{ effort:"low" } }),
+          ...(/haiku/i.test(ai.model) ? {} : { output_config:{ effort:"low" } }),
           ...(body.web === true ? { tools:[{ type:"web_fetch_20250910", name:"web_fetch", max_uses:1, max_content_tokens:6000 }] } : {}),
           cache_control:{ type:"ephemeral" },      // follow-up questions reread the page from the cache
           stream:true
@@ -133,7 +166,7 @@ export default {
       // counted once Claude has taken the question
       ctx.waitUntil(Promise.all([bump(env, who.id, day, used), bump(env, "everyone", day, all), who.net ? bump(env, who.net, day, net) : null]));
       const pipe = new TransformStream();
-      ctx.waitUntil(relay(up.body, pipe.writable, who, Math.max(0, who.limit - used - 1), u => addUsage(env, day, u)));
+      ctx.waitUntil(relay(up.body, pipe.writable, who, Math.max(0, who.limit - used - 1), u => addUsage(env, day, { ...u, model:ai.model })));
       return new Response(pipe.readable, { headers:{ ...cors, "content-type":"application/x-ndjson; charset=utf-8", "cache-control":"no-store" } });
     } catch (e) {
       console.log("Web AI server error", e && e.stack || e);
@@ -142,7 +175,12 @@ export default {
   },
   // every minute (wrangler.jsonc "triggers"): new versions of the iPhone app, daily reminders, big sends
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(pushCron(env, event && event.scheduledTime || Date.now()).catch(e => console.log("notifications:", e && e.stack || e)));
+    const t = event && event.scheduledTime || Date.now();
+    ctx.waitUntil(pushCron(env, t).catch(e => console.log("notifications:", e && e.stack || e)));
+    if (env.LIMITS && typeof env.LIMITS.get === "function") {
+      ctx.waitUntil(ownerCron(env, t).catch(e => console.log("owner jobs:", e && e.stack || e)));
+      ctx.waitUntil(liveCron(env, t).catch(e => console.log("live jobs:", e && e.stack || e)));
+    }
   }
 };
 
@@ -171,13 +209,19 @@ function setupProblem(env) {
   return "";
 }
 
-/* WEB_AI_CODES: "Sam=k3j9w2mx8q" or "Sam=k3j9w2mx8q=50", one per line (commas work too) */
-function codes(env) {
+/* WEB_AI_CODES: "Sam=k3j9w2mx8q" or "Sam=k3j9w2mx8q=50", one per line (commas work too).
+   Once the owner changes the codes on the dashboard, that list is used instead (allCodes, owner.js). */
+function envCodes(env, daily) {
   return String(env.WEB_AI_CODES || "").split(/[\n,;]+/).map(s => s.trim()).filter(Boolean).map((s, i) => {
     const p = s.split("=").map(x => x.trim());
     const [name, code, n] = p.length === 1 ? ["Person " + (i + 1), p[0], ""] : p;
-    return { name:name || "Person " + (i + 1), code, limit:limit(n, limit(env.DAILY_LIMIT, 25)) };
+    return { name:name || "Person " + (i + 1), code, limit:limit(n, daily || limit(env.DAILY_LIMIT, 25)) };
   }).filter(c => /^[A-Za-z0-9_-]{8,}$/.test(c.code || ""));
+}
+const codes = env => envCodes(env);
+async function problemNow(env) {
+  const p = setupProblem(env);
+  return p && /WEB_AI_CODES/.test(p) && (await allCodes(env)).length ? "" : p;
 }
 const hash = async s => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s))).slice(0, 8)].map(b => b.toString(16).padStart(2, "0")).join("");
 /* Who is asking: a person with a code, or (when open) a device, counted on its internet connection too.
@@ -185,12 +229,12 @@ const hash = async s => [...new Uint8Array(await crypto.subtle.digest("SHA-256",
 async function person(env, body, req) {
   const code = String(body.code || "").trim();
   if (code) {
-    const c = codes(env).find(x => same(x.code, code));
+    const c = (await allCodes(env)).find(x => same(x.code, code));
     return c ? { name:c.name, limit:c.limit, id:"p" + await hash(c.code) } : null;
   }
   if (!isOpen(env)) return null;
   const ip = req.headers.get("CF-Connecting-IP") || "", device = String(body.device || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40);
-  return { name:"", limit:limit(env.DAILY_LIMIT, 25), id:"d" + await hash(device.length >= 12 ? "device:" + device : "ip:" + ip), net:ip ? "n" + await hash("ip:" + ip) : "" };
+  return { name:"", limit:aiSettings(env, await ownerCfg(env)).daily, id:"d" + await hash(device.length >= 12 ? "device:" + device : "ip:" + ip), net:ip ? "n" + await hash("ip:" + ip) : "" };
 }
 function same(a, b) {     // compares every character, so the time taken says nothing about the code
   if (a.length !== b.length) return false;
@@ -277,11 +321,13 @@ async function addUsage(env, day, u) {
   let t = {}; try { t = JSON.parse(await env.LIMITS.get(k) || "{}") || {}; } catch (e) {}
   for (const f of ["input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"]) t[f] = (t[f] || 0) + (+u[f] || 0);
   t.n = (t.n || 0) + 1;
+  if (u.model) { t.m = t.m || {}; t.m[u.model] = (t.m[u.model] || 0) + 1; t.c = (t.c || 0) + cost(u, u.model); }
   await env.LIMITS.put(k, JSON.stringify(t), { expirationTtl:400 * 86400 });
 }
 // dollars per million tokens: input, output, cache read, cache write (5 minutes)
 const PRICES = { sonnet:[2, 10, 0.2, 2.5], haiku:[1, 5, 0.1, 1.25], opus:[4, 20, 0.2, 5] };
 function cost(t, m) {
+  if (typeof t.c === "number" && t.m) return t.c;          // added up as it went, at each answer's own model's price
   const p = /haiku/i.test(m) ? PRICES.haiku : /opus/i.test(m) ? PRICES.opus : PRICES.sonnet;
   return ((t.input_tokens || 0) * p[0] + (t.output_tokens || 0) * p[1] + (t.cache_read_input_tokens || 0) * p[2] + (t.cache_creation_input_tokens || 0) * p[3]) / 1e6;
 }
@@ -322,6 +368,7 @@ async function extras(path, req, env, cors) {
 
   const who = await person(env, body, req);
   if (!who) return json({ error:"code", message:"That Web AI code isn't right. Ask the person who runs Web AI for yours." }, 401, cors);
+  if (isBlocked(await ownerCfg(env), who)) return json({ error:"blocked", message:"This isn't available on this device." }, 403, cors);
 
   if (path === "/report") {
     const text = cut(body.text, 4000).trim();
@@ -330,8 +377,10 @@ async function extras(path, req, env, cors) {
     let info = {}; try { info = JSON.parse(cut(JSON.stringify(body.info || {}), 8000)); } catch (e) { info = { note:"too long" }; }
     const errors = (Array.isArray(body.errors) ? body.errors : []).slice(-30).map(e => cut(e, 600));
     const ts = Date.now(), id = String(1e13 - ts).padStart(13, "0") + "-" + rnd(6);      // newest first in the list
-    await env.LIMITS.put("report:" + id, JSON.stringify({ id, ts, app:cut(body.app, 20), version:cut(body.version, 20), who:who.name || "device " + who.id.slice(1, 7), text, info, errors }), { expirationTtl:90 * 86400 });
-    return json({ ok:true }, 200, cors);
+    const rt = /^[A-Za-z0-9]{16,40}$/.test(String(body.rtok || "")) ? await hash("rt:" + body.rtok) : "";
+    await env.LIMITS.put("report:" + id, JSON.stringify({ id, ts, app:cut(body.app, 20), version:cut(body.version, 20), who:who.name || "device " + who.id.slice(1, 7), dev:who.id, text, info, errors, ...(rt ? { rh:rt } : {}) }), { expirationTtl:90 * 86400 });
+    await pushOwner(env, { title:"🐞 Problem report", body:cut(text, 140), go:"#reports", tag:"webs-report" }, "support");
+    return json({ ok:true, id }, 200, cors);
   }
   if (path === "/link/new") {
     if (await overLimit(env, "lnk:" + who.id, 20)) return json({ error:"limit", message:"Too many link codes today. Try again tomorrow." }, 429, cors);
@@ -372,6 +421,7 @@ const PUSH_HOSTS = /^(web\.push\.apple\.com|[a-z0-9-]+\.push\.apple\.com|fcm\.go
 const BATCH = 20;
 const APP_URL = "https://spiderkingfr-eng.github.io/Webs-Browser/";
 const IPHONE_UPDATES = "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/iphone.json";
+const WIN_UPDATES = "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/latest.json";
 const DAILY = { title:"🧩 Today's word is ready", body:"Can you guess it in six tries? Keep your streak going.", url:"games.html#word", tag:"webs-daily" };
 const te = s => new TextEncoder().encode(s);
 const cat = (...a) => { const o = new Uint8Array(a.reduce((n, x) => n + x.length, 0)); let i = 0; for (const x of a) { o.set(x, i); i += x.length; } return o; };
@@ -538,6 +588,8 @@ async function pushCron(env, now) {
       }
     }
   }
+  // notifications the owner scheduled
+  for (const msg of await dueScheduled(env, now)) { s.jobs.push({ kind:"news", prefix:"ps:", cursor:"", sent:0, msg }); dirty = true; }
   // the daily word reminders for this hour (only looked at when someone wants that hour)
   if (minute === 0) {
     const prefix = "pd:" + pad2(t.getUTCHours()) + ":";
@@ -551,7 +603,12 @@ async function pushCron(env, now) {
   await save();
   const r = await pushBatch(env, j.prefix, j.kind, j.msg, j.cursor);
   j.tries = 0; j.sent = (j.sent || 0) + r.sent; j.cursor = r.cursor;
-  if (r.done) { s.last = s.last || {}; s.last[j.kind] = { at:now, sent:j.sent, title:j.msg.title }; s.jobs.shift(); }
+  j.gone = (j.gone || 0) + r.gone; j.failed = (j.failed || 0) + r.failed; j.why = j.why || r.why || "";
+  if (r.done) {
+    s.last = s.last || {}; s.last[j.kind] = { at:now, sent:j.sent, title:j.msg.title }; s.jobs.shift();
+    if (j.kind === "news") await env.LIMITS.put("push:news", JSON.stringify({ at:now, title:j.msg.title, sent:j.sent }));
+    await addHist(env, { kind:j.kind === "news" ? "scheduled" : j.kind, title:j.msg.title, body:j.msg.body, sent:j.sent, gone:j.gone, failed:j.failed, why:j.why });
+  }
   await save();
 }
 
@@ -589,9 +646,17 @@ function cleanSnap(platform, snap) {
   }
   return out;
 }
-const tkMeta = u => ({ platform:u.platform, version:u.version, created:u.created, updated:u.updated, open:u.open, access:u.access, last:cut(u.last, 80) });
-async function tkSaveU(env, u) { await env.LIMITS.put("tku:" + u.id, JSON.stringify(u), { expirationTtl:TK_TTL, metadata:tkMeta(u) }); }
-async function tkSaveA(env, id, a) { await env.LIMITS.put("tka:" + id, JSON.stringify(a), { expirationTtl:TK_TTL }); }
+const tkMeta = u => ({ platform:u.platform, version:u.version, created:u.created, updated:u.updated, open:u.open, access:u.access, last:cut(u.last, 80), ...(u.rate ? { rate:u.rate } : {}), ...(u.closed ? { closed:1 } : {}) });
+// open chats are kept 30 days after the last message; finished ones as long as the owner chose (7, 30 or 90 days)
+const tkTTL = async (env, done) => done ? (await ownerCfg(env)).keep * 86400 : TK_TTL;
+async function tkSaveU(env, u) { await env.LIMITS.put("tku:" + u.id, JSON.stringify(u), { expirationTtl:await tkTTL(env, !u.open || u.closed), metadata:tkMeta(u) }); }
+async function tkSaveA(env, id, a) { await env.LIMITS.put("tka:" + id, JSON.stringify(a), { expirationTtl:await tkTTL(env, a.closed) }); }
+const awayNote = async (env, a, now) => {     // the owner's away message, at most once every 12 hours in a chat
+  const c = await ownerCfg(env);
+  if (!c.away.on || !c.away.text || (a.away && now - a.away < 12 * 3600000)) return false;
+  a.msgs.push({ f:"a", t:c.away.text, ts:now + 1, auto:1 }); a.away = now;
+  return true;
+};
 const tkA = async (env, id) => Object.assign({ msgs:[], changes:[], closed:false }, await readJSON(env, "tka:" + id) || {});
 
 async function supportApi(path, req, env, cors) {
@@ -607,12 +672,17 @@ async function supportApi(path, req, env, cors) {
     if (!platform || !text) return json({ error:"bad", message:"Say what's going wrong first." }, 400, cors);
     if (await overLimit(env, "sopen:" + (await hash("ip:" + (req.headers.get("CF-Connecting-IP") || ""))), 5))
       return json({ error:"limit", message:"That's a lot of support chats for one day. Try again tomorrow." }, 429, cors);
+    const dv = String(body.device || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40), dev = dv.length >= 12 ? "d" + await hash("device:" + dv) : "";
+    if (dev && isBlocked(await ownerCfg(env), { id:dev })) return json({ error:"blocked", message:"Help & support isn't available on this device." }, 403, cors);
     const id = rnd(12), token = rnd(32);
     let pid = "";
     try { const e = String(body.push || ""); if (e && PUSH_HOSTS.test(new URL(e).hostname)) pid = await pushId(e); } catch (x) {}
     const u = { id, tokenHash:await hash("tk:" + token), platform, version:cut(body.version, 20), created:now, updated:now, open:true,
-      access:body.access === true ? now + ACCESS_MS : 0, snap:cleanSnap(platform, body.settings), done:[], pid, msgs:[{ f:"u", t:text, ts:now }], last:text };
+      access:body.access === true ? now + ACCESS_MS : 0, snap:cleanSnap(platform, body.settings), done:[], pid, dev, msgs:[{ f:"u", t:text, ts:now }], last:text };
     await tkSaveU(env, u);
+    const a = { msgs:[], changes:[], closed:false };
+    if (await awayNote(env, a, now)) await tkSaveA(env, id, a);
+    await pushOwner(env, { title:"🛟 New support chat (" + (platform === "iphone" ? "iPhone" : "PC") + ")", body:cut(text, 160), go:"?chat=" + id, tag:"webs-chat-" + id }, "support");
     return json({ ok:true, id, token, access:u.access }, 200, cors);
   }
 
@@ -628,10 +698,18 @@ async function supportApi(path, req, env, cors) {
     if (!u.open || a.closed) return json({ error:"closed", message:"This support chat has ended. Start a new one." }, 409, cors);
     if (u.msgs.length >= 200) return json({ error:"limit", message:"This chat is full. Start a new one." }, 429, cors);
     u.msgs.push({ f:"u", t:text, ts:now }); u.last = text; u.updated = now; dirty = true;
+    if (await awayNote(env, a, now)) await tkSaveA(env, id, a);
+    await pushOwner(env, { title:"🛟 " + (u.platform === "iphone" ? "iPhone" : "PC") + " support chat", body:cut(text, 160), go:"?chat=" + id, tag:"webs-chat-" + id }, "support");
+  } else if (path === "/support/rate") {
+    const r = body.r === 1 ? 1 : body.r === -1 ? -1 : 0;
+    if (!r) return json({ error:"bad", message:"👍 or 👎?" }, 400, cors);
+    if (u.rate) return json({ ok:true, already:true }, 200, cors);
+    u.rate = r; dirty = true;
   } else if (path === "/support/access") {
     u.access = body.on === true && u.open && !a.closed ? now + ACCESS_MS : 0; u.updated = now; dirty = true;
   } else if (path === "/support/close") {
     u.open = false; u.access = 0; u.updated = now; dirty = true;
+    if (a.msgs.length || a.changes.length) await tkSaveA(env, id, a);      // kept as long as finished chats are
   } else if (path === "/support/poll") {
     if (body.settings && typeof body.settings === "object") {
       const snap = cleanSnap(u.platform, body.settings);
@@ -660,6 +738,7 @@ async function supportAdmin(op, body, env, h) {
   const a = await tkA(env, id);
   if (op === "ticket") {
     return json({ ok:true, now, id, platform:u.platform, version:u.version, created:u.created, open:u.open && !a.closed, closed:!!a.closed, access:u.access > now ? u.access : 0,
+      rate:u.rate || 0, dev:u.dev || "", blocked:!!u.dev && isBlocked(await ownerCfg(env), { id:u.dev }),
       settings:u.snap || {}, schema:SUPPORT_SETTINGS[u.platform] || [],
       msgs:u.msgs.concat(a.msgs).sort((x, y) => x.ts - y.ts),
       changes:a.changes.map(c => ({ ...c, done:u.done.indexOf(c.id) >= 0 })) }, 200, h);
@@ -670,6 +749,7 @@ async function supportAdmin(op, body, env, h) {
     if (a.msgs.length >= 200) return json({ error:"limit", message:"This chat is full." }, 429, h);
     a.msgs.push({ f:"a", t:text, ts:now });
     await tkSaveA(env, id, a);
+    await logA(env, "Replied in a support chat");
     // a notification on their iPhone, if they have them on
     if (u.pid) try {
       const s = await readJSON(env, "ps:" + u.pid), v = await vapid(env, false);
@@ -685,49 +765,59 @@ async function supportAdmin(op, body, env, h) {
     a.changes = a.changes.filter(c => !(c.k === k && u.done.indexOf(c.id) < 0)).slice(-49);      // the newest ask for a setting wins
     a.changes.push({ id:rnd(8), k, v, ts:now });
     await tkSaveA(env, id, a);
+    await logA(env, "Changed \u201c" + k + "\u201d in a support chat");
     return json({ ok:true }, 200, h);
   }
-  if (op === "closeTicket") { a.closed = true; await tkSaveA(env, id, a); return json({ ok:true }, 200, h); }
+  if (op === "closeTicket") { a.closed = true; await tkSaveA(env, id, a); u.closed = 1; await tkSaveU(env, u); await logA(env, "Closed a support chat"); return json({ ok:true }, 200, h); }
+  if (op === "blockTicket") {
+    if (!u.dev) return json({ error:"bad", message:"This chat came from an older version of the app, so its device can't be blocked." }, 400, h);
+    const c = JSON.parse(JSON.stringify(await ownerCfg(env, true))), on = body.on !== false;
+    c.block.devices = c.block.devices.filter(d => d !== u.dev).concat(on ? [u.dev] : []);
+    await env.LIMITS.put("admin:cfg", JSON.stringify(c)); await ownerCfg(env, true);
+    if (on) { a.closed = true; await tkSaveA(env, id, a); }
+    await logA(env, (on ? "Blocked" : "Unblocked") + " the device of a support chat");
+    return json({ ok:true }, 200, h);
+  }
   return json({ error:"bad", message:"Unknown request." }, 400, h);
 }
 
 /* ---------------------------------------------------------------- the owner's dashboard */
-function adminCode(env) {
-  if (String(env.ADMIN_CODE || "").trim().length >= 8) return String(env.ADMIN_CODE).trim();
-  const list = codes(env);
-  const c = list.find(x => /^(me|owner|admin)$/i.test(x.name)) || list[0];
-  return c ? c.code : "";
-}
 async function admin(req, env) {
   const h = { "cache-control":"no-store" };
   if (!env.LIMITS || typeof env.LIMITS.get !== "function") return json({ error:"setup", message:"The storage (LIMITS) isn't set up." }, 503, h);
   let body = null; try { body = await req.json(); } catch (e) {}
-  const want = adminCode(env), code = String(body && body.code || "").trim(), ip = req.headers.get("CF-Connecting-IP") || "";
-  const day = new Date().toISOString().slice(0, 10), failKey = "afail:" + (await hash("ip:" + ip));
-  if ((await count(env, failKey, day)) >= 20) return json({ error:"limit", message:"Too many wrong codes today." }, 429, h);
-  if (!want || !code || !same(code, want)) { await bump(env, failKey, day, await count(env, failKey, day)); return json({ error:"code", message:want ? "That isn't the owner's code." : "Add a Web AI code named Me (or ADMIN_CODE) to use this page." }, 401, h); }
-  const op = body.op || "stats";
-  if (op === "delete") { if (/^[0-9]{13}-[a-z0-9]{6}$/.test(String(body.id || ""))) await env.LIMITS.delete("report:" + body.id); return json({ ok:true }, 200, h); }
+  body = body && typeof body === "object" ? body : {};
+  const stop = await ownerGate(req, env, body, h);       // the owner's code, and two-step login when it's on
+  if (stop) return stop;
+  const op = String(body.op || "stats"), day = new Date().toISOString().slice(0, 10);
+  if (op === "delete") { if (/^[0-9]{13}-[a-z0-9]{6}$/.test(String(body.id || ""))) { await env.LIMITS.delete("report:" + body.id); await logA(env, "Deleted a problem report"); } return json({ ok:true }, 200, h); }
   if (op === "push") {       // news to every iPhone that wants it, a batch per call (the page calls again with the cursor)
     // only with an owner's code chosen on purpose: the first code could be one handed out to everyone
-    if (String(env.ADMIN_CODE || "").trim().length < 8 && !codes(env).some(x => /^(me|owner|admin)$/i.test(x.name)))
-      return json({ error:"code", message:"Sending news needs a Web AI code named Me (or an ADMIN_CODE secret)." }, 403, h);
+    if (!(await ownerChosen(env))) return json({ error:"code", message:"Sending news needs a Web AI code named Me (or an ADMIN_CODE secret)." }, 403, h);
     if (!cut(body.title, 80).trim() || !cut(body.text, 300).trim()) return json({ error:"bad", message:"Write a title and a message first." }, 400, h);
     const msg = tidyMsg({ title:body.title, body:body.text, url:String(body.url || "").trim() || "./", tag:"news-" + (+body.started || Date.now()).toString(36) });
     if (body.url && msg.url !== String(body.url).trim()) return json({ error:"bad", message:"The link has to start with https://" }, 400, h);
     const r = await pushBatch(env, "ps:", "news", msg, String(body.cursor || ""));
-    if (r.done) await env.LIMITS.put("push:news", JSON.stringify({ at:Date.now(), title:msg.title, sent:(+body.sentSoFar || 0) + r.sent }));
+    if (r.done) {
+      const sent = (+body.sentSoFar || 0) + r.sent;
+      await env.LIMITS.put("push:news", JSON.stringify({ at:Date.now(), title:msg.title, sent }));
+      await addHist(env, { kind:"news", title:msg.title, body:msg.body, sent, gone:(+body.goneSoFar || 0) + r.gone, failed:(+body.failedSoFar || 0) + r.failed, why:r.why || body.why || "" });
+      await logA(env, "Sent \u201c" + msg.title + "\u201d to " + sent + " iPhones");
+    }
     return json({ ok:true, ...r }, 200, h);
   }
-  if (/^(tickets|ticket|reply|set|closeTicket)$/.test(op)) return await supportAdmin(op, body, env, h);
+  if (/^(tickets|ticket|reply|set|closeTicket|blockTicket)$/.test(op)) return await supportAdmin(op, body, env, h);
   if (op === "reports") {
     const l = await env.LIMITS.list({ prefix:"report:", limit:100 });
-    const items = (await Promise.all(l.keys.map(k => env.LIMITS.get(k.name)))).map(v => { try { return JSON.parse(v); } catch (e) { return null; } }).filter(Boolean);
+    const items = (await Promise.all(l.keys.map(k => env.LIMITS.get(k.name)))).map(v => { try { const { rh, ...r } = JSON.parse(v); return { ...r, canReply:!!rh }; } catch (e) { return null; } }).filter(Boolean);
     return json({ ok:true, items }, 200, h);
   }
+  const mine = await ownerAdmin(op, body, env, h, req) || await liveAdmin(op, body, env, h);
+  if (mine) return mine;
+  if (op !== "stats") return json({ error:"bad", message:"Unknown request." }, 400, h);
   const days = [];
   for (let i = 13; i >= 0; i--) days.push(new Date(Date.now() - i * 86400000).toISOString().slice(0, 10));
-  const m = model(env);
+  const oc = await ownerCfg(env), ai = aiSettings(env, oc), m = ai.model;
   const rows = await Promise.all(days.map(async d => {
     const [q, u] = await Promise.all([count(env, "everyone", d), env.LIMITS.get("u:" + d)]);
     let t = {}; try { t = JSON.parse(u || "{}") || {}; } catch (e) {}
@@ -740,215 +830,13 @@ async function admin(req, env) {
   const ps = await readJSON(env, "push:state") || {}, last = ps.last || {};
   const push = { phones:phones.keys.length, more:!phones.list_complete, updates:pm.filter(x => x.u).length, news:pm.filter(x => x.n).length, daily:pm.filter(x => x.d >= 0).length,
     lastUpdate:last.updates || null, lastDaily:last.daily || null, lastNews:await readJSON(env, "push:news"), sending:(ps.jobs || []).length };
-  return json({ ok:true, model:m, open:isOpen(env), limits:{ perDevice:limit(env.DAILY_LIMIT, 25), total:limit(env.TOTAL_DAILY_LIMIT, 150) },
+  return json({ ok:true, model:m, open:isOpen(env), limits:{ perDevice:ai.daily, total:ai.total, network:ai.network }, paused:oc.ai.paused, maint:oc.maint.on, cap:oc.ai.cap,
     days:rows, today:{ devices:who.filter(x => x[0] === "d").length, people:who.filter(x => x[0] === "p").length }, reports:reports.keys.length, push }, 200, h);
 }
-const ADMIN_PAGE = `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
-<title>Web AI dashboard</title>
-<style>
-:root{--bg:#16131a;--bg2:#1e1a24;--bg3:#272230;--line:#322c3c;--fg:#f3eff1;--dim:#9a91a3;--accent:#e8342a}
-@media (prefers-color-scheme:light){:root{--bg:#efebe3;--bg2:#f9f6ef;--bg3:#e6e0d6;--line:#d9d2c6;--fg:#1d1a20;--dim:#6b6560}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,"Segoe UI",sans-serif}
-main{max-width:860px;margin:0 auto;padding:24px 16px 60px}h1{font-size:22px;margin:0 0 4px}h2{font-size:16px;margin:28px 0 10px}p.d{color:var(--dim);margin:0 0 18px}
-.card{background:var(--bg2);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
-input,button{font:inherit}input{background:var(--bg3);border:1px solid var(--line);border-radius:10px;color:var(--fg);padding:10px 12px;width:100%;max-width:320px}
-button{background:var(--accent);color:#fff;border:0;border-radius:10px;padding:10px 16px;cursor:pointer;margin-left:6px}button.ghost{background:var(--bg3);color:var(--fg)}
-.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}.tile b{display:block;font-size:26px;font-variant-numeric:tabular-nums}.tile span{color:var(--dim);font-size:13px}
-.bars{display:grid;gap:6px}.bar{display:grid;grid-template-columns:86px 1fr 120px;gap:10px;align-items:center;font-size:13px}.bar i{display:block;height:10px;border-radius:5px;background:var(--accent);min-width:2px}
-.bar em{font-style:normal;color:var(--dim);text-align:right;font-variant-numeric:tabular-nums}
-.rep{margin-bottom:10px}.rep h3{font-size:14px;margin:0 0 4px}.rep .meta{color:var(--dim);font-size:12.5px}.rep pre{white-space:pre-wrap;word-break:break-word;background:var(--bg3);border-radius:8px;padding:8px;font-size:12px;max-height:240px;overflow:auto}
-.err{color:#ff7a6e}.hide{display:none}
-.sup .row{display:flex;gap:10px;align-items:center;padding:10px 6px;border-bottom:1px solid var(--line);cursor:pointer;border-radius:8px}.sup .row:hover{background:var(--bg3)}
-.sup .row:last-child{border-bottom:0}.sup .row .ic{font-size:20px}.sup .row .tx{flex:1;min-width:0}.sup .row .tx b{display:block;font-size:14px}
-.sup .row .tx span{display:block;color:var(--dim);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pill{font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:99px;background:var(--bg3);color:var(--dim);white-space:nowrap}.pill.on{background:#1e7a4a;color:#fff}.pill.off{opacity:.7}
-.tk{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:16px;margin-top:10px}@media (max-width:760px){.tk{grid-template-columns:1fr}}
-.tkh{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.tkh b{font-size:15px}.tkh span{color:var(--dim);font-size:13px}.tkh .sp{flex:1}
-button.small{padding:6px 12px;font-size:13px;margin:0}
-.chat{display:flex;flex-direction:column;gap:8px;max-height:420px;overflow:auto;padding:4px}.msg{max-width:85%;padding:8px 11px;border-radius:12px;font-size:14px;white-space:pre-wrap;word-break:break-word}
-.msg.u{background:var(--bg3);align-self:flex-start;border-bottom-left-radius:4px}.msg.a{background:var(--accent);color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
-.msg i{display:block;font-style:normal;font-size:11px;opacity:.7;margin-top:3px}
-.reply{display:flex;gap:8px;margin-top:10px}.reply textarea{flex:1;background:var(--bg3);border:1px solid var(--line);border-radius:10px;color:var(--fg);padding:8px 10px;font:inherit;resize:vertical;min-height:42px}
-.reply button{margin:0;align-self:flex-end}
-.dev{border-radius:16px;border:1px solid var(--line);background:var(--bg);overflow:hidden}.dev.iphone{border-radius:34px;border:8px solid #2b2731;max-width:380px;margin:0 auto}
-.devbar{display:flex;align-items:center;gap:6px;padding:8px 12px;background:var(--bg3);font-size:12.5px;color:var(--dim)}.devbar i{width:10px;height:10px;border-radius:50%;background:#ff5f57}.devbar i+i{background:#febc2e}.devbar i+i+i{background:#28c840}
-.dev.iphone .devbar{justify-content:center;background:var(--bg2)}.dev.iphone .devbar i{display:none}
-.acc{padding:9px 12px;font-size:13px;border-bottom:1px solid var(--line)}.acc.on{background:rgba(30,122,74,.18);color:#7fe0aa}.acc.off{background:rgba(255,122,110,.1);color:#ffb3aa}
-@media (prefers-color-scheme:light){.acc.on{color:#17643d}.acc.off{color:#a3291f}}
-.sets{max-height:460px;overflow:auto;padding:4px 12px 12px}.sets h4{margin:12px 0 4px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
-.set{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px}.set .l{flex:1}.set .w{font-size:11.5px;color:#febc2e}.set .w.d{color:#7fe0aa}
-.set select{background:var(--bg3);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:5px 8px;font:inherit;font-size:13px;max-width:52%}
-.tg{width:44px;height:26px;border-radius:13px;background:var(--bg3);border:1px solid var(--line);position:relative;cursor:pointer;padding:0;margin:0;flex:none}
-.tg::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#bbb;transition:left .15s}.tg.on{background:#1e7a4a;border-color:#1e7a4a}.tg.on::after{left:21px;background:#fff}
-.sets.locked .set select,.sets.locked .tg,.sets.locked button.act{opacity:.45;pointer-events:none}
-button.act{background:var(--bg3);color:var(--fg);padding:6px 12px;font-size:13px;margin:0}
-.push label{display:block;margin:10px 0 0;font-size:13px;color:var(--dim)}.push input,.push textarea{display:block;width:100%;max-width:none;margin-top:4px}
-.push textarea{background:var(--bg3);border:1px solid var(--line);border-radius:10px;color:var(--fg);padding:10px 12px;font:inherit;resize:vertical;min-height:70px}
-.push .row{display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap}.push .row button{margin:0}.push .row span{color:var(--dim);font-size:13px}
-</style>
-<main><h1>Web AI dashboard</h1><p class="d">Questions, devices and cost for your Web AI server, and the problems people reported.</p>
-<div id="login" class="card"><label>Owner's code<br><input id="code" type="password" autocomplete="current-password"></label><button id="go">Open</button><p id="msg" class="err"></p></div>
-<div id="out" class="hide">
-<div class="tiles"><div class="card tile"><b id="tq">0</b><span>questions today</span></div><div class="card tile"><b id="td">0</b><span>devices and people today</span></div>
-<div class="card tile"><b id="tc">$0</b><span>cost today (about)</span></div><div class="card tile"><b id="tm">$0</b><span>last 14 days (about)</span></div></div>
-<h2>The last 14 days</h2><div class="card bars" id="bars"></div>
-<p class="d" id="lim"></p>
-<h2>Help &amp; support <span id="sn" class="pill"></span></h2>
-<div class="card sup"><div id="slist"><p class="d" style="margin:0">No support chats yet. People start one from Help &amp; support in the app.</p></div>
-<div id="sview" class="hide"><div class="tkh"><button class="ghost small" id="sback">← All chats</button><b id="stitle"></b><span id="ssub"></span><span class="sp"></span><button class="ghost small" id="sclose">Close this chat</button></div>
-<div class="tk"><div><div class="chat" id="schat"></div><div class="reply"><textarea id="sreply" maxlength="1000" placeholder="Write a reply…"></textarea><button id="ssend">Send</button></div></div>
-<div><div class="dev" id="sdev"><div class="devbar"><i></i><i></i><i></i><span id="sdevname"></span></div><div class="acc" id="sacc"></div><div class="sets" id="ssets"></div></div>
-<p class="d" style="margin:8px 2px 0;font-size:12.5px">Only these settings, and only while they allow it. You never see their history, bookmarks, passwords or pages. Each change shows on their screen with Undo.</p></div></div></div></div>
-<h2>Notifications on iPhones</h2><div class="card push"><p class="d" id="pn" style="margin:0"></p>
-<label>Title<input id="ptitle" maxlength="80" placeholder="New games are here!"></label>
-<label>Message<textarea id="ptext" maxlength="300" placeholder="Open Webs and try Pong and Breakout."></textarea></label>
-<label>Link when they tap it (optional)<input id="purl" maxlength="500" placeholder="https://… (leave empty to open Webs)"></label>
-<div class="row"><button id="psend">Send to everyone</button><span id="pmsg"></span></div></div>
-<h2>Problem reports (<span id="rn">0</span>)</h2><div id="reps"></div></div></main>
-<script>
-const $ = s => document.getElementById(s), E = (t, c) => { const e = document.createElement(t); if (c) e.className = c; return e; };
-let code = sessionStorage.getItem("c") || "";
-async function call(o) { const r = await fetch("admin", { method:"POST", headers:{ "content-type":"application/json" }, body:JSON.stringify(Object.assign({ code }, o)) }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.message || "Error " + r.status); return j; }
-const money = v => "$" + (v < 1 ? v.toFixed(3) : v.toFixed(2));
-async function load() {
-  const s = await call({ op:"stats" });
-  sessionStorage.setItem("c", code); $("login").classList.add("hide"); $("out").classList.remove("hide");
-  const t = s.days[s.days.length - 1], max = Math.max(1, ...s.days.map(d => d.questions));
-  $("tq").textContent = t.questions; $("td").textContent = s.today.devices + s.today.people; $("tc").textContent = money(t.cost); $("tm").textContent = money(s.days.reduce((n, d) => n + d.cost, 0));
-  $("bars").innerHTML = "";
-  s.days.slice().reverse().forEach(d => { const r = E("div", "bar"), a = E("span"), b = E("i"), c = E("em"); a.textContent = d.day.slice(5); b.style.width = (d.questions / max * 100) + "%"; c.textContent = d.questions + " · " + money(d.cost); r.append(a, b, c); $("bars").append(r); });
-  $("lim").textContent = "Model " + s.model + ". " + (s.open ? "Open to everyone: " : "With codes: ") + s.limits.perDevice + " questions a day each, " + s.limits.total + " in total. Costs are estimates from the token counts; the Claude Console has the real bill.";
-  const p = s.push || { phones:0 }, when = x => x ? new Date(x.at).toLocaleString() + " (" + x.sent + " iPhones)" : "not yet";
-  $("pn").textContent = p.phones + (p.more ? "+" : "") + " iPhones have notifications on: " + p.news + " get news, " + p.updates + " new versions, " + p.daily + " the daily word reminder. " +
-    "Last new-version notice: " + when(p.lastUpdate) + ". Last news: " + (p.lastNews ? "\u201c" + p.lastNews.title + "\u201d, " + when(p.lastNews) : "not yet") + "." + (p.sending ? " Still sending: " + p.sending + "." : "");
-  $("psend").textContent = "Send to " + p.news + (p.more ? "+" : "") + " iPhones";
-  loadTickets().catch(() => {});
-  const r = await call({ op:"reports" });
-  $("rn").textContent = r.items.length; $("reps").innerHTML = "";
-  if (!r.items.length) { const p = E("p", "d"); p.textContent = "No reports. 🎉"; $("reps").append(p); }
-  r.items.forEach(x => {
-    const c = E("div", "card rep"), h = E("h3"), m = E("div", "meta"), t = E("pre"), d = E("pre"), b = E("button", "ghost");
-    h.textContent = x.text.split("\\n")[0].slice(0, 120); m.textContent = new Date(x.ts).toLocaleString() + " · " + x.app + " " + x.version + " · " + x.who;
-    t.textContent = x.text; d.textContent = JSON.stringify(x.info, null, 2) + (x.errors && x.errors.length ? "\\n\\nErrors:\\n" + x.errors.join("\\n") : "");
-    b.textContent = "Delete"; b.onclick = async () => { await call({ op:"delete", id:x.id }); c.remove(); $("rn").textContent = +$("rn").textContent - 1; };
-    c.append(h, m, t, d, b); $("reps").append(c);
-  });
-}
-$("psend").onclick = async () => {
-  const title = $("ptitle").value.trim(), text = $("ptext").value.trim(), url = $("purl").value.trim();
-  if (!title || !text) { $("pmsg").textContent = "Write a title and a message first."; return; }
-  if (!confirm("Send \u201c" + title + "\u201d to every iPhone that gets news?")) return;
-  $("psend").disabled = true;
-  let cursor = "", sent = 0, gone = 0, failed = 0, why = "";
-  const started = Date.now();
-  try {
-    for (;;) {
-      const r = await call({ op:"push", title, text, url, cursor, started, sentSoFar:sent });
-      sent += r.sent; gone += r.gone; failed += r.failed; cursor = r.cursor; why = why || r.why || "";
-      $("pmsg").textContent = "Sent to " + sent + " iPhones…";
-      if (r.done) break;
-    }
-    $("pmsg").textContent = "Sent to " + sent + " iPhones." + (gone ? " " + gone + " had turned notifications off." : "") + (failed ? " " + failed + " didn't go through" + (why ? " (Apple said: " + why + ")" : "") + "." : "");
-    $("ptitle").value = $("ptext").value = $("purl").value = "";
-  } catch (e) { $("pmsg").textContent = e.message + (sent ? " (" + sent + " sent before that)" : ""); }
-  $("psend").disabled = false;
-};
-/* Help & support: the chats, and a small screen of their settings while they allow it */
-const ago = ts => { const s = Math.max(0, (Date.now() - ts) / 1000); return s < 60 ? "just now" : s < 3600 ? Math.round(s / 60) + " min ago" : s < 86400 ? Math.round(s / 3600) + " h ago" : new Date(ts).toLocaleDateString(); };
-const mins = until => Math.max(1, Math.round((until - Date.now()) / 60000));
-let tk = null, tkT = 0, listT = 0, waiting = {};
-async function loadTickets() {
-  const r = await call({ op:"tickets" }), box = $("slist");
-  const open = r.items.filter(x => x.open);
-  $("sn").textContent = open.length ? open.length + " open" : ""; $("sn").className = "pill" + (open.length ? " on" : "");
-  if (!r.items.length) return;
-  box.innerHTML = "";
-  r.items.forEach(x => {
-    const row = E("div", "row"), ic = E("span", "ic"), tx = E("div", "tx"), b = E("b"), sp = E("span"), pl = E("span", "pill");
-    ic.textContent = x.platform === "iphone" ? "📱" : "💻";
-    b.textContent = (x.platform === "iphone" ? "iPhone " : "Windows ") + (x.version || "") + " · " + ago(x.updated || x.created);
-    sp.textContent = x.last || "";
-    const acc = x.open && x.access > Date.now();
-    pl.textContent = !x.open ? "ended" : acc ? "settings access · " + mins(x.access) + " min" : "open";
-    pl.className = "pill" + (acc ? " on" : x.open ? "" : " off");
-    tx.append(b, sp); row.append(ic, tx, pl);
-    row.onclick = () => openTicket(x.id);
-    box.append(row);
-  });
-}
-async function openTicket(id) {
-  $("slist").classList.add("hide"); $("sview").classList.remove("hide");
-  tk = { id }; waiting = {};
-  await refreshTicket();
-  clearInterval(tkT); tkT = setInterval(() => { if (!document.hidden && tk) refreshTicket().catch(() => {}); }, 4000);
-}
-function closeView() { tk = null; clearInterval(tkT); $("sview").classList.add("hide"); $("slist").classList.remove("hide"); loadTickets().catch(() => {}); }
-async function refreshTicket() {
-  const t = await call({ op:"ticket", id:tk.id });
-  if (!tk || tk.id !== t.id) return;
-  tk = t;
-  const phone = t.platform === "iphone";
-  $("stitle").textContent = (phone ? "📱 iPhone " : "💻 Windows ") + (t.version || "");
-  $("ssub").textContent = "started " + ago(t.created) + (t.open ? "" : " · ended");
-  $("sclose").classList.toggle("hide", !t.open);
-  // the chat
-  const chat = $("schat"), atEnd = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 20;
-  chat.innerHTML = "";
-  t.msgs.forEach(m => { const d = E("div", "msg " + m.f), i = E("i"); d.textContent = m.t; i.textContent = (m.f === "a" ? "You · " : "Them · ") + ago(m.ts); d.append(i); chat.append(d); });
-  if (atEnd) chat.scrollTop = chat.scrollHeight;
-  $("ssend").disabled = !t.open; $("sreply").disabled = !t.open;
-  // their settings
-  $("sdev").className = "dev " + (phone ? "iphone" : "windows");
-  $("sdevname").textContent = phone ? "Webs on their iPhone" : "Webs on their PC";
-  const live = t.open && t.access > 0;
-  $("sacc").className = "acc " + (live ? "on" : "off");
-  $("sacc").textContent = !t.open ? "This chat has ended. Nothing can be changed." : live ? "✓ They let support adjust their settings · " + mins(t.access) + " min left" : "They haven't let support adjust their settings. Ask them to turn on the switch in Help & support.";
-  const sets = $("ssets"), y = sets.scrollTop;
-  sets.className = "sets" + (live ? "" : " locked");
-  sets.innerHTML = "";
-  const open = {}; t.changes.forEach(c => { if (!c.done) open[c.k] = c; });
-  t.schema.forEach(([group, list]) => {
-    const h = E("h4"); h.textContent = group; sets.append(h);
-    list.forEach(e => {
-      const row = E("div", "set"), l = E("span", "l"), w = E("span", "w");
-      l.textContent = e.label;
-      const cur = t.settings[e.k], pend = open[e.k];
-      if (pend) w.textContent = "waiting for their device…";
-      else if (waiting[e.k] && t.changes.some(c => c.k === e.k && c.done)) { w.textContent = "✓ changed"; w.className = "w d"; }
-      let c;
-      if (e.t === "bool") {
-        c = E("button", "tg" + (cur ? " on" : "")); c.setAttribute("aria-pressed", cur ? "true" : "false"); c.title = cur ? "On" : "Off";
-        if (cur === undefined) c.title = "Unknown";
-        c.onclick = () => change(e.k, !cur);
-      } else if (e.t === "choice") {
-        c = E("select");
-        e.o.forEach(([v, lab]) => { const o = E("option"); o.value = v; o.textContent = lab; c.append(o); });
-        c.value = cur === undefined ? "" : String(cur);
-        c.onchange = () => change(e.k, c.value);
-      } else {
-        c = E("button", "act"); c.textContent = e.label; l.textContent = "";
-        c.onclick = () => { if (confirm(e.label + "?")) change(e.k, true); };
-      }
-      row.append(l, w, c); sets.append(row);
-    });
-  });
-  sets.scrollTop = y;
-}
-async function change(k, v) {
-  try { await call({ op:"set", id:tk.id, k, v }); waiting[k] = true; await refreshTicket(); }
-  catch (e) { alert(e.message); }
-}
-$("sback").onclick = closeView;
-$("sclose").onclick = async () => { if (!confirm("Close this chat? They'll see it has ended, and nothing more can be changed.")) return; await call({ op:"closeTicket", id:tk.id }); await refreshTicket(); };
-$("ssend").onclick = async () => {
-  const text = $("sreply").value.trim(); if (!text) return;
-  $("ssend").disabled = true;
-  try { await call({ op:"reply", id:tk.id, text }); $("sreply").value = ""; await refreshTicket(); } catch (e) { alert(e.message); }
-  $("ssend").disabled = false;
-};
-$("sreply").onkeydown = e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("ssend").click(); } };
-setInterval(() => { if (!document.hidden && !tk && code && !$("out").classList.contains("hide")) loadTickets().catch(() => {}); }, 30000);
-$("go").onclick = () => { code = $("code").value.trim(); $("msg").textContent = ""; load().catch(e => { $("msg").textContent = e.message; }); };
-$("code").onkeydown = e => { if (e.key === "Enter") $("go").click(); };
-if (code) load().catch(() => { sessionStorage.removeItem("c"); code = ""; });
-</script>`;
+/* ---------------------------------------------------------------- the dashboard's own files (dash.js) */
+const DASH_FILES = { "/admin/app.js":["text/javascript; charset=utf-8", DASH_JS], "/admin/app.css":["text/css; charset=utf-8", DASH_CSS],
+  "/admin/sw.js":["text/javascript; charset=utf-8", DASH_SW], "/admin/manifest.json":["application/manifest+json", DASH_MANIFEST], "/admin/icon.svg":["image/svg+xml", DASH_ICON] };
+
+// for owner.js and live.js
+export { json, readJSON, hash, rnd, cut, same, count, bump, overLimit, pushOne, pushCtx, vapid, tidyMsg, pushBatch, PUSH_HOSTS, unb64u, b64u,
+  envCodes, limit, isOpen, cost, corsFor, APP_URL, IPHONE_UPDATES, WIN_UPDATES };

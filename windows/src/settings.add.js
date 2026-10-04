@@ -1,7 +1,8 @@
 /* ---------------------------------------------------------------- Webs 3.0 settings */
 (function () {
 "use strict";
-["xUnread", "xPageKeys"].forEach(k => { if (cfg[k] === undefined) cfg[k] = true; });
+["xUnread", "xPageKeys", "liveCounts"].forEach(k => { if (cfg[k] === undefined) cfg[k] = true; });
+bindSwitch("liveCounts", () => cfg, "liveCounts");      // Webs 3.7: js/live.js checks in only with this on
 ["xClock", "xClockDate", "xBattery", "xTabCount", "xTabNums", "xUnread", "xUndo", "xHoverX", "xBigTabs", "xIconTabs", "xRainbow", "xGlow", "xCycle",
  "xProgress", "xTotop", "xZoomAll", "xYtShorts", "xYtRecs", "xPageKeys"].forEach(k => bindSwitch(k, () => cfg, k));
 ["xTabW", "xCorners", "xFont"].forEach(k => { const n = $("#" + k); n.value = cfg[k] || ""; n.onchange = () => { cfg[k] = n.value; commit(); }; });

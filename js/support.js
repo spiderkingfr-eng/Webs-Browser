@@ -169,7 +169,7 @@ async function send(text) {
     if (!chatOn()) {
       const push = cfg.pushOn ? String((load("push", {}) || {}).endpoint || "") : "";
       const want = !!(($("#sheetBody .supacc input") || {}).checked);
-      const j = await api("/support/open", { platform:"iphone", version:VERSION, text, access:want, settings:snapshot(), push });
+      const j = await api("/support/open", { platform:"iphone", version:VERSION, text, access:want, settings:snapshot(), push, device:window.Live ? Live.dev() : "" });
       gen++;
       save("support", { id:j.id, token:j.token, since:0, msgs:[{ f:"u", t:text, ts:Date.now() }], until:j.access > 0 ? Date.now() + 30 * 60000 : 0, applied:[], done:[], sent:"" });
     } else {
@@ -234,6 +234,7 @@ function paintLog() {
       "<p>Write what's going wrong. The people who make Webs answer here" + (cfg.pushOn ? ", and you'll get a notification" : "") + ".</p>" +
       '<div class="supsafe">🔒 Support only sees what you write here' + " and, if you let them, the settings below. Never your history, bookmarks, tabs, notes, passwords or the pages you visit.</div>" +
       '<details class="supwhat"><summary>What support can change, if you let them</summary><p>' + WHAT + "</p><p>For 30 minutes at most. Nothing that deletes anything, and nothing you typed in.</p></details></div>";
+    extras(log);
     return;
   }
   for (const m of msgs) {
@@ -245,11 +246,52 @@ function paintLog() {
   }
   log.scrollTop = log.scrollHeight;
 }
+// help articles from the people who make Webs, and problem reports (with their answers)
+let reporting = false;
+function extras(log) {
+  if (!window.Live) return;
+  const faq = Live.faq(), reps = Live.myReports();
+  if (faq.length) {
+    const box = document.createElement("div"); box.className = "supfaq";
+    box.innerHTML = "<h4>Common questions</h4>" + faq.map(x => "<details><summary>" + esc(x.q) + "</summary><p>" + esc(x.a) + "</p></details>").join("");
+    log.appendChild(box);
+  }
+  const r = document.createElement("div"); r.className = "suprep";
+  if (reporting) {
+    r.innerHTML = "<h4>Send a problem report</h4><p>What went wrong? Webs adds its version, your screen size and any recent errors, nothing else.</p>" +
+      '<textarea rows="3" maxlength="4000" placeholder="The weather stopped loading after the update…"></textarea><div class="suprb"><button type="button" class="supgo">Send report</button><button type="button" class="supno">Cancel</button></div>';
+    r.querySelector(".supno").onclick = () => { reporting = false; paintLog(); };
+    r.querySelector(".supgo").onclick = async () => {
+      const t = r.querySelector("textarea").value.trim(); if (!t) return;
+      r.querySelector(".supgo").disabled = true;
+      try { await Live.report(t, { standalone:isStandalone(), notifications:!!cfg.pushOn }); reporting = false; toast("Report sent. Thank you!"); paintLog(); }
+      catch (e) { toast(e.message); r.querySelector(".supgo").disabled = false; }
+    };
+  } else r.innerHTML = '<button type="button" class="suplink">Send a problem report instead</button>';
+  if (reps.length) {
+    const l = document.createElement("div"); l.className = "suprl";
+    l.innerHTML = "<h4>Your problem reports</h4>" + reps.slice(0, 5).map(x => '<div class="supri"><b>' + esc(x.text.slice(0, 80)) + "</b><span>" + (x.fixed ? "✅ Fixed · " : x.reply ? "💬 Answered · " : "Sent · ") +
+      esc(new Date(x.ts).toLocaleDateString()) + "</span>" + (x.reply ? '<p class="supa"><b>Webs support</b>' + esc(x.reply.t) + "</p>" : "") + "</div>").join("");
+    r.appendChild(l);
+    Live.readReports(); Live.replies(true);
+  }
+  const btn = r.querySelector(".suplink"); if (btn) btn.onclick = () => { reporting = true; paintLog(); const ta = $("#sheetBody .suprep textarea"); if (ta) ta.focus(); };
+  log.appendChild(r);
+}
+async function rate(v) {
+  const s = st();
+  setSt({ rated:v });
+  paintFoot();
+  try { await api("/support/rate", { id:s.id, token:s.token, r:v }); } catch (e) {}
+  toast(v > 0 ? "Thanks! 😊" : "Thanks for telling us. We'll do better.");
+}
 function paintFoot() {
   const f = $("#sheetBody .aifoot"); if (!f) return;
   const s = st();
   if (s.id && s.ended) {
-    f.innerHTML = '<button type="button" class="supnew">Start a new chat</button>';
+    f.innerHTML = (s.rated ? "" : '<div class="suprate"><span>How was the help?</span><button type="button" data-r="1" aria-label="Good">👍</button><button type="button" data-r="-1" aria-label="Not good">👎</button></div>') +
+      '<button type="button" class="supnew">Start a new chat</button>';
+    f.querySelectorAll("[data-r]").forEach(b => b.onclick = () => rate(+b.dataset.r));
     f.querySelector(".supnew").onclick = () => { save("support", {}); paint(); };
     return;
   }
@@ -301,6 +343,13 @@ css.textContent = `
 .supacc.on .k i{color:var(--good)}
 .supend{display:block;margin:4px auto 0;font-size:14px;color:var(--dim);padding:4px 10px}
 .supnew{display:block;width:100%;height:48px;border-radius:13px;background:var(--accent);color:#fff;font-size:16.5px;font-weight:600}
+.suprate{display:flex;align-items:center;gap:10px;justify-content:center;margin-bottom:10px;font-size:15px}.suprate button{font-size:24px;width:48px;height:42px;border-radius:12px;background:var(--bg2);border:1px solid var(--line)}
+.supfaq,.suprep{text-align:left;margin-top:14px}.supfaq h4,.suprep h4{font-size:12.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--dim2);margin:10px 4px 6px}
+.supfaq details{background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:6px}.supfaq summary{font-weight:600;font-size:15px;cursor:pointer}.supfaq p{margin:8px 0 0;color:var(--dim);font-size:14.5px;line-height:1.45;white-space:pre-wrap}
+.suplink{display:block;margin:6px auto 0;color:var(--accent);font-size:14.5px;font-weight:600;padding:6px}
+.suprep>p{color:var(--dim);font-size:13.5px;margin:0 4px 8px}.suprep textarea{width:100%;border:1px solid var(--line);background:var(--bg2);color:var(--fg);border-radius:12px;padding:10px;font:15px/1.4 inherit}
+.suprb{display:flex;gap:8px;margin-top:8px}.suprb button{flex:1;height:42px;border-radius:12px;background:var(--bg3);font-weight:600}.suprb .supgo{background:var(--accent);color:#fff}
+.supri{background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:6px}.supri b{display:block;font-size:14.5px}.supri span{display:block;color:var(--dim);font-size:12.5px}.supri .supa{margin:8px 0 0;max-width:none}
 #supBar{position:fixed;left:50%;top:calc(var(--st) + 8px);transform:translateX(-50%);z-index:45;display:flex;align-items:center;gap:8px;max-width:calc(100% - 24px);
   padding:6px 6px 6px 13px;border-radius:20px;background:var(--good);color:#062614;font-size:13.5px;font-weight:600;box-shadow:var(--shadow);white-space:nowrap}
 #supBar span{overflow:hidden;text-overflow:ellipsis;cursor:pointer}

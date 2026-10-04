@@ -44,7 +44,14 @@ Update button on a copy from before 3.2, which downloads it this one last time. 
   sync command (`sync-write`): "check" (get a new version ready now), "update" (install it, close
   the browser the way the X button does, so the tabs are saved, and open the new one), and
   "auto-on"/"auto-off" (the Settings switch). That's what the Update / Restart to update button does;
-- replaces itself when `latest.json` names a newer updater.
+- replaces itself when `latest.json` names a newer updater;
+- (2.1, with 3.7) asks the Web AI server (`webai.server` in `latest.json`, its `/live`) how the
+  owner wants new versions handed out, from the dashboard's **Updates** tab. During a gradual
+  rollout to some percent, a PC installs the new version by itself only when its number (0 to 99,
+  from a random `device-id` in the install folder) is below it; the browser's Update button still
+  installs it at once. When the owner chooses **go back**, every PC installs the version that
+  `latest.json` names as `previous`, checked against its own SHA-256 the same way. If the server
+  can't be reached, updates work as before.
 
 Nothing goes through the browser's downloads, so Windows has no download to warn about, and the
 installed exe isn't marked as coming from the internet, so it opens without asking. Only addresses
@@ -57,6 +64,9 @@ in this repository are accepted, and every exe must match its checksum. Anyone w
 2. Raise the number in `VERSION`, for example to `3.2.0`.
 3. `python3 publish.py "What changed" "Another change"` (the notes show in the update panel).
 4. Commit everything, push, and merge into `main`. That's the release.
+
+`publish.py` keeps the version before next to the new one in `updates/` and names it as
+`previous` in `latest.json`, so the dashboard can put every PC back on it.
 
 Copies from before 3.1 have no Update button, so people on 3.0 or older install once by hand
 (`WebsBrowserSetup.exe`, or the zip).
@@ -123,6 +133,18 @@ The browser window (`src/support.js`) asks the server for replies, one window at
 - **Never sent:** history, bookmarks, tabs, passwords, pages, or anything typed into a setting
   (home page, VPN server, download folder, your own search engine).
 - **Kept on the computer:** the chat (`wsb.support`, not in backups or Google sync).
+- **3.7:** help articles from the owner, problem reports with their answers, and 👍/👎 when a chat ends.
+
+## From Webs
+
+What the owner puts on the dashboard's Start page tab (3.7, `../js/live.js`, shared with the
+iPhone app) shows on the new tab page under the search box (`src/live.newtab.js`; Customize →
+From Webs turns it off), on the games page (the leaderboard, the community goal and the owner's
+daily word), and in the browser window (`src/live.chrome.js`): secret words and the code hunt
+typed in the address bar open a new tab page that plays their effect (`newtab.html#lvfx=`), since
+web pages cover the window; special achievements join Menu → Achievements; and the Update button
+follows the owner's rollout or going back (`src/cloud.js`). The window checks in about once an
+hour with the version only (Settings → Webs 3.0 extras → Send anonymous counts turns it off).
 
 ## Making the exe by hand
 
@@ -140,8 +162,8 @@ hash) before and after, and every embedded file read back by the .NET runtime ma
 ```
 npm install playwright
 python3 build.py
-node tests/t_chrome.js     # also t_side, t_ntp, t_games, t_shield, t_misc, t_examples, t_cloud, t_updated, t_autoupdate, t_studio, t_webai and t_support; `sh tests/t_updater.sh` tests the updater under Mono (15 checks)
+node tests/t_chrome.js     # also t_side, t_ntp, t_games, t_shield, t_misc, t_examples, t_cloud, t_updated, t_autoupdate, t_studio, t_webai, t_voice, t_support and t_live; `sh tests/t_updater.sh` tests the updater under Mono (23 checks, with a gradual rollout and going back)
 ```
 
-359 checks pass (`t_cloud` fakes Google's sign-in, token and Drive endpoints and the update file; `t_webai` runs Web AI against the real server code with a pretend Claude; `t_support` runs Help & support against it and the owner's dashboard; `node ../server/web-ai/test.mjs` tests the server alone, 53 checks). The exe itself was not run on Windows here: the tests run the same pages in
+470 checks pass (`t_cloud` fakes Google's sign-in, token and Drive endpoints and the update file; `t_webai` runs Web AI against the real server code with a pretend Claude; `t_support` runs Help & support against it and the owner's dashboard; `t_live` runs From Webs and the rollout against it; the server's own tests in `../server/web-ai/` add 315 checks). The exe itself was not run on Windows here: the tests run the same pages in
 Chromium, the engine WebView2 uses.
