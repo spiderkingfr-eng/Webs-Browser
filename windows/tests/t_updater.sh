@@ -6,9 +6,12 @@
 # (2.1, from the Web AI server's /live), and switching it off.
 cd "$(dirname "$0")/.."
 U=$PWD/out/WebsUpdate-test.exe; U2=$PWD/out/WebsUpdate-test2.exe
-mcs -target:winexe -r:System.Web.Extensions -r:System.Windows.Forms -r:System.Drawing -out:$U updater/WebsUpdate.cs || exit 1
+# built the way it's published: against the .NET Framework 4.8 reference assemblies (updater/compile.py)
+python3 updater/compile.py updater/WebsUpdate.cs $U || exit 1
 sed 's/public const string Version = "\([0-9.]*\)";/public const string Version = "\1-next";/' updater/WebsUpdate.cs > out/WebsUpdate-next.cs
-mcs -target:winexe -r:System.Web.Extensions -r:System.Windows.Forms -r:System.Drawing -out:$U2 out/WebsUpdate-next.cs || exit 1
+python3 updater/compile.py out/WebsUpdate-next.cs $U2 || exit 1
+# nothing Windows lacks: every method it calls exists in the .NET Framework 4.8 reference assemblies
+monodis --memberref $U 2>/dev/null | grep -q "string(char)" && { echo "FAIL calls a method only Mono has"; exit 1; }
 T=$(mktemp -d); mkdir -p $T/srv $T/app $T/inst $T/data/ui $T/data/Profiles/Work/ui
 PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')
 URL=http://127.0.0.1:$PORT

@@ -72,10 +72,8 @@ src = os.path.join(here, "updater", "WebsUpdate.cs")
 upx = os.path.join(upd, "WebsUpdate.exe")
 if not os.path.exists(upx) or os.path.getmtime(src) > os.path.getmtime(upx):
     built = os.path.join(here, "out", "WebsUpdate.exe")
-    for cmd in (["mcs", "-target:winexe", "-platform:anycpu", "-optimize+", "-r:System.Web.Extensions", "-r:System.Windows.Forms", "-r:System.Drawing", "-out:" + built, src],
-                ["csc", "/nologo", "/target:winexe", "/platform:anycpu", "/optimize+", "/r:System.Web.Extensions.dll", "/out:" + built, src]):
-        if shutil.which(cmd[0]): subprocess.run(cmd, check=True); break
-    else: sys.exit("updater/WebsUpdate.cs changed, but there is no C# compiler (mcs or csc) to build it")
+    # against the .NET Framework that Windows has, not Mono's libraries (updater/compile.py)
+    subprocess.run([sys.executable, os.path.join(here, "updater", "compile.py"), src, built], check=True)
     shutil.copy(built, upx)
 
 def info(path, name):

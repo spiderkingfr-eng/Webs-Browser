@@ -17,7 +17,7 @@
   },
   "updater": {
     "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebsUpdate.exe",
-    "sha256": "b5750dbfecd73a991e85c98425c353c6db2361376ca4527299ff938acecfdd09",
+    "sha256": "3c2039bf406ba5d1c5f206a4d6605507eda033617c1b536b8d95bad58b9138bf",
     "size": 33792
   },
   "google": {

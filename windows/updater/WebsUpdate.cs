@@ -26,8 +26,9 @@
 // Asking for the update in the browser (or opening this program) installs it at
 // once. If the server can't be reached, updates work the way they always did.
 //
-// Build: csc /target:winexe /r:System.Web.Extensions.dll WebsUpdate.cs
-//    or: mcs -target:winexe -r:System.Web.Extensions -r:System.Windows.Forms -r:System.Drawing WebsUpdate.cs
+// Build: python3 compile.py WebsUpdate.cs WebsUpdate.exe (with Mono, against the .NET Framework 4.8
+// reference assemblies: Mono's own libraries have methods Windows doesn't, see compile.py)
+//    or, on Windows: csc /target:winexe /r:System.Web.Extensions.dll WebsUpdate.cs
 //
 // --background   the background copy (started with Windows)
 // --uninstall    stop it and don't start it with Windows any more
@@ -52,11 +53,11 @@ using Microsoft.Win32;
 
 [assembly: System.Reflection.AssemblyTitle("Webs Browser updater")]
 [assembly: System.Reflection.AssemblyProduct("Webs Browser")]
-[assembly: System.Reflection.AssemblyVersion("2.1.0.0")]
+[assembly: System.Reflection.AssemblyVersion("2.1.1.0")]
 
 static class Updater
 {
-    public const string Version = "2.1.0";
+    public const string Version = "2.1.1";
     const string DefaultManifest = "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/latest.json";
     const string ExeName = "WebStudiosBrowser.exe", SelfName = "WebsUpdate.exe", RunName = "WebsBrowserUpdater";
     static readonly Regex FromRepo = new Regex(@"^https://(raw\.githubusercontent\.com|github\.com)/spiderkingfr-eng/Webs-Browser/", RegexOptions.IgnoreCase);
@@ -168,7 +169,7 @@ static class Updater
             long.TryParse(Convert.ToString(pexe.ContainsKey("size") ? pexe["size"] : "0"), out r.Prev.Size);
         }
         // the Web AI server, which says how the owner wants new versions handed out
-        string srv = (Str(Dict(m, "webai"), "server") ?? "").TrimEnd('/');
+        string srv = (Str(Dict(m, "webai"), "server") ?? "").TrimEnd(new[] { '/' });
         if (Regex.IsMatch(srv, @"^https://[^\s/?#]+\.[^\s/?#]+(/[^\s?#]*)?$", RegexOptions.IgnoreCase) || (CustomManifest && Loopback.IsMatch(srv + "/"))) r.Server = srv;
         return r;
     }
