@@ -19,7 +19,7 @@ bgbox.insertBefore(box, bgbox.firstChild);
 let pick = null;
 function paintPick() {
   if (pick) pick.stop();
-  pick = Anime.picker($("anPick"), { current:cfg.anime || "", hover:true, onPick:choose });
+  pick = Anime.picker($("anPick"), { current:cfg.anime || "", onPick:choose });
   $("anSnd").checked = !!(cfg.anime && cfg.ambient && Anime.get(cfg.anime) && cfg.ambient === Anime.get(cfg.anime).amb);
 }
 function choose(id) {
@@ -46,12 +46,14 @@ liveBg = function () {
   if (!(on() && cfg.liveBg === "anime")) { wallStop(); return liveBg0(); }
   const keep = cfg.liveBg; cfg.liveBg = ""; liveBg0(); cfg.liveBg = keep;
   document.body.classList.add("pic");
-  if (wall && wallId === cfg.anime && $("anlive")) return;
+  // (started again when the theme or the Animations setting changes)
+  const key = cfg.anime + ":" + Anime.motion();
+  if (wall && wallId === key && $("anlive")) return;
   wallStop();
   const cv = Object.assign(document.createElement("canvas"), { id:"anlive" });
   cv.setAttribute("aria-hidden", "true");
   const bgl = $("bgl"); if (bgl) bgl.after(cv); else document.body.prepend(cv);
-  wall = Anime.run(cv, cfg.anime); wallId = cfg.anime;
+  wall = Anime.run(cv, cfg.anime); wallId = key;
 };
 
 // the card, near the top of the page

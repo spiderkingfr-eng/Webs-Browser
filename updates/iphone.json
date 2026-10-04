@@ -1,10 +1,9 @@
 {
-  "version": "2.8.0",
+  "version": "2.8.1",
   "date": "2026-10-04",
   "notes": [
-    "Anime themes: nine whole looks inspired by Bleach, Tokyo Ghoul, Demon Slayer, Jujutsu Kaisen, Naruto, Attack on Titan, One Piece, Death Note and Persona 5 (Settings → Appearance)",
-    "All of Webs takes the theme's colors, with a live wallpaper behind the start page and a card in its style",
-    "Fan-made looks drawn by Webs, not official. No anime theme brings back your look"
+    "Anime themes move all the time, on a loop: the wallpaper, the card (butterflies, rain, petals, leaves, a little ship, feathers) and the picker's tiles",
+    "They keep going with Reduce Motion on, just gentler; Animations: Off stops them"
   ],
   "webai": {
     "server": "https://web-ai.spiderkingfr.workers.dev",

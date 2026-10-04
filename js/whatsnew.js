@@ -8,7 +8,8 @@ const WHATS_NEW = [
     "All of Webs takes the theme's colors and accent",
     "A live wallpaper behind the start page: black butterflies under a crescent moon, red tendrils in the rain, falling wisteria, a sea voyage and more",
     "A card in each theme's style with the time and date (Customize start page → Anime theme card)",
-    "Fan-made looks drawn by Webs, not official. No anime theme brings back the look you had"
+    "Fan-made looks drawn by Webs, not official. No anime theme brings back the look you had",
+    "2.8.1: everything moves, on a loop: the wallpaper, the card (butterflies, rain, petals, leaves, a little ship, feathers) and the picker's tiles, even with Reduce Motion on (just gentler; Animations: Off stops them)"
   ]],
   ["New in 2.7: From Webs", "sparkle", [
     "News, polls, today's trivia, a countdown, the pick of the week and a mystery box from the people who make Webs, right under the search box (Customize start page → From Webs turns it off)",

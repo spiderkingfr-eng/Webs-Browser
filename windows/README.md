@@ -154,6 +154,8 @@ which every page already reads, so the whole browser changes at once; `src/anime
 wallpaper and card to the new tab page (and the picker to its Background panel), `src/anime.chrome.js`
 the band across the top of the window and Menu → Anime themes…, `src/anime.settings.js` the row in
 Settings → Appearance. The previous look is kept in `settings.animePrev` and comes back with No anime theme.
+Everything loops (3.8.1): wallpapers, the cards' particle layer, the picker's tiles (paused off screen) and the
+band. Windows' animation effects off gives a gentler version; Animations: Off in Webs gives still frames.
 
 ## Making the exe by hand
 

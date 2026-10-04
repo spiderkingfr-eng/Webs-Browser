@@ -1,4 +1,5 @@
 "3.8 · Anime themes": [
+  ["Everything moves, on a loop (3.8.1)", "Every theme is animated now: the wallpaper, the card (butterflies, rain, petals, leaves, a little ship sailing its map, feathers, sparkles), the picker's tiles and the band across the top of the window. They keep going with Windows' animation effects off, just gentler; only Animations: Off in Webs stops them.", "Pick a theme"],
   ["Anime themes", "Nine whole looks inspired by popular shows: Bleach, Tokyo Ghoul, Demon Slayer, Jujutsu Kaisen, Naruto, Attack on Titan, One Piece, Death Note and Persona 5. Fan-made and drawn by Webs, not official.", "New tab → Background → Anime themes, or Menu → Anime themes…"],
   ["The whole browser changes", "Tabs, toolbar, menus, the sidebar, Settings and the games take the theme's colors and accent, with its own band across the top of the window.", "Pick a theme"],
   ["Live wallpapers", "A moving scene behind the new tab page: black butterflies under a crescent moon, red tendrils in the rain, falling wisteria, cursed energy, a sea voyage and more. It follows your mouse a little.", "New tab page"],

@@ -1,6 +1,7 @@
 // Anime themes on the PC (Webs 3.8): picked on the new tab page, in the browser window or in
 // Settings; the whole browser's colors (every page reads the "custom" color theme), the live
 // wallpaper and card on the new tab page, the window's band, its sound, and back to your own look.
+// 3.8.1: all of it moves, on a loop, gentler with reduce motion and still with Animations: Off.
 const { chromium, setup, watch, SHOTS } = require("./harness");
 let ok = 0, bad = 0; const errors = [];
 const check = (c, w) => { if (c) ok++; else { bad++; console.log("  FAIL:", w); } };
@@ -32,6 +33,25 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     await n.evaluate(() => document.getElementById("bgbox").classList.add("hide")); await wait(900);
     await n.screenshot({ path:SHOTS + "anime-ntp-" + id + ".png" });
   }
+  // everything moves, round and round
+  const px = (p, sel) => p.evaluate(sel => { const c = document.querySelector(sel); const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data; let h = 0; for (let i = 0; i < d.length; i += 101) h = (h * 31 + d[i]) | 0; return h; }, sel);
+  const moves = async (p, sel) => { const a = await px(p, sel); await wait(600); return a !== await px(p, sel); };
+  check(await moves(n, "#anlive"), "the wallpaper moves");
+  check(await moves(n, "#anBox .an-fx"), "the card's own layer moves (sparkles and shards)");
+  check(await n.evaluate(() => getComputedStyle(document.querySelector("#anBox .an-burst")).animationIterationCount === "infinite"), "the card's rays turn forever");
+  await n.evaluate(() => { document.getElementById("bgbox").classList.remove("hide"); paintBgBox(); }); await wait(500);
+  check(await moves(n, '#anPick .an-tile[data-id="ghoul"] canvas') && await moves(n, '#anPick .an-tile[data-id="onepiece"] canvas'), "the picker's tiles play their wallpapers");
+  await n.evaluate(() => document.getElementById("bgbox").classList.add("hide"));
+  // Windows' animation effects off: still moving, a gentler version (the page stops its other animations)
+  await n.emulateMedia({ reducedMotion:"reduce" }); await n.evaluate(() => { applyCustom(); }); await wait(400);
+  check(await n.evaluate(() => Anime.motion() === 1) && await moves(n, "#anlive") && await moves(n, "#anBox .an-fx"), "animation effects off in Windows: it still moves");
+  check(await n.evaluate(() => getComputedStyle(document.querySelector("#anBox .an-burst")).animationName === "anSpin"), "and the card's loops keep going");
+  await n.emulateMedia({ reducedMotion:"no-preference" });
+  // Animations: Off in Webs: still frames
+  await n.evaluate(() => { document.documentElement.dataset.motion = "off"; applyCustom(); }); await wait(400);
+  check(!(await moves(n, "#anlive")) && !(await moves(n, "#anBox .an-fx")) && await n.evaluate(() => getComputedStyle(document.querySelector("#anBox .an-burst")).animationName === "none"), "Animations: Off stops it all");
+  await n.evaluate(() => { document.documentElement.dataset.motion = ""; applyCustom(); }); await wait(300);
+  check(await moves(n, "#anlive"), "and on again");
   check(!(await S(n)).ambient, "no sound unless asked");
   await n.evaluate(() => { document.getElementById("bgbox").classList.remove("hide"); paintBgBox(); const c = document.getElementById("anSnd"); c.checked = true; c.dispatchEvent(new Event("change")); }); await wait(300);
   check((await S(n)).ambient === "cafe", "Play its sound: the Phantom Thief's café: " + (await S(n)).ambient);
@@ -53,9 +73,12 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   await c.evaluate(() => { if (overlay) closeOver(); });
   check(await c.evaluate(() => document.documentElement.dataset.anime === "p5" && getComputedStyle(document.querySelector(".anband")).display === "block"), "the window: the theme's band across the top");
   check(await bg(c) === "#0a0a0a" && await c.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--accent").trim()) === "#e60012", "the window's colors and accent");
+  check(await c.evaluate(ids => { const r = ids.every(id => { document.documentElement.dataset.anime = id; const st = getComputedStyle(document.querySelector(".anband")); return st.animationName !== "none" && st.animationIterationCount.split(",").every(x => x.trim() === "infinite"); }); applyPack(); return r; }, ids), "every theme's band moves, on a loop");
   check(await c.evaluate(() => { const m = document.createElement("div"); X3.menuRows(m); return /Anime themes…/.test(m.textContent) && /Phantom Thief/.test(m.textContent); }), "Menu → Anime themes… (with the one that's on)");
   await c.evaluate(() => X3.animePanel()); await wait(700);
   check(await c.evaluate(() => document.querySelectorAll("#anp .an-tile").length === 10), "the window's picker");
+  { const a = await c.evaluate(() => document.querySelector('#anp .an-tile[data-id="jjk"] canvas').toDataURL()); await wait(600);
+    check(a !== await c.evaluate(() => document.querySelector('#anp .an-tile[data-id="jjk"] canvas').toDataURL()), "its tiles play"); }
   await c.screenshot({ path:SHOTS + "anime-chrome-picker.png" });
   await c.evaluate(() => { __sent.length = 0; document.querySelector('#anp .an-tile[data-id="ghoul"]').click(); }); await wait(500);
   check(await c.evaluate(() => cfg.anime === "ghoul" && document.documentElement.dataset.anime === "ghoul") && await bg(c) === "#0c0809", "picking in the window recolors it at once");
