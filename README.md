@@ -97,6 +97,10 @@ Naruto, Attack on Titan, One Piece, Death Note and Persona 5. Everything is draw
 `js/anime.js` (shared by both apps), with nothing taken from the shows: they're fan-made looks, and
 the picker says they're not official. *No anime theme* brings back the look from before.
 
+Everything in a theme moves and loops forever (2.8.1 / 3.8.1): the wallpaper, a layer of particles on
+the card, the picker's tiles and, on Windows, the band across the top. With the system's Reduce Motion
+on they play a gentler version (half speed, no flashes); only Webs' own *Animations: Off* stops them.
+
 ## What it does
 
 Version 2.0 adds 150 new things. They're all listed in the app under *Menu → What's new*.

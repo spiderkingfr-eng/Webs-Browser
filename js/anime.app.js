@@ -27,10 +27,12 @@ liveStart = function () {
   const t = curTab();
   document.body.classList.add("live");
   if ((t && t.u) || document.hidden) { wallStop(); return; }
-  if (wall && wallCv && wallCv.isConnected && wallCv.dataset.id === cfg.anime) return;
+  // (started again when the theme or the Animations setting changes)
+  const key = cfg.anime + ":" + Anime.motion();
+  if (wall && wallCv && wallCv.isConnected && wallCv.dataset.id === key) return;
   wallStop();
   wallCv = Object.assign(document.createElement("canvas"), { id:"live" });
-  wallCv.dataset.id = cfg.anime; wallCv.setAttribute("aria-hidden", "true");
+  wallCv.dataset.id = key; wallCv.setAttribute("aria-hidden", "true");
   $("#view").prepend(wallCv);
   wall = Anime.run(wallCv, cfg.anime, { pointer:false });
 };

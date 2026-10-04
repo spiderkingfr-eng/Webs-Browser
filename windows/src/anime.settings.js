@@ -17,7 +17,7 @@ function choose(id, sound) {
 btn.onclick = () => {
   const open = box.classList.toggle("hidden") === false;
   btn.textContent = open ? "Close" : "Choose…";
-  if (open) pk = Anime.picker($("#anPick"), { current:cfg.anime || "", hover:true, onPick:id => choose(id, snd.classList.contains("on")) });
+  if (open) pk = Anime.picker($("#anPick"), { current:cfg.anime || "", onPick:id => choose(id, snd.classList.contains("on")) });
   else if (pk) pk.stop();
 };
 snd.onclick = () => { snd.classList.toggle("on"); if (cfg.anime) choose(cfg.anime, snd.classList.contains("on")); };

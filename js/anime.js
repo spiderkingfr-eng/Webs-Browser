@@ -6,10 +6,12 @@
 
    Anime.THEMES          [{ id, name, show, e, c:[bg, bg2, bg3, bg4, line, fg, dim, dim2], a (accent), amb (ambient sound), tag }]
    Anime.run(canvas, id) the live wallpaper on a canvas; returns { stop() }. About 30 frames a second,
-                         paused while the page is hidden, one still frame with Animations off.
-   Anime.preview(canvas, id)       one still frame (the picker's tiles)
-   Anime.card(el, id, opt)         the start page's card; call again to update the time
-   Anime.picker(el, opt)           the tiles to choose one (opt: current, onPick(id), hover, sound)
+                         looping forever; paused while the page is hidden or the canvas is off screen.
+                         Animations off: one still frame. Reduce motion: a gentler version.
+   Anime.preview(canvas, id)       one still frame
+   Anime.card(el, id, opt)         the start page's card, with its own moving layer; call again to update the time
+   Anime.picker(el, opt)           the tiles to choose one, each playing its wallpaper (opt: current, onPick(id))
+   Anime.motion()                  0 still, 1 gentle, 2 full
    Anime.apply(settings, id, opt)  sets (or, with no id, undoes) the look in a settings object */
 (function () {
 "use strict";
@@ -99,7 +101,7 @@ WALL.bleach = {
       const a = t * f.fx * TAU * .5 + f.p, x = (f.cx + Math.sin(a) * f.ax) * W, y = (f.cy + Math.sin(t * f.fy * TAU * .5 + f.p * 1.3) * f.ay) * H;
       butterfly(g, x, y, f.s, .2 + .8 * Math.abs(Math.sin(t * 6.5 + f.p)), Math.cos(a) >= 0 ? 1 : -1);
     });
-    const e = ev(t, 11, 1.25);
+    const e = !m.gentle && ev(t, 11, 1.25);
     if (e) bladeWave(g, W, H, e.p, hash(e.n + 1));
   }
 };
@@ -164,7 +166,7 @@ WALL.ghoul = {
     g.strokeStyle = "rgba(210,195,205,.2)"; g.lineWidth = 1; g.beginPath();
     S.rain.forEach(r => { const y = wrap(r.y + t * r.s * .9, 1.1) * H - .05 * H, x = wrap(r.x * W - y * .18, W), l = 10 + r.l * 16; g.moveTo(x, y); g.lineTo(x - l * .18, y + l); });
     g.stroke();
-    const e = ev(t, 13, .55, 4);
+    const e = !m.gentle && ev(t, 13, .55, 4);
     if (e) { g.fillStyle = "rgba(255,225,232," + (.2 * (1 - e.p) * (e.p < .15 || e.p > .35 ? 1 : .35)) + ")"; g.fillRect(0, 0, W, H); }
   }
 };
@@ -273,8 +275,8 @@ WALL.jjk = {
       g.save(); g.translate(x, y); g.scale(1, 1.7);
       g.fillStyle = rad(g, 0, 0, 0, r, [[0, "rgba(" + c + "," + a + ")"], [1, "rgba(" + c + ",0)"]]); g.fillRect(-r, -r, r * 2, r * 2); g.restore();
     });
-    const per = 16, ph = wrap(t, per), orbit = rr * .55 * (ph < 13 ? 1 : ph < 14.5 ? 1 - (ph - 13) / 1.5 : 0), ang = t * .9;
-    if (ph < 14.5) {
+    const per = 16, ph = wrap(t, per), orbit = rr * .55 * (m.gentle || ph < 13 ? 1 : ph < 14.5 ? 1 - (ph - 13) / 1.5 : 0), ang = t * .9;
+    if (m.gentle || ph < 14.5) {
       const bx = cx + Math.cos(ang) * orbit, by = cy + Math.sin(ang) * orbit * .55, qx = cx - Math.cos(ang) * orbit, qy = cy - Math.sin(ang) * orbit * .55;
       blob(g, bx, by, 46, "rgba(80,150,255,.85)", "rgba(80,150,255,0)"); blob(g, bx, by, 12, "rgba(230,245,255,1)", "rgba(200,230,255,0)");
       blob(g, qx, qy, 46, "rgba(255,50,70,.85)", "rgba(255,50,70,0)"); blob(g, qx, qy, 12, "rgba(255,235,235,1)", "rgba(255,200,200,0)");
@@ -284,7 +286,7 @@ WALL.jjk = {
       g.strokeStyle = "rgba(200,150,255," + (.8 * (1 - p)) + ")"; g.lineWidth = 6 * (1 - p) + 1; g.beginPath(); g.arc(cx, cy, rad0, 0, TAU); g.stroke();
     }
     g.globalCompositeOperation = "source-over";
-    const e = ev(t, 9, .5, 3);
+    const e = !m.gentle && ev(t, 9, .5, 3);
     if (e) blackFlash(g, W, H, e.p, e.n);
   }
 };
@@ -503,10 +505,7 @@ WALL.deathnote = {
     const gl = ev(t, 6, .8, 2); if (gl) { const a = Math.sin(gl.p * Math.PI); g.fillStyle = "rgba(255,255,255," + a + ")"; g.fillRect(ax - ar * .45, ay - ar * .45, 7 * a, 1.2); g.fillRect(ax - ar * .45 + 3 * a, ay - ar * .45 - 3 * a, 1.2, 7 * a); }
     S.feathers.forEach(f => {
       const y = wrap(f.y + t * f.s, 1.15) * H - .08 * H, x = f.x * W + Math.sin(t * .6 + f.p) * 40;
-      g.save(); g.translate(x, y); g.rotate(f.r + Math.sin(t * .5 + f.p) * .6);
-      g.fillStyle = "#0b0b0d"; g.strokeStyle = "rgba(120,125,140,.55)"; g.lineWidth = .8;
-      g.beginPath(); g.moveTo(0, -f.l); g.bezierCurveTo(f.l * .32, -f.l * .5, f.l * .3, f.l * .4, 0, f.l * .7); g.bezierCurveTo(-f.l * .28, f.l * .3, -f.l * .3, -f.l * .55, 0, -f.l); g.fill(); g.stroke();
-      g.beginPath(); g.moveTo(0, -f.l); g.lineTo(0, f.l); g.stroke(); g.restore();
+      feather(g, x, y, f.r + Math.sin(t * .5 + f.p) * .6, f.l);
     });
     const pg = ev(t, 16, 9, 5);
     if (pg) {
@@ -550,7 +549,7 @@ WALL.p5 = {
       if (r > .6) { g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill(); }
     }
     for (let i = 0; i < 3; i++) {
-      const e = ev(t, 5 + i * 1.7, 1.4, i * 2.1); if (!e) continue;
+      const e = !m.gentle && ev(t, 5 + i * 1.7, 1.4, i * 2.1); if (!e) continue;
       const R0 = rng(e.n * 31 + i), y = H * (.15 + R0() * .6), x = -W * .3 + e.p * W * 1.6, s = Math.min(W, H) * (.08 + R0() * .1);
       g.save(); g.translate(x, y); g.rotate(-.35 + R0() * .3 + e.p * .5); g.fillStyle = i === 1 ? "#ffffff" : "#050505";
       g.beginPath(); g.moveTo(-s * 1.6, -s * .2); g.lineTo(s * 1.4, -s * .6); g.lineTo(s * .9, s * .35); g.lineTo(-s * 1.2, s * .5); g.closePath(); g.fill(); g.restore();
@@ -558,20 +557,39 @@ WALL.p5 = {
     g.drawImage(S.city, -40 - px * 24, 0);
     S.stars.forEach(s => {
       const a = Math.max(0, Math.sin(t * 1.4 + s.p)); if (a < .1) return;
-      const x = s.x * W, y = s.y * H, r = s.s * a;
-      g.fillStyle = "#fff"; g.beginPath(); g.moveTo(x, y - r); g.quadraticCurveTo(x, y, x + r * .35, y); g.quadraticCurveTo(x, y, x, y + r); g.quadraticCurveTo(x, y, x - r * .35, y); g.quadraticCurveTo(x, y, x, y - r); g.fill();
+      g.fillStyle = "#fff"; spark(g, s.x * W, s.y * H, s.s * a);
     });
   }
 };
 
+function feather(g, x, y, r, l) {
+  g.save(); g.translate(x, y); g.rotate(r);
+  g.fillStyle = "#0b0b0d"; g.strokeStyle = "rgba(120,125,140,.55)"; g.lineWidth = .8;
+  g.beginPath(); g.moveTo(0, -l); g.bezierCurveTo(l * .32, -l * .5, l * .3, l * .4, 0, l * .7); g.bezierCurveTo(-l * .28, l * .3, -l * .3, -l * .55, 0, -l); g.fill(); g.stroke();
+  g.beginPath(); g.moveTo(0, -l); g.lineTo(0, l); g.stroke(); g.restore();
+}
+// a four-pointed twinkle, in the current fill color
+function spark(g, x, y, r) { g.beginPath(); g.moveTo(x, y - r); g.quadraticCurveTo(x, y, x + r * .35, y); g.quadraticCurveTo(x, y, x, y + r); g.quadraticCurveTo(x, y, x - r * .35, y); g.quadraticCurveTo(x, y, x, y - r); g.fill(); }
+
 /* ---------------------------------------------------------------- running a wallpaper */
-const reduced = () => { try { return matchMedia("(prefers-reduced-motion: reduce)").matches || document.documentElement.dataset.motion === "off"; } catch (e) { return false; } };
+/* Everything loops forever: things move with the clock and wrap round, and the big moments (a
+   blade's swing, lightning, a black flash) come back every few seconds. Webs' own Animations: Off
+   shows one still frame. The system's "reduce motion" setting (or Animations: Reduced) gets a
+   gentle version: half speed, without the flashes and the sweeps across the screen. */
+const motion = () => {
+  try { const d = document.documentElement.dataset.motion; if (d === "off") return 0; if (d === "reduced" || matchMedia("(prefers-reduced-motion: reduce)").matches) return 1; }
+  catch (e) { /* no matchMedia: full motion */ }
+  return 2;
+};
+// opt: still (one frame), from (the time to start at; the preview's moment by default), fps, pointer (follow the
+// mouse), virtual (draw the scene this wide and scale it down), scene (draw this instead of a wallpaper), clear
 function run(cv, id, opt) {
   opt = opt || {};
-  const w = WALL[id];
-  if (!cv || !w) return { stop() {} };
-  const g = cv.getContext("2d"), still = opt.still || reduced(), fps = opt.fps || 30, m = { x:.5, y:.5, tx:.5, ty:.5 };
-  let W = 0, H = 0, S = null, raf = 0, last = 0, stopped = false;
+  const w = opt.scene || WALL[id];
+  if (!cv || !w) return { stop() {}, redraw() {}, setFps() {} };
+  const lvl = motion(), still = !!opt.still || lvl === 0, speed = lvl === 1 ? .5 : 1, from = opt.from != null ? opt.from : w.pt || 0;
+  const g = cv.getContext("2d"), m = { x:.5, y:.5, tx:.5, ty:.5, gentle:lvl === 1 };
+  let W = 0, H = 0, S = null, raf = 0, last = 0, t0 = -1, fps = opt.fps || 30, stopped = false, seen = true, io = null;
   const move = e => { m.tx = e.clientX / innerWidth; m.ty = e.clientY / innerHeight; };
   if (!still && opt.pointer !== false) addEventListener("pointermove", move, { passive:true });
   const draw = now => {
@@ -580,21 +598,135 @@ function run(cv, id, opt) {
     const vw = opt.virtual ? opt.virtual : cw, vh = opt.virtual ? opt.virtual * ch / Math.max(1, cw) : ch, sc = cw / vw;
     if (vw !== W || vh !== H || !S) { W = vw; H = vh; cv.width = Math.round(cw * k); cv.height = Math.round(ch * k); S = w.init(W, H, rng(opt.seed || 20261004)); }
     g.setTransform(k * sc, 0, 0, k * sc, 0, 0);
+    if (opt.clear) g.clearRect(0, 0, W, H);
     m.x += (m.tx - m.x) * .06; m.y += (m.ty - m.y) * .06;
-    try { w.draw(g, W, H, still ? w.pt : now / 1000 + (opt.t0 || 0), S, m); } catch (e) { console.error(e); stopped = true; }
+    if (t0 < 0) t0 = now;
+    try { w.draw(g, W, H, still ? from : from + (now - t0) / 1000 * speed, S, m); } catch (e) { console.error(e); stopped = true; }
   };
-  const frame = now => {
+  const go = () => { if (!raf && !stopped && !still && seen && !document.hidden) raf = requestAnimationFrame(frame); };
+  function frame(now) {
     raf = 0;
-    if (stopped) return;
+    if (stopped || !cv.isConnected) return; // taken off the page: it starts again if it comes back
     if (now - last >= 1000 / fps - 4) { last = now; draw(now); }
-    if (!still && !document.hidden && !stopped) raf = requestAnimationFrame(frame);
+    go();
+  }
+  document.addEventListener("visibilitychange", go);
+  // off screen (scrolled away, or in a closed panel): no drawing until it's back
+  if (!still && typeof IntersectionObserver === "function") { io = new IntersectionObserver(es => { seen = es[es.length - 1].isIntersecting; go(); }); io.observe(cv); }
+  if (still) draw(0); else go();
+  return {
+    stop() { stopped = true; cancelAnimationFrame(raf); raf = 0; if (io) io.disconnect(); removeEventListener("pointermove", move); document.removeEventListener("visibilitychange", go); },
+    redraw() { W = 0; if (still) draw(0); },
+    setFps(n) { fps = n || 30; }
   };
-  const vis = () => { if (!document.hidden && !raf && !stopped && !still) raf = requestAnimationFrame(frame); };
-  document.addEventListener("visibilitychange", vis);
-  if (still) draw(0); else raf = requestAnimationFrame(frame);
-  return { stop() { stopped = true; cancelAnimationFrame(raf); removeEventListener("pointermove", move); document.removeEventListener("visibilitychange", vis); }, redraw() { W = 0; if (still) draw(0); } };
 }
 function preview(cv, id) { return run(cv, id, { still:true, pointer:false, virtual:720 }); }
+
+/* ---------------------------------------------------------------- the cards' moving layer
+   A canvas over each card's background and under its words: butterflies, rain, petals, flames,
+   leaves, a passing flock, a little ship sailing the map, feathers, sparkles. Looping like the
+   wallpapers. */
+const FXC = {};
+FXC.bleach = {
+  init(W, H, R) { return { flies:Array.from({ length:3 }, () => ({ cx:.4 + R() * .5, cy:.25 + R() * .5, ax:.06 + R() * .1, ay:.12 + R() * .14, fx:.05 + R() * .05, fy:.08 + R() * .06, p:R() * TAU, s:8 + R() * 4 })),
+    motes:Array.from({ length:Math.round(W / 26) + 6 }, () => ({ x:R(), y:R(), s:.05 + R() * .08, p:R() * TAU, r:R() })) }; },
+  draw(g, W, H, t, S) {
+    g.globalCompositeOperation = "lighter";
+    S.motes.forEach(p => { const y = (1.05 - wrap(p.y + t * p.s, 1.1)) * H, x = p.x * W + Math.sin(t * .8 + p.p) * 8; blob(g, x, y, 3 + p.r * 4, "rgba(140,190,255,.5)", "rgba(140,190,255,0)"); });
+    g.globalCompositeOperation = "source-over";
+    S.flies.forEach(f => { const a = t * f.fx * TAU + f.p; butterfly(g, (f.cx + Math.sin(a) * f.ax) * W, (f.cy + Math.sin(t * f.fy * TAU + f.p * 1.3) * f.ay) * H, f.s, .2 + .8 * Math.abs(Math.sin(t * 6.5 + f.p)), Math.cos(a) >= 0 ? 1 : -1); });
+  }
+};
+FXC.ghoul = {
+  init(W, H, R) { return { rain:Array.from({ length:Math.round(W / 7) }, () => ({ x:R(), y:R(), s:1.1 + R() * .8, l:.5 + R() })),
+    em:Array.from({ length:12 }, () => ({ x:.45 + R() * .55, y:R(), s:.06 + R() * .08, p:R() * TAU, r:R() })) }; },
+  draw(g, W, H, t, S) {
+    g.strokeStyle = "rgba(235,205,215,.17)"; g.lineWidth = 1; g.beginPath();
+    S.rain.forEach(r => { const y = wrap(r.y + t * r.s, 1.2) * H - .1 * H, x = wrap(r.x * W - y * .2, W), l = 7 + r.l * 10; g.moveTo(x, y); g.lineTo(x - l * .2, y + l); });
+    g.stroke();
+    g.globalCompositeOperation = "lighter";
+    S.em.forEach(e => { const ph = wrap(e.y + t * e.s, 1); blob(g, e.x * W + Math.sin(t * 1.5 + e.p) * 10, H * (1 - ph), 2.5 + e.r * 3, "rgba(255,60,80," + .8 * Math.sin(ph * Math.PI) + ")", "rgba(255,30,50,0)"); });
+    g.globalCompositeOperation = "source-over";
+  }
+};
+FXC.slayer = {
+  init(W, H, R) { return { pe:Array.from({ length:Math.round(W / 22) + 4 }, () => ({ x:R(), y:R(), s:.13 + R() * .14, r:R() * TAU, vr:(R() - .5) * 3, w:2.2 + R() * 2.4, p:R() * TAU, c:R() })) }; },
+  draw(g, W, H, t, S) {
+    S.pe.forEach(p => {
+      g.save(); g.translate(wrap(p.x + t * .015 + Math.sin(t * .7 + p.p) * .02, 1) * W, wrap(p.y + t * p.s, 1.2) * H - .1 * H); g.rotate(p.r + t * p.vr); g.scale(1, .45 + .55 * Math.abs(Math.sin(t * 1.8 + p.p)));
+      g.fillStyle = p.c < .5 ? "rgba(205,175,255,.9)" : "rgba(244,232,255,.85)"; g.beginPath(); g.ellipse(0, 0, p.w, p.w * .55, 0, 0, TAU); g.fill(); g.restore();
+    });
+  }
+};
+FXC.jjk = {
+  init(W, H, R) { return { f:Array.from({ length:Math.round(W / 24) + 4 }, () => ({ x:R(), h:R(), s:.16 + R() * .2, r:9 + R() * 14, p:R() * TAU })),
+    sp:Array.from({ length:10 }, () => ({ x:R(), y:R(), p:R() * TAU, s:.3 + R() * .4 })) }; },
+  draw(g, W, H, t, S) {
+    g.globalCompositeOperation = "lighter";
+    S.f.forEach(f => {
+      const ph = wrap(t * f.s + f.h, 1), y = H * (1.12 - ph * 1.25), x = f.x * W + Math.sin(t * 1.6 + f.p) * 10 * ph, r = f.r * (1.1 - ph), c = f.h < .5 ? "90,110,255" : "170,80,255", a = (1 - ph) * .5;
+      g.save(); g.translate(x, y); g.scale(1, 1.7); g.fillStyle = rad(g, 0, 0, 0, r, [[0, "rgba(" + c + "," + a + ")"], [1, "rgba(" + c + ",0)"]]); g.fillRect(-r, -r, r * 2, r * 2); g.restore();
+    });
+    g.fillStyle = "rgba(220,205,255,.9)";
+    S.sp.forEach(s => { const a = Math.max(0, Math.sin(t * s.s * 4 + s.p)); if (a > .2) spark(g, s.x * W, wrap(s.y - t * .04, 1) * H, 4 * a); });
+    g.globalCompositeOperation = "source-over";
+  }
+};
+FXC.naruto = {
+  init(W, H, R) { return { l:Array.from({ length:Math.round(W / 70) + 3 }, () => ({ x:R(), y:.12 + R() * .76, s:.05 + R() * .06, r:R() * TAU, vr:(R() - .5) * 2.6, w:7 + R() * 3, c:R(), p:R() * TAU })) }; },
+  draw(g, W, H, t, S) { S.l.forEach(l => leaf(g, wrap(l.x + t * l.s, 1.2) * W - .1 * W, l.y * H + Math.sin(t * 1.3 + l.p) * H * .12, l.r + t * l.vr, l.w, l.c)); }
+};
+FXC.aot = {
+  init(W, H, R) { return { d:Array.from({ length:Math.round(W / 22) + 6 }, () => ({ x:R(), y:R(), s:.01 + R() * .025, p:R() * TAU })) }; },
+  draw(g, W, H, t, S) {
+    g.fillStyle = "rgb(255,214,160)";
+    S.d.forEach(d => { g.globalAlpha = .25 + .55 * Math.abs(Math.sin(t * .8 + d.p)); g.fillRect(wrap(d.x + t * d.s, 1) * W, wrap(d.y - t * d.s * .6, 1) * H + Math.sin(t + d.p) * 4, 1.8, 1.8); });
+    g.globalAlpha = 1;
+    // now and then, a flock crossing over the wall
+    const e = ev(t, 10, 7, 2);
+    if (e) { g.strokeStyle = "rgba(18,14,10,.8)"; g.lineWidth = 1.5;
+      for (let i = 0; i < 5; i++) { const k = Math.abs(i - 2), x = W * (1.08 - e.p * 1.3) + k * 15, y = H * (.2 + hash(e.n) * .25) + k * 8 + Math.sin(t * 2 + i) * 2, f = Math.sin(t * 8 + i * 1.3) * 3;
+        g.beginPath(); g.moveTo(x - 6, y - f); g.quadraticCurveTo(x - 2.5, y - 1.5, x, y); g.quadraticCurveTo(x + 2.5, y - 1.5, x + 6, y - f); g.stroke(); } }
+  }
+};
+// the dotted route on the card's map: the card's own drawing (220 by 120, stretched over the right 70%)
+const ROUTE = [[10, 100, 50, 80, 60, 30, 100, 40], [100, 40, 140, 50, 160, 90, 200, 60]];
+const bz = (a, b, c, d, u) => { const v = 1 - u; return v * v * v * a + 3 * v * v * u * b + 3 * v * u * u * c + u * u * u * d; };
+const onRoute = (u, W, H) => { const s = ROUTE[u < .5 ? 0 : 1], k = u < .5 ? u * 2 : u * 2 - 1; return [W * .3 + bz(s[0], s[2], s[4], s[6], k) / 220 * W * .7, bz(s[1], s[3], s[5], s[7], k) / 120 * H]; };
+FXC.onepiece = {
+  init(W, H, R) { return { gulls:Array.from({ length:2 }, () => ({ x:R(), y:.15 + R() * .3, s:.03 + R() * .02, p:R() * TAU })) }; },
+  draw(g, W, H, t, S) {
+    const u = wrap(t / 16, 1), [x, y] = onRoute(u, W, H), [x2, y2] = onRoute(Math.min(1, u + .01), W, H), s = Math.max(8, H * .085);
+    g.save(); g.globalAlpha = Math.min(1, u * 12, (1 - u) * 12); g.translate(x, y - s * .3); g.rotate(Math.max(-.35, Math.min(.35, Math.atan2(y2 - y, x2 - x) * .5)) + Math.sin(t * 2.4) * .08);
+    g.fillStyle = "#5a3315"; g.beginPath(); g.moveTo(-s, 0); g.lineTo(s * 1.1, 0); g.lineTo(s * .7, s * .5); g.lineTo(-s * .7, s * .5); g.closePath(); g.fill();
+    g.strokeStyle = "#5a3315"; g.lineWidth = 1.2; g.beginPath(); g.moveTo(0, 0); g.lineTo(0, -s * 1.5); g.stroke();
+    g.fillStyle = "#fff8e6"; g.beginPath(); g.moveTo(-s * .62, -s * 1.25); g.quadraticCurveTo(0, -s * 1.05, s * .62, -s * 1.25); g.lineTo(s * .62, -s * .3); g.quadraticCurveTo(0, -s * .12, -s * .62, -s * .3); g.closePath(); g.fill(); g.stroke();
+    g.fillStyle = "#c22"; g.beginPath(); g.moveTo(0, -s * 1.5); g.lineTo(s * .5, -s * 1.38 + Math.sin(t * 6) * 1.5); g.lineTo(0, -s * 1.26); g.fill();
+    g.restore();
+    // the X glints
+    const gl = ev(t, 3.5, 1); if (gl) { const [xx, xy] = onRoute(1, W, H); g.fillStyle = "rgba(255,250,220," + Math.sin(gl.p * Math.PI) + ")"; spark(g, xx + 4, xy - 2, 9 * Math.sin(gl.p * Math.PI)); }
+    g.strokeStyle = "rgba(70,45,20,.75)"; g.lineWidth = 1.4;
+    S.gulls.forEach(b => { const gx = wrap(b.x - t * b.s, 1.2) * W - .1 * W, gy = b.y * H + Math.sin(t * .8 + b.p) * 5, f = 2 + Math.sin(t * 4 + b.p) * 3;
+      g.beginPath(); g.moveTo(gx - 7, gy - f); g.quadraticCurveTo(gx - 3, gy - 2, gx, gy); g.quadraticCurveTo(gx + 3, gy - 2, gx + 7, gy - f); g.stroke(); });
+  }
+};
+FXC.deathnote = {
+  init(W, H, R) { return { f:Array.from({ length:Math.round(W / 140) + 2 }, () => ({ x:.2 + R() * .8, y:R(), s:.05 + R() * .05, r:(R() - .5) * 1.2, l:11 + R() * 6, p:R() * TAU })) }; },
+  draw(g, W, H, t, S) { S.f.forEach(f => feather(g, f.x * W + Math.sin(t * .7 + f.p) * 22, wrap(f.y + t * f.s, 1.3) * H - .15 * H, f.r + Math.sin(t * .6 + f.p) * .7, f.l)); }
+};
+FXC.p5 = {
+  init(W, H, R) { return { st:Array.from({ length:Math.round(W / 45) + 4 }, () => ({ x:R(), y:R(), s:4 + R() * 6, p:R() * TAU, v:1 + R() })) }; },
+  draw(g, W, H, t, S, m) {
+    g.fillStyle = "#fff";
+    S.st.forEach(s => { const a = Math.max(0, Math.sin(t * s.v * 1.4 + s.p)); if (a > .1) spark(g, s.x * W, s.y * H, s.s * a); });
+    for (let i = 0; i < 2; i++) {
+      const e = !m.gentle && ev(t, 4.5 + i * 1.6, 1.1, i * 1.9); if (!e) continue;
+      const R0 = rng(e.n * 17 + i), y = H * (.15 + R0() * .7), x = -W * .2 + e.p * W * 1.4, sz = H * (.07 + R0() * .06);
+      g.save(); g.translate(x, y); g.rotate(-.4 + R0() * .4 + e.p * .6); g.fillStyle = i ? "#fff" : "#000";
+      g.beginPath(); g.moveTo(-sz * 1.5, -sz * .2); g.lineTo(sz * 1.3, -sz * .6); g.lineTo(sz * .8, sz * .35); g.lineTo(-sz * 1.1, sz * .5); g.closePath(); g.fill(); g.restore();
+    }
+  }
+};
 
 /* ---------------------------------------------------------------- the start page's card */
 const KANJI = ["日", "月", "火", "水", "木", "金", "土"];
@@ -612,7 +744,7 @@ const CARD = {
   bleach:f => '<div class="an-k">' + f.k + '</div><svg class="an-moon" viewBox="0 0 100 100"><defs><mask id="anm"><rect width="100" height="100" fill="#fff"/><circle cx="36" cy="40" r="38" fill="#000"/></mask></defs><circle cx="55" cy="50" r="40" fill="#f1f3f9" mask="url(#anm)"/></svg>' +
     '<div class="an-body"><div class="an-time">' + f.time + "<small>" + f.ampm + '</small></div><div class="an-date">' + esc(f.wd) + " · " + esc(f.md) + "</div>" + meter("Spiritual pressure", 100 - f.dayPct) + '<div class="an-tag"></div></div><i class="an-slash"></i>',
   ghoul:f => '<svg class="an-veins" viewBox="0 0 200 120" preserveAspectRatio="none"><path d="M200 120C170 90 160 70 172 30M200 110C150 96 128 70 120 20M200 100C176 84 150 88 140 60" fill="none" stroke="#e0193a" stroke-width="5" stroke-linecap="round"/></svg>' +
-    '<div class="an-body"><div class="an-date">' + esc(f.wd) + '</div><div class="an-time">' + f.time + "<small>" + f.ampm + '</small></div><div class="an-md">' + esc(f.md) + '</div><div class="an-tag"></div></div><div class="an-cup">☕<i></i><i></i><i></i></div>',
+    '<div class="an-body"><div class="an-date">' + esc(f.wd) + '</div><div class="an-time">' + f.time + "<small>" + f.ampm + '</small></div><div class="an-md">' + esc(f.md) + '</div><div class="an-tag"></div></div><div class="an-cup">☕<i></i><i class="s2"></i><i class="s3"></i></div>',
   slayer:f => '<div class="an-in"><svg class="an-wis" viewBox="0 0 60 120">' + Array.from({ length:14 }, (_, i) => '<circle cx="' + (30 + Math.sin(i * 1.7) * (14 - i)) + '" cy="' + (8 + i * 8) + '" r="' + (7 - i * .4) + '" fill="' + (i % 2 ? "#c9a7ff" : "#a57cf0") + '"/>').join("") + "</svg>" +
     '<div class="an-k">' + f.k + '</div><div class="an-body"><div class="an-time">' + f.time + "<small>" + f.ampm + '</small></div><div class="an-date">' + esc(f.wd) + " · " + esc(f.md) + '</div><div class="an-tag"></div></div></div>',
   jjk:f => '<svg class="an-ring" viewBox="0 0 200 200"><circle cx="100" cy="100" r="92" fill="none" stroke="#7f5cff" stroke-width="1.5"/><circle cx="100" cy="100" r="80" fill="none" stroke="#7f5cff" stroke-width="1" stroke-dasharray="2 9"/>' +
@@ -631,24 +763,37 @@ const CARD = {
   p5:f => '<div class="an-burst"></div><div class="an-body"><div class="an-date"><span>' + esc(f.wd.toUpperCase()) + "</span></div><div class=\"an-time\"><span>" + f.time + "</span><small>" + f.ampm + '</small></div><div class="an-md"><span>' + esc(f.md.toUpperCase()) + "</span></div>" +
     '<div class="an-days">' + (f.toWeekend ? f.toWeekend + " DAY" + (f.toWeekend === 1 ? "" : "S") + " TO THE WEEKEND" : "IT'S THE WEEKEND!") + '</div><div class="an-tag"></div></div>'
 };
+// the moving layer of each card on the page (a new theme stops the old one)
+const FXRUN = typeof WeakMap === "function" ? new WeakMap() : null;
+function fxStop(el) { const r = FXRUN && FXRUN.get(el); if (r) { r.stop(); FXRUN.delete(el); } }
 function card(el, id, opt) {
   opt = opt || {};
   const th = BY[id];
   if (!el) return;
-  if (!th) { el.innerHTML = ""; el.className = ""; delete el.dataset.an; return; }
-  const f = facts(opt), html = CARD[id](f);
-  if (el.dataset.an === id && el.dataset.sig === f.time + f.md) return;
-  el.dataset.an = id; el.dataset.sig = f.time + f.md;
+  if (!th) { fxStop(el); el.innerHTML = ""; el.className = ""; delete el.dataset.an; delete el.dataset.sig; delete el.dataset.mo; return; }
+  const f = facts(opt), sig = f.time + f.md, mo = String(motion());
+  let box = el.querySelector(".an-c");
+  if (el.dataset.an === id && el.dataset.sig === sig && el.dataset.mo === mo && box) return;
+  // the moving layer stays put while the words change (the time, every minute)
+  if (el.dataset.an !== id || el.dataset.mo !== mo || !box || !el.querySelector(".an-fx")) {
+    fxStop(el); el.dataset.mo = mo;
+    el.innerHTML = '<canvas class="an-fx" aria-hidden="true"></canvas><div class="an-c"></div>';
+    box = el.querySelector(".an-c");
+    if (FXRUN) FXRUN.set(el, run(el.firstChild, id, { scene:FXC[id], pointer:false, clear:true }));
+  }
+  el.dataset.an = id; el.dataset.sig = sig;
   el.className = "an-card an-" + id + (opt.animate ? " an-in" : "");
-  el.innerHTML = html;
+  box.innerHTML = CARD[id](f);
   el.querySelectorAll(".an-tag").forEach(n => { n.textContent = "“" + th.tag + "”"; });
   el.setAttribute("aria-label", th.name + " card: " + f.time + " " + f.ampm + ", " + f.wd + ", " + f.md);
 }
 
 /* ---------------------------------------------------------------- choosing one */
+// every tile plays its wallpaper (a little slower than the real one, and only while it's on screen)
 function picker(el, opt) {
   opt = opt || {};
   const runs = [];
+  let dead = false;
   el.innerHTML = '<div class="an-grid"></div><p class="an-note">Fan-made looks inspired by these shows: drawn by Webs, not official, and not connected to their creators.</p>';
   const grid = el.querySelector(".an-grid");
   THEMES.concat([{ id:"", name:"No anime theme", show:"Your own look", e:"✖️" }]).forEach(th => {
@@ -661,14 +806,16 @@ function picker(el, opt) {
     grid.appendChild(b);
     if (th.id) {
       const cv = b.querySelector("canvas");
-      requestAnimationFrame(() => { let r = preview(cv, th.id); runs.push(() => r.stop());
-        if (opt.hover && !reduced()) {
-          b.addEventListener("pointerenter", () => { r.stop(); r = run(cv, th.id, { pointer:false, virtual:720, t0:WALL[th.id].pt - performance.now() / 1000 }); });
-          b.addEventListener("pointerleave", () => { r.stop(); r = preview(cv, th.id); });
-        } });
+      requestAnimationFrame(() => {
+        if (dead) return;
+        const r = run(cv, th.id, { pointer:false, virtual:640, fps:12 });
+        runs.push(r);
+        b.addEventListener("pointerenter", () => r.setFps(30));
+        b.addEventListener("pointerleave", () => r.setFps(12));
+      });
     }
   });
-  return { stop() { runs.forEach(f => f()); } };
+  return { stop() { dead = true; runs.forEach(r => r.stop()); } };
 }
 
 /* ---------------------------------------------------------------- putting it on (and taking it off) */
@@ -700,30 +847,32 @@ css.textContent = `
 .an-card .an-time{font-size:48px;font-weight:800;line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums}.an-card .an-time small{font-size:15px;font-weight:700;margin-left:6px;letter-spacing:.06em;opacity:.8}
 .an-card .an-date{font-size:14px;font-weight:600;letter-spacing:.04em;opacity:.9;margin-top:4px}.an-card .an-tag{font-size:12.5px;opacity:.75;margin-top:8px;font-style:italic}
 .an-card .an-body{position:relative;z-index:2}
+.an-card .an-c{display:contents}.an-card .an-fx{position:absolute;left:0;top:0;width:100%;height:100%;z-index:1;pointer-events:none}
 .an-meter{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;opacity:.92}.an-meter i{flex:1;max-width:220px;height:6px;border-radius:3px;background:rgba(255,255,255,.15);overflow:hidden}
-.an-meter b{display:block;height:100%;border-radius:3px;background:var(--an-m,#fff)}.an-meter em{font-style:normal;font-variant-numeric:tabular-nums}
+.an-meter b{position:relative;display:block;height:100%;border-radius:3px;background:var(--an-m,#fff);overflow:hidden}
+.an-meter b::after{content:"";position:absolute;top:0;bottom:0;left:0;width:45%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.65),transparent);transform:translateX(-100%)}.an-meter em{font-style:normal;font-variant-numeric:tabular-nums}
 /* Soul Reaper */
 .an-bleach{background:linear-gradient(135deg,#0a0a0e,#16161d 60%,#0a0a0e);padding-left:120px;--an-m:linear-gradient(90deg,#ff6a1a,#ffd0a8)}
 .an-bleach .an-k{position:absolute;left:18px;top:50%;transform:translateY(-50%);font:900 92px/1 "Yu Mincho","Hiragino Mincho ProN",serif;color:#fff;text-shadow:4px 4px 0 #ff6a1a}
 .an-bleach .an-moon{position:absolute;right:18px;top:12px;width:70px;height:70px;filter:drop-shadow(0 0 12px rgba(220,230,255,.5))}
-.an-bleach .an-slash{position:absolute;left:-10%;right:-10%;bottom:-6px;height:16px;background:linear-gradient(90deg,transparent,#ff6a1a 30%,#fff 50%,#ff6a1a 70%,transparent);transform:rotate(-4deg);opacity:.85;animation:anSlash 4s ease-in-out infinite}
+.an-bleach .an-slash{position:absolute;left:-10%;right:-10%;bottom:-6px;height:16px;background:linear-gradient(90deg,transparent,#ff6a1a 30%,#fff 50%,#ff6a1a 70%,transparent);transform:rotate(-4deg);opacity:.85}
 @keyframes anSlash{0%,100%{clip-path:inset(0 100% 0 0)}30%,70%{clip-path:inset(0 0 0 0)}}
 /* One-Eyed Ghoul */
 .an-ghoul{background:radial-gradient(circle at 85% 110%,#5a0614,#150608 60%,#0a0405);border:1px solid #3a0a12}
-.an-ghoul .an-veins{position:absolute;right:0;bottom:0;width:60%;height:100%;filter:drop-shadow(0 0 8px #e0193a);opacity:.85;animation:anPulse 3s ease-in-out infinite}
+.an-ghoul .an-veins{position:absolute;right:0;bottom:0;width:60%;height:100%;filter:drop-shadow(0 0 8px #e0193a);opacity:.85}
 @keyframes anPulse{50%{opacity:.55}}
 .an-ghoul .an-date{color:#ff4a62;text-transform:uppercase;letter-spacing:.2em;font-size:12px}.an-ghoul .an-time{font-family:Georgia,"Times New Roman",serif;font-weight:700;margin-top:4px}.an-ghoul .an-md{font-size:14px;opacity:.85;margin-top:4px}
-.an-ghoul .an-cup{position:absolute;right:26px;top:18px;font-size:30px;z-index:2}.an-ghoul .an-cup i{position:absolute;left:14px;top:-6px;width:3px;height:14px;border-radius:2px;background:rgba(255,255,255,.4);animation:anSteam 2.4s ease-in-out infinite}
-.an-ghoul .an-cup i:nth-child(2){left:9px;animation-delay:.8s}.an-ghoul .an-cup i:nth-child(3){left:19px;animation-delay:1.6s}
+.an-ghoul .an-cup{position:absolute;right:26px;top:18px;font-size:30px;z-index:2}.an-ghoul .an-cup i{position:absolute;left:14px;top:-6px;width:3px;height:14px;border-radius:2px;background:rgba(255,255,255,.4)}
+.an-ghoul .an-cup .s2{left:9px}.an-ghoul .an-cup .s3{left:19px}
 @keyframes anSteam{0%{transform:translateY(0) scaleY(.6);opacity:0}40%{opacity:.8}100%{transform:translateY(-16px) scaleY(1.2);opacity:0}}
 /* Wisteria Night */
 .an-slayer{padding:8px;background:conic-gradient(#1f8a5c 25%,#0a0a0a 0 50%,#1f8a5c 0 75%,#0a0a0a 0) 0 0/16px 16px}
 .an-slayer .an-in{position:relative;border-radius:12px;min-height:134px;padding:16px 18px 16px 110px;background:linear-gradient(160deg,#141633,#22285a)}
-.an-slayer .an-wis{position:absolute;left:12px;top:0;width:40px;height:100%;animation:anSway 5s ease-in-out infinite;transform-origin:top}@keyframes anSway{50%{transform:rotate(4deg)}}
+.an-slayer .an-wis{position:absolute;left:12px;top:0;width:40px;height:100%;transform-origin:top}@keyframes anSway{50%{transform:rotate(4deg)}}
 .an-slayer .an-k{position:absolute;left:52px;top:50%;transform:translateY(-50%);font:700 46px/1 "Yu Mincho","Hiragino Mincho ProN",serif;color:#e9ddff}
 /* Cursed Energy */
 .an-jjk{background:radial-gradient(circle at 80% 50%,#2a1a5c,#0c0918 70%);--an-m:linear-gradient(90deg,#4d6bff,#a64dff)}
-.an-jjk .an-ring{position:absolute;right:-30px;top:50%;width:220px;height:220px;margin-top:-110px;animation:anSpin 40s linear infinite;opacity:.8;filter:drop-shadow(0 0 6px #7f5cff)}
+.an-jjk .an-ring{position:absolute;right:-30px;top:50%;width:220px;height:220px;margin-top:-110px;opacity:.8;filter:drop-shadow(0 0 6px #7f5cff)}
 @keyframes anSpin{to{transform:rotate(360deg)}}
 .an-jjk .an-time{text-shadow:0 0 18px rgba(140,110,255,.9)}
 /* Hidden Leaf */
@@ -732,14 +881,14 @@ css.textContent = `
 .an-naruto .an-paper{position:relative;flex:1;margin:8px -4px;padding:16px 20px;background:linear-gradient(180deg,#f6e7c6,#ead39f);color:#3a2412;box-shadow:inset 0 0 30px rgba(140,90,30,.35)}
 .an-naruto .an-date{color:#c25a00;text-transform:uppercase;letter-spacing:.18em;font-size:12px;opacity:1}.an-naruto .an-md{font-size:14px;margin-top:2px}
 .an-naruto .an-meter i{background:rgba(90,50,10,.15)}
-.an-naruto .an-swirl{position:absolute;right:14px;top:50%;width:84px;height:84px;margin-top:-42px;opacity:.85;animation:anSpin 8s linear infinite}
+.an-naruto .an-swirl{position:absolute;right:14px;top:50%;width:84px;height:84px;margin-top:-42px;opacity:.85}
 /* Beyond the Walls */
 .an-aot{background:repeating-linear-gradient(0deg,rgba(0,0,0,.25) 0 1px,transparent 1px 22px),repeating-linear-gradient(90deg,rgba(0,0,0,.18) 0 1px,transparent 1px 60px),linear-gradient(180deg,#4a443c,#25221d);color:#f1ead9}
 .an-aot .an-time{text-shadow:0 2px 0 rgba(0,0,0,.6),0 -1px 0 rgba(255,255,255,.15)}.an-aot .an-date{color:#c9a26b;text-transform:uppercase;letter-spacing:.14em;font-size:12px}
-.an-aot .an-day{margin-top:8px;font-size:13px;font-weight:600;letter-spacing:.05em}.an-aot .an-key{position:absolute;right:34px;top:50%;height:120px;margin-top:-60px;filter:drop-shadow(0 3px 4px rgba(0,0,0,.6));transform-origin:30px 0;animation:anSway 4s ease-in-out infinite}
+.an-aot .an-day{margin-top:8px;font-size:13px;font-weight:600;letter-spacing:.05em}.an-aot .an-key{position:absolute;right:34px;top:50%;height:120px;margin-top:-60px;filter:drop-shadow(0 3px 4px rgba(0,0,0,.6));transform-origin:30px 0}
 /* Grand Voyage */
 .an-onepiece{background:radial-gradient(circle at 30% 30%,#f7e8c4,#e6cb92 70%,#c9a565);color:#3b2410;border:3px solid #8a5a2b}
-.an-onepiece .an-map{position:absolute;left:30%;right:0;top:0;bottom:0;width:70%;height:100%;opacity:.55}.an-onepiece .an-compass{position:absolute;right:18px;top:14px;width:62px;height:62px;animation:anSway2 6s ease-in-out infinite}
+.an-onepiece .an-map{position:absolute;left:30%;right:0;top:0;bottom:0;width:70%;height:100%;opacity:.55}.an-onepiece .an-compass{position:absolute;right:18px;top:14px;width:62px;height:62px}
 @keyframes anSway2{50%{transform:rotate(20deg)}}
 .an-onepiece .an-date{color:#a0461a;text-transform:uppercase;letter-spacing:.14em;font-size:12px}.an-onepiece .an-day{margin-top:6px;font-size:13px;font-weight:700}
 /* Shinigami Notebook */
@@ -748,15 +897,29 @@ css.textContent = `
 .an-deathnote .an-cover b{font:700 15px Georgia,"Times New Roman",serif;letter-spacing:.3em;color:#e8e8e8;writing-mode:vertical-rl}.an-deathnote .an-cover span{font-size:10px;color:#777;letter-spacing:.1em}
 .an-deathnote .an-page{position:relative;flex:1;padding:14px 20px;color:#151515;background:repeating-linear-gradient(180deg,transparent 0 23px,rgba(70,90,150,.28) 23px 24px),#ecebe6}
 .an-deathnote .an-hand{font:22px/1.1 "Segoe Print","Bradley Hand","Comic Sans MS",cursive;color:#1a1a2a}.an-deathnote .an-time{font-family:Georgia,"Times New Roman",serif;color:#111;font-size:40px;margin-top:4px}
-.an-deathnote .an-rule{font:italic 12.5px Georgia,"Times New Roman",serif;margin-top:6px;color:#333}.an-deathnote .an-tag{color:#555}.an-deathnote .an-apple{position:absolute;right:16px;bottom:10px;font-size:26px;filter:drop-shadow(0 2px 3px rgba(0,0,0,.4))}
+.an-deathnote .an-rule{font:italic 12.5px Georgia,"Times New Roman",serif;margin-top:6px;color:#333}.an-deathnote .an-tag{color:#555}.an-deathnote .an-apple{position:absolute;right:16px;bottom:10px;font-size:26px;filter:drop-shadow(0 2px 3px rgba(0,0,0,.4));z-index:2}.an-deathnote .an-page>:not(.an-apple){position:relative;z-index:2}
 /* Phantom Thief */
-.an-p5{background:#e60012;overflow:hidden}.an-p5 .an-burst{position:absolute;inset:-60%;background:repeating-conic-gradient(#000 0 7deg,transparent 7deg 20deg);opacity:.22;animation:anSpin 30s linear infinite}
+.an-p5{background:#e60012;overflow:hidden}.an-p5 .an-burst{position:absolute;inset:-60%;background:repeating-conic-gradient(#000 0 7deg,transparent 7deg 20deg);opacity:.22}
 .an-p5 .an-body span{display:inline-block;background:#000;color:#fff;padding:2px 10px;transform:skew(-10deg) rotate(-2deg)}.an-p5 .an-date span{font-weight:900;letter-spacing:.12em}
 .an-p5 .an-time span{background:#fff;color:#000;font-family:"Arial Black",Impact,sans-serif;font-size:46px;padding:2px 12px;transform:skew(-8deg) rotate(1.5deg);box-shadow:6px 6px 0 #000;margin:8px 0}
 .an-p5 .an-md span{font-weight:800;letter-spacing:.08em;font-size:13px}.an-p5 .an-days{display:inline-block;margin-top:10px;font:900 13px "Arial Black",Impact,sans-serif;color:#fff;text-shadow:2px 2px 0 #000;letter-spacing:.06em}.an-p5 .an-tag{color:#fff}
 @media (max-width:480px){.an-card .an-time{font-size:40px}.an-bleach{padding-left:96px}.an-bleach .an-k{font-size:70px}.an-slayer .an-in{padding-left:92px}.an-jjk .an-ring{width:170px;height:170px;margin-top:-85px;right:-50px}.an-naruto .an-swirl{width:64px;height:64px;margin-top:-32px}.an-aot .an-key{height:90px;margin-top:-45px;right:18px}.an-onepiece .an-compass{width:46px;height:46px}}
-@media (prefers-reduced-motion:reduce){.an-card,.an-card *{animation:none!important}}
-html[data-motion="off"] .an-card,html[data-motion="off"] .an-card *{animation:none!important}
+/* the moving parts, round and round. They keep going with the system's "reduce motion" on (the
+   pages stop every animation then, so these are marked important), and stop with Animations: Off. */
+.an-card.an-bleach .an-slash{animation:anSlash 4s ease-in-out infinite!important}
+.an-card.an-ghoul .an-veins{animation:anPulse 3s ease-in-out infinite!important}
+.an-card.an-ghoul .an-cup i{animation:anSteam 2.4s ease-in-out infinite!important}.an-card.an-ghoul .an-cup .s2{animation:anSteam 2.4s ease-in-out -.8s infinite!important}.an-card.an-ghoul .an-cup .s3{animation:anSteam 2.4s ease-in-out -1.6s infinite!important}
+.an-card.an-slayer .an-wis{animation:anSway 5s ease-in-out infinite!important}
+.an-card.an-jjk .an-ring{animation:anSpin 40s linear infinite!important}
+.an-card.an-naruto .an-swirl{animation:anSpin 8s linear infinite!important}
+.an-card.an-aot .an-key{animation:anSway 4s ease-in-out infinite!important}
+.an-card.an-onepiece .an-compass{animation:anSway2 6s ease-in-out infinite!important}
+.an-card.an-deathnote .an-apple{animation:anBob 3.2s ease-in-out infinite!important}
+.an-card.an-p5 .an-burst{animation:anSpin 30s linear infinite!important}.an-card.an-p5 .an-time span{animation:anJolt 5s linear infinite!important}
+.an-card.an-card .an-meter b::after{animation:anSheen 3s ease-in-out infinite!important}
+@keyframes anBob{50%{transform:translateY(-4px) rotate(-6deg)}}@keyframes anSheen{55%,100%{transform:translateX(240%)}}
+@keyframes anJolt{0%,86%,100%{transform:skew(-8deg) rotate(1.5deg)}89%{transform:skew(-8deg) rotate(-1.5deg) translate(-3px,1px)}92%{transform:skew(-11deg) rotate(3deg) translate(2px,-1px)}95%{transform:skew(-8deg) rotate(1.5deg)}}
+:root:root[data-motion="off"] .an-card.an-card,:root:root[data-motion="off"] .an-card.an-card *,:root:root[data-motion="off"] .an-card.an-card *::after{animation:none!important}
 /* the picker */
 .an-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
 .an-tile{position:relative;display:flex;flex-direction:column;align-items:stretch;gap:2px;padding:0 0 9px;border:2px solid transparent;border-radius:14px;background:rgba(127,127,127,.12);color:inherit;font:inherit;text-align:left;cursor:pointer;overflow:hidden;transition:transform .2s,border-color .2s,box-shadow .2s}
@@ -768,5 +931,5 @@ html[data-motion="off"] .an-card,html[data-motion="off"] .an-card *{animation:no
 `;
 (document.head || document.documentElement).appendChild(css);
 
-window.Anime = { THEMES, get:id => BY[id] || null, run, preview, card, picker, apply, has:id => !!BY[id], _wall:WALL, _rng:rng };
+window.Anime = { THEMES, get:id => BY[id] || null, run, preview, card, picker, apply, has:id => !!BY[id], motion, _wall:WALL, _fx:FXC, _rng:rng };
 })();
