@@ -58,7 +58,7 @@ const closeAnn = id => { setSeen(s => { s.ann[id] = 1; }); fire(); };
 let fetching = null;
 async function refresh(force) {
   const c = get("live", null), s = server();
-  if (!s || (!force && c && Date.now() - c.at < 10 * 60000)) return data();
+  if (!s || (!force && c && Date.now() - c.at < 3 * 60000)) return data();     // what the owner posts shows within a few minutes
   if (fetching) return fetching;
   fetching = (async () => {
     try {
@@ -419,8 +419,8 @@ html.lv-rainbow{--accent:#e8342a;animation:lvHue 4s linear infinite}@keyframes l
 /* ---------------------------------------------------------------- starting */
 function init(o) {
   Object.assign(opt, o || {});
-  refresh(false).then(() => { ping(); replies(false); });
-  setInterval(() => { if (document.visibilityState === "visible") { refresh(false).then(ping); replies(false); } }, 5 * 60000);
+  refresh(!!opt.fresh).then(() => { ping(); replies(false); });      // fresh: ask the server now, whatever was kept
+  setInterval(() => { if (document.visibilityState === "visible") { refresh(false).then(ping); replies(false); } }, 2 * 60000);
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") refresh(false).then(ping); });
 }
 window.Live = { init, refresh, data, render, callingCard, themeFx, fx:fxRun, burst:fxBurst, secret, achievements, checkAch, unlock, wordToday, gameOver, gamesPanel,

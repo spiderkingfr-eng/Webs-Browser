@@ -10,7 +10,7 @@
 (function () {
 "use strict";
 if (!window.Live) return;
-Live.init({ platform:"windows", version:"@@WEBS_VERSION@@", isPrivate:() => PRIVATE, noFx:true, toast:(m, a) => toast(m, a),
+Live.init({ platform:"windows", version:"@@WEBS_VERSION@@", isPrivate:() => PRIVATE, noFx:true, fresh:true, toast:(m, a) => toast(m, a),
   openReports:() => { if (window.X3 && X3.support) X3.support(); } });
 
 // a secret word or the hunt's code, typed in the address bar
