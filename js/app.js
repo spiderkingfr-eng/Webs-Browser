@@ -15,7 +15,7 @@
    games, settings and backups - lives here and works offline. */
 "use strict";
 
-const VERSION = "2.6.0";
+const VERSION = "2.7.0";
 
 /* ---------------------------------------------------------------- look */
 const ACCENTS = ["#e8342a", "#ff7a1a", "#e0a100", "#2fa35f", "#1f9bd1", "#3d6cf0", "#8a5cf5", "#e0408a"];
