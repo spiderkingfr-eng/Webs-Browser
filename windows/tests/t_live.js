@@ -68,6 +68,23 @@ const day = n => { const d = new Date(Date.now() + n * 86400000); return d.getFu
   const ping = calls.find(x => x.path === "/live/ping");
   check(ping && ping.body.platform === "windows" && ping.body.version === VER && !/example\.com/.test(JSON.stringify(ping.body)), "the window checks in (version only): " + JSON.stringify(ping && ping.body));
   check(await c.evaluate(() => !!Live.data().ann), "it knows what's on");
+  // 3.7.1: the calling card covers the whole window, whatever page is open
+  await c.waitForSelector(".lv-cc", { timeout:12000 }).catch(() => {});
+  const full = await c.evaluate(() => Math.round(innerHeight * devicePixelRatio));
+  check(await c.evaluate(() => !!document.querySelector(".lv-cc")), "the window shows the calling card over the page");
+  check(await c.evaluate(F => __sent.some(m => m.startsWith("layout\u0001" + F + "\u0001" + F + "\u0001")), full), "covering the whole window");
+  await c.screenshot({ path:SHOTS + "live-win-card.png" });
+  await c.evaluate(() => { __sent.length = 0; }); await c.click(".lv-cc"); await wait(700);
+  check(await c.evaluate(F => !document.querySelector(".lv-cc") && __sent.some(m => m.startsWith("layout\u0001") && !m.startsWith("layout\u0001" + F + "\u0001")), full), "a click gives the window back");
+  // then the announcement, once, as a panel at the top right
+  await c.waitForSelector("#lvann", { timeout:6000 }).catch(() => {});
+  check(/New games this Friday/.test(await c.evaluate(() => (document.querySelector("#lvann") || {}).textContent || "")), "then the announcement opens in the window");
+  await c.screenshot({ path:SHOTS + "live-win-ann.png" });
+  await c.click("#lvann .lvann-r button:has-text('👍')"); await wait(400);
+  check(calls.some(x => x.path === "/live/act" && x.body.kind === "react" && x.body.emoji === "👍"), "a reaction from the panel");
+  await c.click("#lvann button:has-text('Got it')"); await wait(300);
+  check(await c.evaluate(() => !document.querySelector("#lvann") && !!Live.seen().ann[Live.data().ann.id]), "Got it closes it, here and on the new tab page");
+  check(await c.evaluate(() => JSON.parse(localStorage.getItem("wsb.liveWinAnn")).includes(Live.data().ann.id)), "and it won't open again");
   // a secret word: the effect plays on a new tab page
   await c.evaluate(() => { __sent.length = 0; go("Joker"); }); await wait(500);
   check(await c.evaluate(() => __sent.some(m => m.startsWith("new-tab\u0001https://browser.example/newtab.html#lvfx=confetti"))), "a secret word opens its effect: " + (await c.evaluate(() => __sent.join(" | "))));
@@ -122,6 +139,10 @@ const day = n => { const d = new Date(Date.now() + n * 86400000); return d.getFu
   check(await pill() === "", "going back stopped: nothing to do on the newest version");
 
   /* ---------------------------------------------------------------- the new tab page */
+  // a new card and announcement (the window showed the first ones); a panel keeps the window busy meanwhile
+  await c.evaluate(() => achPanel());
+  await admin("live.set", { live:{ card:{ title:"TAKE YOUR TIME", text:"We will steal your boredom on Friday.", sign:"The Phantom Thieves" }, ann:{ text:"New games this Friday!", react:true } } });
+  await c.evaluate(() => localStorage.removeItem("wsb.live"));
   const n = await ctx.newPage(); watch(n, errors, "newtab");
   await n.goto("https://browser.example/newtab.html"); await wait(1800);
   check(await n.evaluate(() => !!document.querySelector(".lv-cc")), "the calling card");
