@@ -7,9 +7,9 @@
    that version nor refreshes its files to it; it keeps the one it has (js/live.app.js writes which
    side of the rollout it is on, in the "wsbmeta" cache). Anything unclear means: update as usual. */
 "use strict";
-const VERSION = "webs-2.7.0";
+const VERSION = "webs-2.8.0";
 const SHELL = ["./", "index.html", "app.css", "fx.css", "js/core.js", "js/answers.js", "js/app.js", "js/qrcode.js", "js/fx.js", "js/phantom.js", "js/widgets.js", "js/answers2.js",
-  "js/library.js", "js/tools.js", "js/extras.js", "js/whatsnew.js", "js/webai.js", "js/push.js", "js/support.settings.js", "js/support.js", "js/live.js", "js/live.app.js", "js/live.games.js", "games.html", "manifest.webmanifest",
+  "js/library.js", "js/tools.js", "js/extras.js", "js/whatsnew.js", "js/webai.js", "js/push.js", "js/support.settings.js", "js/support.js", "js/live.js", "js/live.app.js", "js/live.games.js", "js/anime.js", "js/anime.app.js", "games.html", "manifest.webmanifest",
   "icons/favicon.svg", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png", "icons/icon-maskable-192.png", "icons/icon-maskable-512.png"];
 
 const MINE = VERSION.replace("webs-", "");

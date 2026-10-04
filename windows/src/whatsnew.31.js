@@ -1,3 +1,11 @@
+"3.8 · Anime themes": [
+  ["Anime themes", "Nine whole looks inspired by popular shows: Bleach, Tokyo Ghoul, Demon Slayer, Jujutsu Kaisen, Naruto, Attack on Titan, One Piece, Death Note and Persona 5. Fan-made and drawn by Webs, not official.", "New tab → Background → Anime themes, or Menu → Anime themes…"],
+  ["The whole browser changes", "Tabs, toolbar, menus, the sidebar, Settings and the games take the theme's colors and accent, with its own band across the top of the window.", "Pick a theme"],
+  ["Live wallpapers", "A moving scene behind the new tab page: black butterflies under a crescent moon, red tendrils in the rain, falling wisteria, cursed energy, a sea voyage and more. It follows your mouse a little.", "New tab page"],
+  ["A card for each theme", "The time and date in the theme's style: a brush-stroke weekday, a coffee shop at night, a ninja scroll, a treasure map, a notebook page and more.", "Customize → Anime theme card"],
+  ["Its own sound", "Rain, wind, waves or a storm to match, if you want it.", "Anime themes → Play its sound"],
+  ["Your look comes back", "No anime theme puts back the colors, accent and background you had before.", "Anime themes → No anime theme"]
+],
 "3.7 · From Webs": [
   ["From Webs in the toolbar (3.7.3)", "The 📣 button shows everything from the people who make Webs: news, polls, trivia, countdowns, the mystery box and more, whatever start page you use. A dot means something new.", "Toolbar → 📣, or Menu → From Webs"],
   ["News on your PC (3.7.3)", "News the people who make Webs send to everyone opens once in the window, like a notification.", "Anywhere in Webs"],
