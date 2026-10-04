@@ -1,13 +1,15 @@
 {
-  "version": "3.7.2",
+  "version": "3.7.3",
   "date": "2026-10-04",
   "notes": [
-    "News and calling cards from the people who make Webs show within a few minutes, and right away when Webs starts"
+    "From Webs in the toolbar: the 📣 button shows news, polls, trivia, the countdown, the mystery box and more from the people who make Webs, whatever start page you use",
+    "News the people who make Webs send to everyone now opens in the window on PCs too",
+    "The From Webs panel says if this computer can't reach Webs's server"
   ],
   "exe": {
-    "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.7.2.exe",
-    "sha256": "d12dad25de66483b7c01175decd0e7532399147a0e417116dd9141c608176ce7",
-    "size": 2856448
+    "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.7.3.exe",
+    "sha256": "7685f69fe00958a1be7a232a219c0c86980efb40bee8d96c6efd8f996a8d4f45",
+    "size": 2865152
   },
   "updater": {
     "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebsUpdate.exe",
@@ -23,11 +25,11 @@
     "code": "jcku563mgxwn"
   },
   "previous": {
-    "version": "3.7.1",
+    "version": "3.7.2",
     "exe": {
-      "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.7.1.exe",
-      "sha256": "5fcf1d9352150e0f30632a4dd7bcbc7769d1ec2d975f4e104e807b848e7ad788",
-      "size": 2855936
+      "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.7.2.exe",
+      "sha256": "d12dad25de66483b7c01175decd0e7532399147a0e417116dd9141c608176ce7",
+      "size": 2856448
     }
   }
 }

@@ -61,7 +61,7 @@
 
    setup.cmd sends this folder to Cloudflare (wrangler puts the files together). */
 import { ownerCfg, ownerGate, ownerAdmin, ownerCron, ownerChosen, allCodes, aiSettings, isBlocked, pushOwner, logA, addHist, dueScheduled } from "./owner.js";
-import { liveApi, liveAdmin, liveCron } from "./live.js";
+import { liveApi, liveAdmin, liveCron, liveNews } from "./live.js";
 import { ADMIN_PAGE, DASH_JS, DASH_CSS, DASH_SW, DASH_MANIFEST, DASH_ICON, DASH_PNG } from "./dash.js";
 
 const API = "https://api.anthropic.com/v1/messages";
@@ -606,7 +606,7 @@ async function pushCron(env, now) {
   j.gone = (j.gone || 0) + r.gone; j.failed = (j.failed || 0) + r.failed; j.why = j.why || r.why || "";
   if (r.done) {
     s.last = s.last || {}; s.last[j.kind] = { at:now, sent:j.sent, title:j.msg.title }; s.jobs.shift();
-    if (j.kind === "news") await env.LIMITS.put("push:news", JSON.stringify({ at:now, title:j.msg.title, sent:j.sent }));
+    if (j.kind === "news") { await env.LIMITS.put("push:news", JSON.stringify({ at:now, title:j.msg.title, sent:j.sent })); await liveNews(env, j.msg); }
     await addHist(env, { kind:j.kind === "news" ? "scheduled" : j.kind, title:j.msg.title, body:j.msg.body, sent:j.sent, gone:j.gone, failed:j.failed, why:j.why });
   }
   await save();
@@ -801,6 +801,7 @@ async function admin(req, env) {
     if (r.done) {
       const sent = (+body.sentSoFar || 0) + r.sent;
       await env.LIMITS.put("push:news", JSON.stringify({ at:Date.now(), title:msg.title, sent }));
+      await liveNews(env, msg);       // and every PC, in the browser window
       await addHist(env, { kind:"news", title:msg.title, body:msg.body, sent, gone:(+body.goneSoFar || 0) + r.gone, failed:(+body.failedSoFar || 0) + r.failed, why:r.why || body.why || "" });
       await logA(env, "Sent \u201c" + msg.title + "\u201d to " + sent + " iPhones");
     }

@@ -190,6 +190,19 @@ r = await call("GET", "/live");
 ok(!r.j.poll && !r.j.ann && r.j.card, "removing one thing leaves the rest");
 r = await call("POST", "/live/act", { device:dev(5), kind:"vote", id:L.poll.id, choice:0 });
 ok(r.res.status === 409, "a vote on an ended poll");
+// news sent to everyone also goes to the PCs, for 3 days, and survives other changes on the dashboard
+await call("GET", "/push/key");
+r = await admin("push", { title:"New games!", text:"Pong is here.", url:"https://example.org/pong", started:clock });
+ok(r.j.done, "news sent (no iPhones yet)");
+r = await call("GET", "/live");
+ok(r.j.news && r.j.news.title === "New games!" && r.j.news.body === "Pong is here." && r.j.news.url === "https://example.org/pong" && /^[a-z0-9]{8}$/.test(r.j.news.id), "the PCs get the news: " + JSON.stringify(r.j.news));
+const newsId = r.j.news.id;
+await set({ countdown:{ label:"Christmas", date:"2026-12-25", emoji:"🎄" } });
+r = await call("GET", "/live");
+ok(r.j.news && r.j.news.id === newsId, "a change on the Start page keeps it");
+clock += 3 * 86400000 + 1000;
+r = await call("GET", "/live");
+ok(!r.j.news, "gone after 3 days");
 
 Date.now = realNow;
 console.log(pass + " passed, " + fail + " failed");

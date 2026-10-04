@@ -61,11 +61,13 @@ async function refresh(force) {
   if (!s || (!force && c && Date.now() - c.at < 3 * 60000)) return data();     // what the owner posts shows within a few minutes
   if (fetching) return fetching;
   fetching = (async () => {
+    // how it went, for the Windows browser's From Webs panel (Live.status)
     try {
       const r = await fetch(s + "/live", { cache:"no-store" });
-      const j = r.ok ? await r.json() : null;
-      if (j && j.ok) { const was = JSON.stringify(data()); put("live", { at:Date.now(), d:j }); if (JSON.stringify(j) !== was) fire(); }
-    } catch (e) {}
+      const j = r.ok ? await r.json().catch(() => null) : null;
+      if (j && j.ok) { const was = JSON.stringify(data()); put("live", { at:Date.now(), d:j }); put("liveStat", { at:Date.now(), ok:1 }); if (JSON.stringify(j) !== was) fire(); }
+      else put("liveStat", { at:Date.now(), why:r.status === 404 ? "Webs's server doesn't have From Webs yet: run setup.cmd with the newest server files." : "Webs's server answered with an error (" + r.status + ")." });
+    } catch (e) { put("liveStat", { at:Date.now(), why:"Couldn't reach Webs's server. Are you online?" }); }
     fetching = null;
     return data();
   })();
@@ -163,7 +165,7 @@ function render(el) {
   // the mystery box (once Webs's server has answered: the owner's surprise, or a built-in one)
   const box = D.ok ? mysteryToday() : null, opened = box && S.box[box.date];
   if (box) {
-  const bc = card("lv-box" + (opened ? " open" : ""), opened ? "<b>" + KIND[box.kind] + "</b><p></p>" : '<button type="button" class="lv-gift">🎁 <span>Today’s mystery box</span><small>Tap to open</small></button>');
+  const bc = card("lv-box" + (opened ? " open" : ""), opened ? "<b>" + KIND[box.kind] + "</b><p></p>" : '<button type="button" class="lv-gift">🎁 <span>Today’s mystery box</span><small>' + (opt.platform === "windows" ? "Click" : "Tap") + ' to open</small></button>');
   if (opened) bc.querySelector("p").textContent = box.text;
   else bc.querySelector("button").onclick = () => { setSeen(s => { s.box[box.date] = 1; }); fxBurst("confetti", 30); render(el); };
   }
@@ -425,5 +427,6 @@ function init(o) {
 }
 window.Live = { init, refresh, data, render, callingCard, themeFx, fx:fxRun, burst:fxBurst, secret, achievements, checkAch, unlock, wordToday, gameOver, gamesPanel,
   report, replies, myReports, readReports, faq:() => data().faq || [], quote:() => today(data().quotes), wallOn:() => !!(data().wall && get("liveWall", false)), wallUrl:() => data().wall && data().wall.url,
-  stickers:() => data().stickers || [], rolloutOk, bucket, countsOn, on:f => listeners.push(f), dev, server, seen, react, closeAnn, REACTS };
+  stickers:() => data().stickers || [], rolloutOk, bucket, countsOn, on:f => listeners.push(f), dev, server, seen, react, closeAnn, REACTS,
+  status:() => ({ server:server(), at:(get("live", null) || {}).at || 0, last:get("liveStat", null) }) };
 })();
