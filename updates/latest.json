@@ -1,19 +1,14 @@
 {
-  "version": "3.7.0",
+  "version": "3.7.1",
   "date": "2026-10-04",
   "notes": [
-    "From Webs: news, polls, trivia, a countdown, a mystery box and more under the search box on the new tab page (Customize can hide it)",
-    "Calling cards, theme days and the wallpaper of the week, if you want it",
-    "Secret words and a secret code hunt in the address bar, and limited-time achievements",
-    "Games: a weekly leaderboard with a nickname you pick, community goals, and sometimes the owner's daily word",
-    "Help & support: common questions, problem reports with their answers, and rating the help",
-    "Safer updates: new versions can reach some computers first, and every computer can go back if one has a problem",
-    "Anonymous counts (the version and your country, never what you browse); turn them off in Settings"
+    "Calling cards and news from the people who make Webs now show in the window too, over whatever page is open, so you see them even with another start page (each one once)",
+    "React to the news right there, or click Got it"
   ],
   "exe": {
-    "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.7.0.exe",
-    "sha256": "219552205ac331ff7bc0c453982722a66e825fececf0a74f2d9be9348aa10172",
-    "size": 2849792
+    "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.7.1.exe",
+    "sha256": "5fcf1d9352150e0f30632a4dd7bcbc7769d1ec2d975f4e104e807b848e7ad788",
+    "size": 2855936
   },
   "updater": {
     "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebsUpdate.exe",
@@ -29,11 +24,11 @@
     "code": "jcku563mgxwn"
   },
   "previous": {
-    "version": "3.6.0",
+    "version": "3.7.0",
     "exe": {
-      "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.6.0.exe",
-      "sha256": "0e588ec28dcdadd21226ba7d47be9e62f0fbae151b0f75e983ef5526e3af3053",
-      "size": 2696704
+      "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.7.0.exe",
+      "sha256": "219552205ac331ff7bc0c453982722a66e825fececf0a74f2d9be9348aa10172",
+      "size": 2849792
     }
   }
 }

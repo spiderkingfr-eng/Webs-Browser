@@ -51,6 +51,9 @@ async function post(path, body) {
   return j;
 }
 const act = (kind, o) => post("/live/act", Object.assign({ device:dev(), platform:opt.platform, kind }, o));
+// the announcement: a reaction (one per device, changeable), and closing it everywhere on this device
+async function react(id, e) { setSeen(s => { s.react[id] = e; }); fire(); try { await act("react", { id, emoji:e }); } catch (x) {} }
+const closeAnn = id => { setSeen(s => { s.ann[id] = 1; }); fire(); };
 
 let fetching = null;
 async function refresh(force) {
@@ -117,13 +120,10 @@ function render(el) {
     if (D.ann.link) { const a = H("a", "lv-link", "Open ›"); a.href = D.ann.link; a.onclick = e => { if (opt.open) { e.preventDefault(); opt.open(D.ann.link); } }; c.appendChild(a); }
     if (D.ann.react) {
       const r = H("div", "lv-react"), mine = S.react[D.ann.id];
-      REACTS.forEach(e => { const b = H("button", e === mine ? "on" : "", e); b.type = "button"; b.onclick = async () => {
-        setSeen(s => { s.react[D.ann.id] = e; }); render(el);
-        try { await act("react", { id:D.ann.id, emoji:e }); } catch (x) {}
-      }; r.appendChild(b); });
+      REACTS.forEach(e => { const b = H("button", e === mine ? "on" : "", e); b.type = "button"; b.onclick = () => { react(D.ann.id, e); render(el); }; r.appendChild(b); });
       c.appendChild(r);
     }
-    c.querySelector(".lv-x").onclick = () => { setSeen(s => { s.ann[D.ann.id] = 1; }); render(el); };
+    c.querySelector(".lv-x").onclick = () => { closeAnn(D.ann.id); render(el); };
   }
   // Webs's birthday
   const md = localDay().slice(5);
@@ -206,7 +206,7 @@ function callingCard() {
   const c = data().card;
   if (!c || opt.isPrivate() || seen().cards.includes(c.id) || document.querySelector(".lv-cc")) return false;
   setSeen(s => { s.cards = s.cards.concat(c.id).slice(-20); });
-  const o = H("div", "lv-cc", '<div class="lv-ccin"><b></b><p></p><i></i><small>Tap to close</small></div>');
+  const o = H("div", "lv-cc", '<div class="lv-ccin"><b></b><p></p><i></i><small>' + (opt.platform === "windows" ? "Click" : "Tap") + ' to close</small></div>');
   o.querySelector("b").textContent = c.title; o.querySelector("p").textContent = c.text; o.querySelector("i").textContent = "— " + (c.sign || "The Phantom Thieves");
   o.setAttribute("role", "dialog"); o.setAttribute("aria-label", c.title);
   o.onclick = () => { o.classList.add("out"); setTimeout(() => o.remove(), 350); };
@@ -425,5 +425,5 @@ function init(o) {
 }
 window.Live = { init, refresh, data, render, callingCard, themeFx, fx:fxRun, burst:fxBurst, secret, achievements, checkAch, unlock, wordToday, gameOver, gamesPanel,
   report, replies, myReports, readReports, faq:() => data().faq || [], quote:() => today(data().quotes), wallOn:() => !!(data().wall && get("liveWall", false)), wallUrl:() => data().wall && data().wall.url,
-  stickers:() => data().stickers || [], rolloutOk, bucket, countsOn, on:f => listeners.push(f), dev, server };
+  stickers:() => data().stickers || [], rolloutOk, bucket, countsOn, on:f => listeners.push(f), dev, server, seen, react, closeAnn, REACTS };
 })();

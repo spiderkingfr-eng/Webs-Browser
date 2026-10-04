@@ -1,4 +1,5 @@
 "3.7 · From Webs": [
+  ["In the window too (3.7.1)", "Calling cards and news from the people who make Webs now show over whatever page is open, so you see them even with another start page. Each one once.", "Anywhere in Webs"],
   ["News, polls and fun on the new tab page", "The people who make Webs can put news (with emoji reactions), a poll, today's trivia, a countdown, their pick of the week and a mystery box under the search box. Customize turns it off.", "New tab → under the search box"],
   ["Calling cards and theme days", "Now and then a Phantom Thieves calling card, and on special days snow, hearts, leaves or fireworks drift past (not with Seasonal effects off).", "New tab"],
   ["The wallpaper of the week", "A new picture each week behind your new tab page, if you want it. Your own picture or moving background always comes first.", "New tab → Wallpaper of the week → Use it"],
