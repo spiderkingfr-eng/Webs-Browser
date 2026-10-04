@@ -85,6 +85,31 @@ const day = n => { const d = new Date(Date.now() + n * 86400000); return d.getFu
   await c.click("#lvann button:has-text('Got it')"); await wait(300);
   check(await c.evaluate(() => !document.querySelector("#lvann") && !!Live.seen().ann[Live.data().ann.id]), "Got it closes it, here and on the new tab page");
   check(await c.evaluate(() => JSON.parse(localStorage.getItem("wsb.liveWinAnn")).includes(Live.data().ann.id)), "and it won't open again");
+  // 3.7.3: news sent to everyone (a notification on iPhones) opens once in the window too
+  await worker.fetch(new Request(SERVER + "/push/key"), env, { waitUntil(){} });
+  check((await admin("push", { title:"Pong is here!", text:"Open Games and try it.", url:"https://example.org/pong", started:Date.now() })).done, "news sent from the dashboard");
+  await c.evaluate(() => Live.refresh(true)); await c.waitForSelector("#lvnews", { timeout:8000 }).catch(() => {});
+  check(/Pong is here!/.test(await c.evaluate(() => (document.querySelector("#lvnews") || {}).textContent || "")) && /Open Games/.test(await c.evaluate(() => (document.querySelector("#lvnews") || {}).textContent || "")), "the news opens in the window");
+  await c.screenshot({ path:SHOTS + "live-win-news.png" });
+  await c.click("#lvnews button:has-text('OK')"); await wait(300);
+  check(await c.evaluate(() => !document.querySelector("#lvnews") && JSON.parse(localStorage.getItem("wsb.liveWinNews")).includes(Live.data().news.id)), "once");
+  // the 📣 button: everything from the dashboard, whatever the start page
+  check(await c.evaluate(() => { const b = document.querySelector(".lvb"); return !!b && !b.classList.contains("hide") && b.classList.contains("new"); }), "the 📣 button, with a dot for something new");
+  check(await c.evaluate(() => { const m = document.createElement("div"); X3.menuRows(m); return /From Webs/.test(m.textContent); }), "and From Webs in the menu");
+  await c.click(".lvb"); await wait(900);
+  const lvp = await c.evaluate(() => (document.querySelector("#lvp") || {}).textContent || "");
+  check(/Updated (just now|\d+ min ago)/.test(lvp), "the panel says it's up to date: " + lvp.slice(0, 120));
+  check(/Pong is here!/.test(lvp) && /Which game next/.test(lvp) && /How many legs/.test(lvp) && /until Christmas/.test(lvp) && /mystery box/i.test(lvp) && /Pick of the week/.test(lvp) && /500 Snake games together/.test(lvp) && /Steal their hearts/.test(lvp), "the panel has the news, the poll, trivia, the countdown, the mystery box, the pick, the goal and the quote");
+  await c.screenshot({ path:SHOTS + "live-win-panel.png" });
+  await c.click("#lvp .lv-trivia button:has-text('8')"); await wait(500);
+  check(calls.some(x => x.path === "/live/act" && x.body.kind === "trivia" && x.body.choice === 1), "answering trivia in the panel");
+  check(await c.evaluate(() => !document.querySelector(".lvb").classList.contains("new")), "the dot goes once it's been looked at");
+  // when the PC can't reach the server, the panel says so
+  await c.evaluate(() => { localStorage.setItem("wsb.xaiConfig", JSON.stringify({ server:"https://nowhere.invalid" })); });
+  await c.evaluate(() => Live.refresh(true)); await wait(800); await c.evaluate(() => { closeOver(); X3.fromWebs(); }); await wait(600);
+  check(/Couldn't reach Webs's server/.test(await c.textContent("#lvp .lvp-st")), "it says when the server can't be reached: " + await c.textContent("#lvp .lvp-st"));
+  await c.evaluate(S => { localStorage.setItem("wsb.xaiConfig", JSON.stringify({ server:S })); closeOver(); }, SERVER);
+  await c.evaluate(() => Live.refresh(true)); await wait(400);
   // a secret word: the effect plays on a new tab page
   await c.evaluate(() => { __sent.length = 0; go("Joker"); }); await wait(500);
   check(await c.evaluate(() => __sent.some(m => m.startsWith("new-tab\u0001https://browser.example/newtab.html#lvfx=confetti"))), "a secret word opens its effect: " + (await c.evaluate(() => __sent.join(" | "))));

@@ -647,7 +647,7 @@ function schedule(p, title, note, key, fields, result) {
 
 /* ---------------------------------------------------------------- Notifications */
 PANES.push = function (p) {
-  var c = card(p, "Send a notification", "To every iPhone with news turned on. Send it to yourself first to see how it looks.");
+  var c = card(p, "Send a notification", "To every iPhone with news turned on, and on every PC (3.7.3 and later) it opens in the browser window within a few minutes. Send it to yourself first to see how it looks.");
   var pn = E("p", "d small"); pn.id = "pn"; c.appendChild(pn);
   var t = inp("Title", "", { id:"ptitle", maxlength:80, placeholder:"New games are here!" }), x = inp("Message", "", { id:"ptext", area:1, maxlength:300, placeholder:"Open Webs and try Pong and Breakout." }), u = inp("Link when they tap it (optional)", "", { id:"purl", maxlength:500, placeholder:"https://… (leave empty to open Webs)" });
   var at = inp("Send later (optional)", "", { type:"datetime-local" });
@@ -663,7 +663,7 @@ REFRESH.push = async function () {
     var s = S.stats || await call({ op:"stats" }), p = s.push || { phones:0 };
     var w = function (x) { return x ? new Date(x.at).toLocaleString() + " (" + x.sent + " iPhones)" : "not yet"; };
     $("pn").textContent = p.phones + (p.more ? "+" : "") + " iPhones have notifications on: " + p.news + " get news, " + p.updates + " new versions, " + p.daily + " the daily word reminder. Last news: " + (p.lastNews ? "“" + p.lastNews.title + "”, " + w(p.lastNews) : "not yet") + "." + (p.sending ? " Still sending: " + p.sending + "." : "");
-    $("psend").textContent = "Send to " + p.news + (p.more ? "+" : "") + " iPhones";
+    $("psend").textContent = "Send to " + p.news + (p.more ? "+" : "") + " iPhones and every PC";
     var h = await call({ op:"push.hist" }), sl = $("psched"), hl = $("phist");
     sl.innerHTML = ""; if (!h.sched.length) sl.appendChild(E("p", "d small", "Nothing scheduled."));
     h.sched.forEach(function (x) { var it = E("div", "it"), tx = E("div", "tx"); add(tx, E("b", "", x.title), E("span", "", x.text)); add(it, E("span", "when", when(x.at)), tx, btn("Cancel", async function (b) { await act(b, function () { return call({ op:"push.unschedule", id:x.id }); }, "Cancelled."); REFRESH.push(); }, "danger small")); sl.appendChild(it); });
@@ -679,7 +679,7 @@ async function sendNews() {
     try { await call({ op:"push.schedule", title:title, text:text, url:url, at:new Date(later).getTime() }); toast("Scheduled for " + when(new Date(later).getTime()) + "."); $("ptitle").value = $("ptext").value = $("purl").value = ""; REFRESH.push(); } catch (e) { $("pmsg").textContent = e.message; }
     return;
   }
-  if (!confirm("Send “" + title + "” to every iPhone that gets news?")) return;
+  if (!confirm("Send “" + title + "” to every iPhone that gets news, and every PC?")) return;
   $("psend").disabled = true;
   var cursor = "", sent = 0, gone = 0, failed = 0, why = "", started = Date.now();
   try {
@@ -689,7 +689,7 @@ async function sendNews() {
       $("pmsg").textContent = "Sent to " + sent + " iPhones…";
       if (r.done) break;
     }
-    $("pmsg").textContent = "Sent to " + sent + " iPhones." + (gone ? " " + gone + " had turned notifications off." : "") + (failed ? " " + failed + " didn't go through" + (why ? " (Apple said: " + why + ")" : "") + "." : "");
+    $("pmsg").textContent = "Sent to " + sent + " iPhones, and on its way to every PC." + (gone ? " " + gone + " had turned notifications off." : "") + (failed ? " " + failed + " didn't go through" + (why ? " (Apple said: " + why + ")" : "") + "." : "");
     $("ptitle").value = $("ptext").value = $("purl").value = "";
     S.stats = null; REFRESH.push();
   } catch (e) { $("pmsg").textContent = e.message + (sent ? " (" + sent + " sent before that)" : ""); }

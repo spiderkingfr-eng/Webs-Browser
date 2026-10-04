@@ -1,4 +1,6 @@
 "3.7 · From Webs": [
+  ["From Webs in the toolbar (3.7.3)", "The 📣 button shows everything from the people who make Webs: news, polls, trivia, countdowns, the mystery box and more, whatever start page you use. A dot means something new.", "Toolbar → 📣, or Menu → From Webs"],
+  ["News on your PC (3.7.3)", "News the people who make Webs send to everyone opens once in the window, like a notification.", "Anywhere in Webs"],
   ["In the window too (3.7.1)", "Calling cards and news from the people who make Webs now show over whatever page is open, so you see them even with another start page. Each one once.", "Anywhere in Webs"],
   ["News, polls and fun on the new tab page", "The people who make Webs can put news (with emoji reactions), a poll, today's trivia, a countdown, their pick of the week and a mystery box under the search box. Customize turns it off.", "New tab → under the search box"],
   ["Calling cards and theme days", "Now and then a Phantom Thieves calling card, and on special days snow, hearts, leaves or fireworks drift past (not with Seasonal effects off).", "New tab"],

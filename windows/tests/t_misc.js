@@ -7,9 +7,10 @@ const check = (c, w) => { if (c) ok++; else { bad++; console.log("  FAIL:", w); 
   await setup(ctx);
   const p = await ctx.newPage(); watch(p, errors, "misc");
   await p.goto("https://browser.example/whatsnew.html"); await p.waitForTimeout(600);
-  check(await p.textContent("#count") === "462", "462 features counted");
-  check(await p.locator(".f").count() === 462, "462 cards");
-  check(/3\.6 · Help & support/.test(await p.textContent("#out h2")), "3.6 group first");
+  // the count on the page matches the cards (build.py counts the list the same way)
+  const cards = await p.locator(".f").count();
+  check(cards > 450 && await p.textContent("#count") === String(cards), cards + " features counted and shown");
+  check(/3\.7 · From Webs/.test(await p.textContent("#out h2")), "the newest group (3.7) first");
   await p.fill("#q", "breakout"); await p.waitForTimeout(100);
   check(await p.locator(".f:not(.hide)").count() >= 1, "search finds Breakout");
   await p.fill("#q", ""); await p.waitForTimeout(1500); await p.screenshot({ path:SHOTS + "whatsnew.png" });

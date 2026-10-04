@@ -69,7 +69,17 @@ export function cleanLive(p, old) {
   v.rollout = {};
   for (const k of ["win", "ios"]) if (ro[k] && rv(ro[k].v)) v.rollout[k] = { v:ro[k].v, pct:Math.max(0, Math.min(100, Math.round(+ro[k].pct))) };
   v.rollback = p.rollback && rv(p.rollback.win) ? { win:p.rollback.win } : {};
+  // the last notification sent to everyone, for the PCs (iPhones get it as a notification)
+  if (p.news && txt(p.news.title, 80) && +p.news.at > 0) v.news = { id:id8(p.news.id), title:txt(p.news.title, 80), body:txt(p.news.body, 300), url:url(p.news.url), at:+p.news.at };
   return v;
+}
+// called when news has gone to every iPhone: PCs show it for 3 days (Windows 3.7.3 and later)
+export async function liveNews(env, msg) {
+  const old = await liveCfg(env, true);
+  const v = cleanLive({ ...old, news:{ title:msg.title, body:msg.body, url:msg.url, at:now() } }, old);
+  v.rev = (old.rev || 0) + 1;
+  await env.LIMITS.put("live:cfg", JSON.stringify(v));
+  M(env.LIMITS).live = { at:now(), v };
 }
 // secret words and the hunt's code are kept as hashes only (the app hashes what's typed and compares)
 async function hashSecrets(v) {
@@ -118,6 +128,7 @@ export async function livePublic(env, base) {
   if (v.rollout && Object.keys(v.rollout).length) out.rollout = v.rollout;
   if (v.rollback && v.rollback.win) out.rollback = v.rollback;
   if (agg.board && agg.board.wk === week()) out.board = agg.board;
+  if (v.news && now() - v.news.at < 3 * 86400000) out.news = v.news;
   return out;
 }
 
