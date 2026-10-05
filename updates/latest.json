@@ -1,19 +1,13 @@
 {
-  "version": "3.13.0",
+  "version": "3.13.1",
   "date": "2026-10-05",
   "notes": [
-    "Talk to Webs and it talks back: say Hey Webs, then anything, and Web AI answers out loud",
-    "It does things for you (opens pages, sets timers, switches tabs) and asks before anything that can't be undone",
-    "Adam's voice from ElevenLabs through your Web AI server, or any Windows voice, with an optional suit effect",
-    "Follow-ups need no wake phrase, and saying its name stops it mid-sentence",
-    "Give it a name, what it calls you and a personality",
-    "Choose which microphone voice control listens to",
-    "Bug fixes"
+    "The assistant's card now shows at the bottom right of the window instead of getting stuck at the top"
   ],
   "exe": {
-    "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.13.0.exe",
-    "sha256": "9b96a90945dd62b1c0de95613fb81ca1a411e7b9254d5bae06c3f8d08d62999a",
-    "size": 3728384
+    "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.13.1.exe",
+    "sha256": "27a55d7c42acaa3c63173a2d6b38ff3b94811d7b1db21750df5d05b111b96bdc",
+    "size": 3730944
   },
   "updater": {
     "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebsUpdate.exe",
@@ -29,11 +23,11 @@
     "code": "jcku563mgxwn"
   },
   "previous": {
-    "version": "3.12.0",
+    "version": "3.13.0",
     "exe": {
-      "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.12.0.exe",
-      "sha256": "9f6acea371de1f8caf9c77202adc240711cc8f5140df2473640554cdc7f6cc7c",
-      "size": 3696128
+      "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.13.0.exe",
+      "sha256": "9b96a90945dd62b1c0de95613fb81ca1a411e7b9254d5bae06c3f8d08d62999a",
+      "size": 3728384
     }
   }
 }
