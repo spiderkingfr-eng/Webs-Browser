@@ -7,8 +7,9 @@
   "workers_dev": true,
   "observability": { "enabled": true },
   // live rooms (rooms.js): linked devices and games with a join code, one Durable Object each (free plan: SQLite)
-  "durable_objects": { "bindings": [{ "name": "ROOMS", "class_name": "Room" }] },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room"] }],
+  // and the ledger (ledger.js): the owner's counts, the wallpaper gallery, invites and saved replies
+  "durable_objects": { "bindings": [{ "name": "ROOMS", "class_name": "Room" }, { "name": "LEDGER", "class_name": "Ledger" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room"] }, { "tag": "v2", "new_sqlite_classes": ["Ledger"] }],
   // the storage for the daily counts (made by the first deploy; leave out "id" on a new account)
   "kv_namespaces": [{ "binding": "LIMITS", "id": "ed2500363e6d4b50bdaf5469f80eb50e" }],
   // OPEN: anyone using Webs Browser can ask without a code, 25 a day per device,

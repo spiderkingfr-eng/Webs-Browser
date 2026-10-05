@@ -118,11 +118,15 @@ function render(el) {
   // the announcement, with reactions
   if (D.ann && !S.ann[D.ann.id]) {
     const c = card("lv-ann", '<button type="button" class="lv-x" aria-label="Close">✕</button><p></p>');
-    c.querySelector("p").textContent = "📣 " + D.ann.text;
-    if (D.ann.link) { const a = H("a", "lv-link", "Open ›"); a.href = D.ann.link; a.onclick = e => { if (opt.open) { e.preventDefault(); opt.open(D.ann.link); } }; c.appendChild(a); }
+    // 3.10: an A/B test - half the devices see the second version (the same half every time), and what's seen and clicked is counted
+    const ab = D.ann.textB ? (parseInt(dev().slice(-6), 16) + D.ann.id.length) % 2 : -1, text = ab === 1 ? D.ann.textB : D.ann.text, link = ab === 1 ? D.ann.linkB || D.ann.link : D.ann.link;
+    const abTell = what => { if (ab >= 0 && window.Stats) Stats.ab(D.ann.id, ab ? "B" : "A", what); };
+    abTell("seen");
+    c.querySelector("p").textContent = "📣 " + text;
+    if (link) { const a = H("a", "lv-link", "Open ›"); a.href = link; a.onclick = e => { abTell("click"); if (opt.open) { e.preventDefault(); opt.open(link); } }; c.appendChild(a); }
     if (D.ann.react) {
       const r = H("div", "lv-react"), mine = S.react[D.ann.id];
-      REACTS.forEach(e => { const b = H("button", e === mine ? "on" : "", e); b.type = "button"; b.onclick = () => { react(D.ann.id, e); render(el); }; r.appendChild(b); });
+      REACTS.forEach(e => { const b = H("button", e === mine ? "on" : "", e); b.type = "button"; b.onclick = () => { abTell("click"); react(D.ann.id, e); render(el); }; r.appendChild(b); });
       c.appendChild(r);
     }
     c.querySelector(".lv-x").onclick = () => { closeAnn(D.ann.id); render(el); };

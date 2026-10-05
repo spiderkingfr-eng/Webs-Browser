@@ -102,6 +102,7 @@ details.fold[open]>summary{margin-bottom:6px}
 .tg::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#bbb;transition:left .15s}.tg.on{background:#1e7a4a;border-color:#1e7a4a}.tg.on::after{left:21px;background:#fff}
 .sets.locked .set select,.sets.locked .tg,.sets.locked button.act{opacity:.45;pointer-events:none}
 button.act{background:var(--bg3);color:var(--fg);padding:6px 12px;font-size:13px;margin:0}
+.gal{border-top:1px solid var(--line);padding:10px 0}.gal img{max-width:100%;max-height:220px;border-radius:10px;display:block}.sch{border-bottom:1px solid var(--line);padding:6px 0}
 .rep h3{margin:0 0 4px}.rep .meta{color:var(--dim);font-size:12.5px}.rep pre{white-space:pre-wrap;word-break:break-word;background:var(--bg3);border-radius:8px;padding:8px;font-size:12px;max-height:240px;overflow:auto}
 .rep .ans{background:rgba(30,122,74,.15);border-radius:8px;padding:8px;font-size:13.5px;margin-top:8px}
 /* a calling card, as the apps show it */
@@ -214,7 +215,7 @@ function showSecret(title, value, note) {
 }
 
 /* ---------------------------------------------------------------- the dashboard */
-var TABS = [["overview", "Overview"], ["support", "Support"], ["live", "Start page"], ["push", "Notifications"], ["updates", "Updates"], ["settings", "Settings"], ["log", "Log"]];
+var TABS = [["overview", "Overview"], ["insights", "Insights"], ["support", "Support"], ["live", "Start page"], ["push", "Notifications"], ["updates", "Updates"], ["settings", "Settings"], ["log", "Log"]];
 var built = {};
 function build() {
   var app = $("app"); app.innerHTML = ""; built = {};
@@ -316,7 +317,7 @@ PANES.support = function (p) {
   p.innerHTML = '<h2>Help &amp; support <span id="sn" class="pill"></span> <span id="srate" class="pill"></span></h2>' +
     '<div class="card sup"><div id="slist"><p class="d" style="margin:0">No support chats yet. People start one from Help &amp; support in the app.</p></div>' +
     '<div id="sview" class="hide"><div class="tkh"><button class="ghost small" id="sback">← All chats</button><b id="stitle"></b><span id="ssub"></span><span class="sp"></span><button class="ghost small" id="sblock">Block device</button><button class="ghost small" id="sclose">Close this chat</button></div>' +
-    '<div class="tk"><div><div class="chat" id="schat"></div><div class="row" style="margin-top:6px"><select id="sreplies" style="width:auto;max-width:100%"><option value="">Saved replies…</option></select></div><div class="reply"><textarea id="sreply" maxlength="1000" placeholder="Write a reply…"></textarea><button id="ssend">Send</button></div></div>' +
+    '<div class="tk"><div><div class="chat" id="schat"></div><div class="row" style="margin-top:6px"><select id="sreplies" style="width:auto;max-width:100%"><option value="">Saved replies…</option></select><button class="ghost small" id="ssave" title="Keep what you wrote, for next time">Save this reply</button></div><div class="reply"><textarea id="sreply" maxlength="1000" placeholder="Write a reply…"></textarea><button id="ssend">Send</button></div></div>' +
     '<div><div class="dev" id="sdev"><div class="devbar"><i></i><i></i><i></i><span id="sdevname"></span></div><div class="acc" id="sacc"></div><div class="sets" id="ssets"></div></div>' +
     '<p class="d small" style="margin:8px 2px 0">Only these settings, and only while they allow it. You never see their history, bookmarks, passwords or pages. Each change shows on their screen with Undo.</p></div></div></div></div>';
   $("sback").onclick = closeView;
@@ -329,6 +330,11 @@ PANES.support = function (p) {
     $("ssend").disabled = false;
   };
   $("sreply").onkeydown = function (e) { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("ssend").click(); } };
+  $("ssave").onclick = async function () {
+    var t = $("sreply").value.trim(); if (!t) return toast("Write the reply first.");
+    var l = (S.cfg && S.cfg.cfg.replies || []).slice(); if (l.indexOf(t) >= 0) return toast("You have that one already.");
+    try { var r = await call({ op:"cfg.set", patch:{ replies:l.concat([t]) } }); if (r.cfg && S.cfg) S.cfg.cfg = r.cfg; fillReplies(); toast("Saved for next time."); } catch (e) { toast(e.message); }
+  };
   $("sreplies").onchange = function () { var v = $("sreplies").value; if (v) { $("sreply").value = ($("sreply").value ? $("sreply").value + " " : "") + v; $("sreply").focus(); } $("sreplies").value = ""; };
   // the owner's support settings
   var sc = card(p, "How you answer");
@@ -456,6 +462,58 @@ async function loadReports() {
   });
 }
 
+/* ---------------------------------------------------------------- Insights (3.10): errors, features used, A/B tests, invites
+   From the apps with "Send anonymous counts" on, once a day each (the ledger, ledger.js). */
+PANES.insights = async function (p) {
+  p.innerHTML = '<p class="d">Loading…</p>';
+  var r;
+  try { r = await call({ op:"ledger.read", days:14 }); } catch (e) { p.innerHTML = ""; p.appendChild(E("p", "err", e.message)); return; }
+  if (!S.live || !S.live.rev) { try { var l = await call({ op:"live.get" }); S.live = l.live; S.agg = l.agg; } catch (e) {} }
+  p.innerHTML = "";
+  var days = r.days, last7 = days.slice(-7), sum = function (f) { return last7.reduce(function (n, d) { return n + (f(d) || 0); }, 0); };
+  var errs = {}; last7.forEach(function (d) { Object.keys(d.errors || {}).forEach(function (h) { var x = d.errors[h], e = errs[h] || (errs[h] = { m:x.m, s:x.s, app:x.app, n:0, devs:0, ver:{}, last:0 }); e.n += x.n; e.devs += x.devs; Object.assign(e.ver, x.ver); e.last = Math.max(e.last, x.last || 0); }); });
+  var el = Object.keys(errs).map(function (h) { return errs[h]; }).sort(function (a, b) { return b.devs - a.devs || b.n - a.n; });
+  var tiles = E("div", "tiles");
+  [[sum(function (d) { return d.devices; }), "devices sent counts this week"], [el.length, "different errors this week"], [r.invites.joined || 0, "friends joined with an invite (" + (r.invites.codes || 0) + " links made)"]].forEach(function (t) {
+    var c = E("div", "card tile"); add(c, E("b", "", String(t[0])), E("span", "", t[1])); tiles.appendChild(c); });
+  p.appendChild(tiles);
+  // devices per day
+  var dc = card(p, "📈 Devices sending counts, per day", "Only apps with “Send anonymous counts” on (Settings) send these.");
+  bars(add(dc, E("div", "bars")).lastChild, days.map(function (d) { return [d.day.slice(5), d.devices || 0]; }));
+  // errors
+  var ec = card(p, "🐞 Errors this week", "Errors the apps ran into, the most widespread first. Where it happened is in Webs's own files; web pages' addresses are never sent.");
+  if (!el.length) ec.appendChild(E("p", "d", "No errors. 🎉"));
+  el.slice(0, 25).forEach(function (x) {
+    var c = E("div", "rep"); add(c, E("h3", "", (x.app === "iphone" ? "📱 " : "💻 ") + x.m), E("div", "meta", x.devs + " device" + (x.devs === 1 ? "" : "s") + " · " + x.n + " time" + (x.n === 1 ? "" : "s") + " · " + (x.s || "?") + " · versions " + (Object.keys(x.ver).join(", ") || "?") + " · last " + ago(x.last)));
+    ec.appendChild(c);
+  });
+  // features
+  var fc = card(p, "🧭 Features used this week", "How often each panel, sheet and page tool was opened (p. = a Windows panel, t. = a page tool, s. = an iPhone sheet).");
+  var which = sel("App", "windows", [["windows", "💻 Windows"], ["iphone", "📱 iPhone"]]), fb = E("div", "bars");
+  var paintF = function () { var u = {}; last7.forEach(function (d) { var x = (d.uses || {})[which.input.value] || {}; Object.keys(x).forEach(function (k) { u[k] = (u[k] || 0) + x[k]; }); });
+    var l = Object.keys(u).map(function (k) { return [k, u[k]]; }).sort(function (a, b) { return b[1] - a[1]; }).slice(0, 25);
+    if (!l.length) { fb.innerHTML = '<p class="d small">Nothing yet.</p>'; return; } bars(fb, l); };
+  which.input.onchange = paintF; add(fc, which, fb); paintF();
+  // versions
+  var vc = card(p, "🔢 Versions this week"), vv = {}; last7.forEach(function (d) { Object.keys(d.ver || {}).forEach(function (k) { vv[k] = (vv[k] || 0) + d.ver[k]; }); });
+  var vl = Object.keys(vv).map(function (k) { return [k, vv[k]]; }).sort(function (a, b) { return b[1] - a[1]; });
+  if (vl.length) bars(add(vc, E("div", "bars")).lastChild, vl); else vc.appendChild(E("p", "d small", "Nothing yet."));
+  // A/B tests
+  var ac = card(p, "🅰️🅱️ A/B tests", "Announcements with two versions (Start page → Announcement banner → Test a second version). A click is opening its link or reacting.");
+  var ids = Object.keys(r.ab).sort(function (a, b) { return (r.ab[b].last || 0) - (r.ab[a].last || 0); });
+  if (!ids.length) ac.appendChild(E("p", "d small", "No A/B tests yet."));
+  var texts = {}; [S.live && S.live.ann].concat(S.live && S.live.sched || []).forEach(function (a) { if (a) texts[a.id] = a; });
+  ids.forEach(function (id) {
+    var x = r.ab[id], t = texts[id], rate = function (v) { return v.seen ? Math.round(v.click / v.seen * 1000) / 10 : 0; };
+    var c = E("div", "rep"); c.appendChild(E("h3", "", t ? "“" + t.text.slice(0, 60) + "”" : "Announcement " + id));
+    ["A", "B"].forEach(function (v) { c.appendChild(E("div", "meta", v + (t ? " (" + (v === "A" ? t.text : t.textB || "").slice(0, 50) + ")" : "") + ": " + x[v].seen + " saw it, " + x[v].click + " clicked · " + rate(x[v]) + "%")); });
+    var a = rate(x.A), b = rate(x.B), enough = x.A.seen >= 30 && x.B.seen >= 30;
+    c.appendChild(E("div", "ans", !enough ? "Keep it running: about 30 views of each version are needed to tell." : a === b ? "So far they do the same." : "Version " + (a > b ? "A" : "B") + " is doing better (" + Math.max(a, b) + "% against " + Math.min(a, b) + "%)."));
+    ac.appendChild(c);
+  });
+};
+REFRESH.insights = function (p) { PANES.insights(p); };
+
 /* ---------------------------------------------------------------- Start page: everything on everyone's start page */
 async function saveLive(part) { var r = await call({ op:"live.set", live:part }); S.live = r.live; return r; }
 function resultsBars(box, list) { var w = E("div", "res bars"); box.appendChild(w); bars(w, list); return w; }
@@ -468,12 +526,59 @@ PANES.live = async function (p) {
   // the announcement
   var an = fold(p, "📣 Announcement banner", "A banner at the top of everyone's start page. People can react with emoji and close it.", !!L.ann);
   var at = inp("Message", L.ann && L.ann.text, { maxlength:300, placeholder:"Maintenance tonight from 10 to 11 pm" }), al = inp("Link (optional)", L.ann && L.ann.link, { placeholder:"https://…" }), au = untilField("Show until (optional)", L.ann && L.ann.until), ar = sw("Emoji reactions", !L.ann || L.ann.react !== false);
-  add(an, at, al, au, ar, rowOf(btn("Save banner", async function (b) {
-    var same = L.ann && L.ann.text === at.input.value.trim();
-    await act(b, function () { return saveLive({ ann:{ id:same ? L.ann.id : "", text:at.input.value, link:al.input.value, until:dateTs(au.input.value, true), react:ar.input.checked } }); }, "Banner is on.");
+  // 3.10: a second version, for an A/B test (half the devices see each; Insights shows which got more clicks)
+  var abd = E("details"), abs = E("summary", "small", "🅰️🅱️ Test a second version (A/B test)"), atB = inp("Version B message", L.ann && L.ann.textB, { maxlength:300, placeholder:"Same news, said another way" }), alB = inp("Version B link (optional)", L.ann && L.ann.linkB, { placeholder:"https://…" });
+  if (L.ann && L.ann.textB) abd.open = true;
+  add(abd, abs, atB, alB, E("p", "d small", "Half of the devices see version B, always the same half. Insights → A/B tests shows how many saw and clicked each."));
+  add(an, at, al, au, ar, abd, rowOf(btn("Save banner", async function (b) {
+    var same = L.ann && L.ann.text === at.input.value.trim() && (L.ann.textB || "") === atB.input.value.trim();
+    await act(b, function () { return saveLive({ ann:{ id:same ? L.ann.id : "", text:at.input.value, link:al.input.value, until:dateTs(au.input.value, true), react:ar.input.checked, textB:atB.input.value, linkB:alB.input.value } }); }, "Banner is on.");
     built.live = false; show("live");
   }), L.ann ? btn("Remove", async function (b) { await act(b, function () { return saveLive({ ann:null }); }, "Removed."); built.live = false; show("live"); }, "danger") : null));
   if (L.ann && A.react && A.react.id === L.ann.id) resultsBars(an, (S.reacts || []).map(function (e) { return [e, A.react.counts[e] || 0]; }));
+  // 3.10: scheduled posts - announcements that show by themselves at their time
+  var schF = fold(p, "🗓️ Scheduled posts", "Announcements that go up by themselves at the time you pick (and come down at their end, if you give one). While one is up it shows instead of the banner above.", !!(L.sched && L.sched.length), false);
+  var schL = E("div"); schF.appendChild(schL);
+  (L.sched || []).forEach(function (x, i) {
+    var r = E("div", "row sch"), t = E("span", "", (x.from <= Date.now() ? "🟢 up now · " : "🕒 " + when(x.from) + " · ") + x.text.slice(0, 80) + (x.textB ? " (A/B)" : "") + (x.until ? " · until " + when(x.until) : ""));
+    add(r, t, E("span", "sp"), btn("Remove", async function (b) { var l = L.sched.slice(); l.splice(i, 1); await act(b, function () { return saveLive({ sched:l }); }, "Removed."); built.live = false; show("live"); }, "danger small"));
+    schL.appendChild(r);
+  });
+  if (!(L.sched || []).length) schL.appendChild(E("p", "d small", "Nothing scheduled."));
+  var sTxt = inp("Message", "", { maxlength:300, placeholder:"🎉 The summer sale starts now!" }), sLink = inp("Link (optional)", "", { placeholder:"https://…" });
+  var sFrom = inp("Goes up at", "", { type:"datetime-local" }), sUntil = inp("Comes down at (optional)", "", { type:"datetime-local" }), sB = inp("Version B (optional, for an A/B test)", "", { maxlength:300 });
+  add(schF, sTxt, sLink, sFrom, sUntil, sB, rowOf(btn("Schedule it", async function (b) {
+    var f = new Date(sFrom.input.value).getTime(), u = sUntil.input.value ? new Date(sUntil.input.value).getTime() : 0;
+    if (!sTxt.input.value.trim()) return toast("Write the message first.");
+    if (!(f > Date.now())) return toast("Pick a time in the future.");
+    if (u && u <= f) return toast("It has to come down after it goes up.");
+    await act(b, function () { return saveLive({ sched:(L.sched || []).concat([{ text:sTxt.input.value, link:sLink.input.value, from:f, until:u, textB:sB.input.value, react:true }]) }); }, "Scheduled.");
+    built.live = false; show("live");
+  })));
+  // 3.10: the wallpaper gallery - what people shared, waiting for you
+  var galF = fold(p, "🖼️ Wallpaper gallery", "Wallpapers people shared from their apps. Nothing shows in anyone's gallery until you approve it.", false, false);
+  var galL = E("div"); galF.appendChild(galL);
+  var paintGallery = async function () {
+    galL.innerHTML = "";
+    try {
+      var g = await call({ op:"gallery.list" });
+      galL.appendChild(E("h4", "", "Waiting (" + g.pending.length + ")"));
+      if (!g.pending.length) galL.appendChild(E("p", "d small", "Nothing waiting."));
+      g.pending.forEach(function (x) {
+        var c = E("div", "gal"), im = E("img"); im.src = x.img; im.alt = "";
+        var ti = inp("Name", x.title, { maxlength:60 });
+        add(c, im, E("p", "d small", "by " + x.by + " · " + (x.app === "iphone" ? "📱" : "💻") + " · " + ago(x.ts)), ti,
+          rowOf(btn("Approve", async function (b) { await act(b, function () { return call({ op:"gallery.ok", id:x.id, title:ti.input.value }); }, "In everyone's gallery."); paintGallery(); }),
+            btn("Turn down", async function (b) { await act(b, function () { return call({ op:"gallery.no", id:x.id }); }, "Turned down."); paintGallery(); }, "danger")));
+        galL.appendChild(c);
+      });
+      galL.appendChild(E("h4", "", "In the gallery (" + g.approved.length + ")"));
+      g.approved.forEach(function (x) {
+        add(galL, rowOf(E("span", "", x.title + " · by " + x.by), E("span", "sp"), btn("Take out", async function (b) { if (!confirm("Take “" + x.title + "” out of the gallery?")) return; await act(b, function () { return call({ op:"gallery.del", id:x.id }); }, "Taken out."); paintGallery(); }, "danger small")));
+      });
+    } catch (e) { galL.appendChild(E("p", "err", e.message)); }
+  };
+  galF.addEventListener("toggle", function () { if (galF.open && !galL.childNodes.length) paintGallery(); });
   // the calling card
   var cc = fold(p, "🎭 Calling card", "A full-screen Persona 5-style card everyone sees once, the next time they open a new tab.", !!L.card);
   var ct = inp("Title", L.card && L.card.title, { maxlength:80, placeholder:"TAKE YOUR TIME!" }), cx = inp("Message", L.card && L.card.text, { area:1, maxlength:400, placeholder:"We will steal your boredom this Friday: a new update is coming." }), cs = inp("Signed", L.card ? L.card.sign : "The Phantom Thieves", { maxlength:60 });

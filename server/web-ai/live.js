@@ -40,7 +40,12 @@ const url = v => { const u = String(v || "").trim(); return /^https?:\/\/[^\s"<>
 const dated = (list, n, f) => (Array.isArray(list) ? list : []).filter(x => x && isDate(x.date)).map(f).filter(Boolean).sort((a, b) => a.date < b.date ? -1 : 1).slice(-n);
 export function cleanLive(p, old) {
   const o = old || {}, v = {};
-  if (p.ann && txt(p.ann.text, 300)) v.ann = { id:p.ann.id && o.ann && o.ann.id === p.ann.id ? p.ann.id : id8(p.ann.id), text:txt(p.ann.text, 300), link:url(p.ann.link), until:until(p.ann.until), react:p.ann.react !== false };
+  // an announcement: (3.10) it can wait for its time ("from"), and have a second version for an A/B test (half see each)
+  const ann = (a, keep) => a && txt(a.text, 300) ? Object.assign({ id:a.id && keep ? a.id : id8(a.id), text:txt(a.text, 300), link:url(a.link), until:until(a.until), react:a.react !== false },
+    until(a.from) ? { from:until(a.from) } : {}, txt(a.textB, 300) ? { textB:txt(a.textB, 300), linkB:url(a.linkB) } : {}) : null;
+  if (p.ann && txt(p.ann.text, 300)) v.ann = ann(p.ann, o.ann && o.ann.id === p.ann.id);
+  const oldIds = (o.sched || []).map(x => x.id);
+  v.sched = (Array.isArray(p.sched) ? p.sched : []).map(a => ann(a, a && oldIds.indexOf(a.id) >= 0)).filter(a => a && a.from && (!a.until || a.until > now())).sort((a, b) => a.from - b.from).slice(0, 20);
   if (p.card && txt(p.card.title, 80)) v.card = { id:id8(p.card.id), title:txt(p.card.title, 80), text:txt(p.card.text, 400), sign:txt(p.card.sign, 60) || "The Phantom Thieves", until:until(p.card.until) };
   if (p.poll && txt(p.poll.q, 200)) {
     const opts = (Array.isArray(p.poll.opts) ? p.poll.opts : []).map(x => txt(x, 60)).filter(Boolean).slice(0, 4);
@@ -121,7 +126,10 @@ export async function livePublic(env, base) {
   const out = { ok:true, rev:v.rev || 0, now:now() };
   if (c.maint.on) out.maint = { text:c.maint.text || "Web AI is down for maintenance. It'll be back soon." };
   else if (c.ai.paused) out.maint = { text:c.ai.pauseMsg || "Web AI is taking a break. Try again later.", ai:true };
-  for (const k of ["ann", "card", "poll", "pick"]) if (on(v[k])) out[k] = v[k];
+  for (const k of ["card", "poll", "pick"]) if (on(v[k])) out[k] = v[k];
+  // the announcement on now: the scheduled one that started last, or the main one
+  const anns = [v.ann].concat(v.sched || []).filter(on).sort((a, b) => (b.from || 0) - (a.from || 0));
+  if (anns.length) out.ann = anns[0];
   for (const k of ["words", "themes", "quotes", "trivia", "mystery"]) { const l = near(v[k]); if (l.length) out[k] = l; }
   if (v.countdown && v.countdown.date >= day(now() - 86400000)) out.countdown = v.countdown;
   if (v.birthday) out.birthday = v.birthday;
