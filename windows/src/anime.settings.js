@@ -23,6 +23,15 @@ btn.onclick = () => {
 snd.onclick = () => { snd.classList.toggle("on"); if (cfg.anime) choose(cfg.anime, snd.classList.contains("on")); };
 paint();
 
+// 3.10: the screensaver and the schedule (the browser window runs them, src/anime.chrome.js)
+$("#anSaver").value = String(+cfg.animeSaver || 0);
+$("#anSaver").onchange = () => { cfg.animeSaver = +$("#anSaver").value; commit(); };
+$("#anSchEdit").onclick = () => {
+  const box = $("#anSch"), open = box.classList.toggle("hidden") === false;
+  $("#anSchEdit").textContent = open ? "Close" : "Edit…";
+  if (open) Anime.schedEditor(box, cfg.animeSched || {}, sc => { cfg.animeSched = sc; cfg.animeSlot = ""; commit(); });
+};
+
 // 3.9: the wallpaper behind websites (src/anime.chrome.js): on or off, and the sites with a look of their own
 const web = $("#anWeb"), list = $("#anSites");
 web.value = cfg.animeWeb || "";

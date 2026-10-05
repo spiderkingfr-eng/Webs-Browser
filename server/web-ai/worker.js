@@ -20,9 +20,13 @@
    The browser talks to it as:
      GET  /        is it running?
      POST /check   { code?, device? }          -> { ok, name, left, limit, open }
-     POST /chat    { code?, device?, messages:[{role, content}], web? }
+     POST /chat    { code?, device?, messages:[{role, content}], web?, prefs?, task? }
                    web:true (the iPhone app, which can't read pages itself) lets Claude
                    fetch the page's address once, at most about 6,000 tokens of it
+                   prefs: how the person likes answers (Web AI's settings, "Your instructions")
+                   task: a job with its own instructions (TASKS below): an answer in the address
+                   bar, a video's key moments, tidying tabs, comparing pages, study cards,
+                   explaining a selection, finding a page in the history
                    -> one JSON object per line: { d:"text" } ... { end:1, stop, left } or { error, message }
 
      POST /report  { code?, device, app, version, text, info, errors }   a problem report, for the owner
@@ -59,9 +63,28 @@
      the owner's phone, scheduled notifications, the health panel, outage alerts, the weekly report.
      GET  /admin/app.js, /admin/app.css, /admin/sw.js, /admin/manifest.json   the dashboard itself (dash.js)
 
+     Privacy (privacy.js, nothing stored):
+     GET  /whoami                   what any website learns from your internet address
+     GET  /domain?d=example.com     when a website's name was registered (the fake shop warning)
+
+     Live rooms (rooms.js, a Durable Object each): GET /room?k=… with a WebSocket, for linked devices
+     (the shared clipboard, the phone as a remote, pick up where you left off, sets of tabs) and games
+     with a join code
+
+     The ledger (ledger.js, one Durable Object): counts for the owner that cost no KV writes
+     POST /stats                    once a day: features used, errors, A/B test results
+     GET  /gallery, /gallery/img/<id>, POST /gallery/send    wallpapers people share, once the owner approves
+     POST /invite/new, /invite/claim                         invite links: an achievement for both
+     GET  /read?u=…&device=…        a page's article, for the iPhone app to keep offline (reader.js)
+
    setup.cmd sends this folder to Cloudflare (wrangler puts the files together). */
 import { ownerCfg, ownerGate, ownerAdmin, ownerCron, ownerChosen, allCodes, aiSettings, isBlocked, pushOwner, logA, addHist, dueScheduled } from "./owner.js";
 import { liveApi, liveAdmin, liveCron, liveNews } from "./live.js";
+import { privacyApi } from "./privacy.js";
+import { roomApi, Room } from "./rooms.js";
+import { ledgerApi, ledgerAdmin, Ledger } from "./ledger.js";
+import { readApi } from "./reader.js";
+export { Room, Ledger };
 import { ADMIN_PAGE, DASH_JS, DASH_CSS, DASH_SW, DASH_MANIFEST, DASH_ICON, DASH_PNG } from "./dash.js";
 
 const API = "https://api.anthropic.com/v1/messages";
@@ -85,6 +108,26 @@ Answers appear in a narrow sidebar, so keep them short and easy to scan: lead wi
 
 Today's date is ${date}.`;
 
+// Windows 3.10, iPhone 2.9: jobs the apps ask for, each with its own instructions after the ones above
+const TASKS = {
+  answer:"This question was typed in the browser's address bar and the answer shows in its dropdown. Answer in at most three short sentences of plain text: no headings, lists or Markdown. If it needs more, give the gist and say Web AI can tell them more.",
+  video:"The <page> block holds a YouTube video's captions, each line starting with its time as [m:ss] or [h:mm:ss]. Give the video's key moments: 4 to 8 lines, each starting with the time that part begins in the same form, then a short summary of that part, in order. Then a last line starting with \"In short:\" and the whole video in one sentence. If the block has a description instead of captions, say the video has no captions and summarize the description.",
+  tidy:"The message lists the person's open tabs, one per line as: id | title | address. Group them by topic, and point out tabs they can probably close (duplicates, searches already done, pages that look finished with). Reply with only JSON in a ```json block, like {\"groups\":[{\"name\":\"short topic\",\"ids\":[1,2]}],\"close\":[{\"id\":3,\"why\":\"a few words\"}]}. Use only ids from the list, put every tab in exactly one group, and use at most 6 groups with names of one to three words.",
+  compare:"The message holds several <page> blocks from the person's open tabs, usually products or offers. Compare them: a Markdown table with a row for each page (its name and short title, the price if there is one, and the facts that differ most), then two or three sentences on which suits whom. Use only what's on the pages, and write ? for anything a page doesn't say. If the <page> blocks have addresses but no text, fetch each address first (once each).",
+  study:"Make study material from the <page> block's main content. Reply with only JSON in a ```json block, like {\"cards\":[{\"q\":\"a question or a term\",\"a\":\"a short answer\"}],\"quiz\":[{\"q\":\"a question\",\"opts\":[\"a\",\"b\",\"c\",\"d\"],\"a\":0}]}, with 8 to 12 cards and 5 quiz questions, each with four choices and \"a\" the number of the right one, 0 for the first.",
+  explain:"Explain the <selection> simply, in two to four short sentences, using the page around it (in the <page> block, if there is one) for context. Plain text, no headings or lists.",
+  find:"The message lists pages from the person's history, one per line as: number | when | title | address, and then what they're looking for. Find the pages that match. Reply with only JSON in a ```json block, like {\"hits\":[{\"n\":12,\"why\":\"a few words\"}]}, with at most 6, the best first, or {\"hits\":[]} if none fit."
+};
+const PREFS_MAX = 600;
+// the system prompt for a question: the person's own instructions (their words, kept apart) and the job, if any
+function system(date, prefs, task) {
+  let s = SYSTEM(date);
+  const p = String(prefs || "").replace(/[\u0000-\u0008\u000b-\u001f]/g, " ").trim().slice(0, PREFS_MAX);
+  if (p) s += "\n\nThe person wrote how they like answers, in Web AI's settings. Follow it where it makes sense, unless it goes against the rest of these instructions:\n<prefs>\n" + p + "\n</prefs>";
+  if (TASKS[task]) s += "\n\n" + TASKS[task];
+  return s;
+}
+
 export default {
   async fetch(req, env, ctx) {
     const cors = corsFor(req.headers.get("Origin") || "");
@@ -93,12 +136,17 @@ export default {
     try {
       if (req.method === "GET" && path === "/") {      // says what's missing, never any value
         const missing = setupProblem(env);
-        return json({ ok:true, name:"Web AI", ready:!missing, open:isOpen(env), model:model(env), features:["report", "link", "admin", "push", "support", "live", "owner"], ...(missing ? { missing:"Still to do: " + missing } : {}) }, 200, cors);
+        return json({ ok:true, name:"Web AI", ready:!missing, open:isOpen(env), model:model(env), features:["report", "link", "admin", "push", "support", "live", "owner", "privacy", ...(env.ROOMS ? ["rooms"] : []), ...(env.LEDGER ? ["ledger"] : [])], ...(missing ? { missing:"Still to do: " + missing } : {}) }, 200, cors);
       }
       if ((req.method === "GET" && /^\/live(\/img\/[a-z0-9]{10})?$/.test(path)) || (req.method === "POST" && /^\/live\/(ping|act|replies)$/.test(path))) {
         if (!env.LIMITS || typeof env.LIMITS.get !== "function") return json({ error:"setup", message:"The storage (LIMITS) isn't set up." }, 503, cors);
         return await liveApi(path, req, env, cors);
       }
+      if (req.method === "GET" && path === "/changelog") return Response.redirect(APP_URL.replace(/\/?$/, "/") + "changelog.html", 302);
+      if (req.method === "GET" && path === "/read") return await readApi(req, env, cors);
+      if (req.method === "GET" && path === "/room") return await roomApi(req, env, cors);
+      if ((req.method === "GET" && /^\/gallery(\/img\/[a-z0-9]{10})?$/.test(path)) || (req.method === "POST" && /^\/(stats|gallery\/send|invite\/new|invite\/claim)$/.test(path))) return await ledgerApi(path, req, env, cors);
+      if (req.method === "GET" && (path === "/whoami" || path === "/domain")) return await privacyApi(path, req, env, cors, ctx);
       const asset = req.method === "GET" && DASH_FILES[path];
       if (asset) return new Response(asset[1], { headers:{ "content-type":asset[0], "cache-control":"no-cache", ...(path === "/admin/sw.js" ? { "service-worker-allowed":"/" } : {}) } });
       if (req.method === "GET" && DASH_PNG[path]) return new Response(Uint8Array.from(atob(DASH_PNG[path]), c => c.charCodeAt(0)), { headers:{ "content-type":"image/png", "cache-control":"public, max-age=86400" } });
@@ -148,12 +196,12 @@ export default {
         headers:{ "content-type":"application/json", "x-api-key":String(env.ANTHROPIC_API_KEY).trim(), "anthropic-version":"2023-06-01" },
         body:JSON.stringify({
           model:ai.model,
-          max_tokens:ai.maxTokens,
-          system:SYSTEM(new Date().toUTCString().slice(0, 16)),
+          max_tokens:body.task === "answer" ? Math.min(ai.maxTokens, 500) : ai.maxTokens,
+          system:system(new Date().toUTCString().slice(0, 16), body.prefs, body.task),
           messages,
           // chat: short or no thinking, a quick first word (Haiku 4.5 has no effort setting)
           ...(/haiku/i.test(ai.model) ? {} : { output_config:{ effort:"low" } }),
-          ...(body.web === true ? { tools:[{ type:"web_fetch_20250910", name:"web_fetch", max_uses:1, max_content_tokens:6000 }] } : {}),
+          ...(body.web === true ? { tools:[{ type:"web_fetch_20250910", name:"web_fetch", max_uses:body.task === "compare" ? 4 : 1, max_content_tokens:body.task === "compare" ? 4000 : 6000 }] } : {}),     // comparing tabs on the iPhone: up to four pages
           cache_control:{ type:"ephemeral" },      // follow-up questions reread the page from the cache
           stream:true
         })
@@ -813,7 +861,7 @@ async function admin(req, env) {
     const items = (await Promise.all(l.keys.map(k => env.LIMITS.get(k.name)))).map(v => { try { const { rh, ...r } = JSON.parse(v); return { ...r, canReply:!!rh }; } catch (e) { return null; } }).filter(Boolean);
     return json({ ok:true, items }, 200, h);
   }
-  const mine = await ownerAdmin(op, body, env, h, req) || await liveAdmin(op, body, env, h);
+  const mine = await ledgerAdmin(op, body, env, h) || await ownerAdmin(op, body, env, h, req) || await liveAdmin(op, body, env, h);
   if (mine) return mine;
   if (op !== "stats") return json({ error:"bad", message:"Unknown request." }, 400, h);
   const days = [];

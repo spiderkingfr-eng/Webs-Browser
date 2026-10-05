@@ -587,9 +587,166 @@ function xTool(action, arg) {
     case 'x-keys': xKeys(); return true;
     case 'x-laser': xLaser(); return true;
     case 'x-init': xInit(arg); return true;
+    case 'x-yt': xYt(); return true;
+    case 'x-fill': toolReply({ a:'x-fill', n:xFill(arg) }); return true;
+    case 'x-scrollto': xScrollTo(arg); return true;
+    case 'x-seek': { var sv = bestVideo(); if (sv) { sv.currentTime = Math.max(0, +arg || 0); if (sv.paused) sv.play().catch(function () {}); badge('→ ' + clock(sv.currentTime)); } return true; }
+    case 'x-explain-on': xpOn = arg === '1'; if (!xpOn) xpClose(); return true;
+    case 'x-explain-show': { var eo = null; try { eo = JSON.parse(arg); } catch (e) {} if (eo) xpShow(eo); return true; }
+    case 'x-shop': toolReply(xShopSigns()); return true;
+    case 'x-shop-warn': { var so = null; try { so = JSON.parse(arg); } catch (e) {} if (so) xShopWarn(so); return true; }
+    case 'x-seen': xSeen(); return true;
   }
   return false;
 }
+
+/* ------------------------------------------------------------------ Webs 3.10: your address in a form
+   The browser window keeps it (encrypted) and hands it over only when you ask (Menu → Fill in my address,
+   or Alt+Shift+F). Each box is matched by what the site says it's for (autocomplete), else its name, its
+   label or its placeholder. Password and hidden boxes are never touched; what's already filled stays. */
+var FILL_AC = { 'name':'name', 'given-name':'given', 'family-name':'family', 'email':'email', 'tel':'phone', 'tel-national':'phone', 'street-address':'street', 'address-line1':'street',
+  'address-line2':'street2', 'address-level2':'city', 'postal-code':'postcode', 'address-level1':'state', 'country-name':'country', 'country':'country', 'organization':'company' };
+var FILL_RE = [['email', /e-?mail/], ['phone', /phone|mobile|\btel\b|telephone/], ['given', /first.?name|given.?name|fname|forename/], ['family', /last.?name|surname|family.?name|lname/],
+  ['postcode', /zip|postal|post.?code|postcode/], ['city', /\bcity\b|\btown\b|locality/], ['state', /\bstate\b|province|region|county/], ['country', /country/],
+  ['street2', /address.?2|line.?2|apartment|\bapt\b|suite/], ['street', /address|street|addr|line.?1/], ['company', /company|organi[sz]ation/], ['name', /\bname\b|full.?name/]];
+function xFill(arg) {
+  var p = {}; try { p = JSON.parse(arg) || {}; } catch (e) {}
+  var parts = String(p.name || '').trim().split(/\s+/);
+  var v = { name:p.name, given:parts[0] || '', family:parts.length > 1 ? parts.slice(1).join(' ') : '', email:p.email, phone:p.phone, street:p.street, street2:p.street2, city:p.city,
+    postcode:p.postcode, state:p.state, country:p.country, company:p.company };
+  var n = 0;
+  var setVal = function (el, val) {
+    var proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype, d = Object.getOwnPropertyDescriptor(proto, 'value');
+    if (d && d.set) d.set.call(el, val); else el.value = val;
+    el.dispatchEvent(new Event('input', { bubbles:true })); el.dispatchEvent(new Event('change', { bubbles:true }));
+  };
+  D.querySelectorAll('input,select,textarea').forEach(function (el) {
+    var type = (el.type || '').toLowerCase();
+    if (el.disabled || el.readOnly || /^(password|hidden|submit|button|checkbox|radio|file|image|reset|search|date|number|range|color)$/.test(type)) return;
+    var r = el.getBoundingClientRect(); if (!r.width || !r.height) return;
+    var key = FILL_AC[String(el.getAttribute('autocomplete') || '').toLowerCase().replace(/^(shipping|billing)\s+/, '').trim()];
+    if (!key) {
+      var lab = (el.labels && el.labels[0] ? el.labels[0].textContent : '') + ' ' + (el.name || '') + ' ' + (el.id || '') + ' ' + (el.placeholder || '') + ' ' + (el.getAttribute('aria-label') || '');
+      lab = lab.toLowerCase(); if (/user|login|captcha|coupon|promo|search|card|cvv|code\b/.test(lab) && !/post.?code|zip/.test(lab)) return;
+      if (type === 'email') key = 'email'; else if (type === 'tel') key = 'phone';
+      else for (var i = 0; i < FILL_RE.length && !key; i++) if (FILL_RE[i][1].test(lab)) key = FILL_RE[i][0];
+    }
+    var val = key && v[key] ? String(v[key]) : '';
+    if (!val) return;
+    if (el.tagName === 'SELECT') {
+      var lv = val.toLowerCase(), o = [].find.call(el.options, function (x) { return x.value.toLowerCase() === lv || x.text.trim().toLowerCase() === lv; }) ||
+        [].find.call(el.options, function (x) { return lv.length > 2 && x.text.toLowerCase().indexOf(lv) === 0; });
+      if (o && el.value !== o.value) { el.value = o.value; el.dispatchEvent(new Event('change', { bubbles:true })); n++; }
+      return;
+    }
+    if (String(el.value || '').trim()) return;
+    setVal(el, val); n++;
+  });
+  badge(n ? 'Filled ' + n + ' box' + (n === 1 ? '' : 'es') + ' with your details' : 'No boxes here for your address');
+  return n;
+}
+/* scrolling by voice: the page, or the biggest box on it that scrolls (apps that scroll inside themselves) */
+function xScrollTo(where) {
+  var t = D.scrollingElement || D.documentElement;
+  if (t.scrollHeight <= t.clientHeight + 4) {
+    var e = D.elementFromPoint(W.innerWidth / 2, W.innerHeight / 2);
+    while (e && e !== D.body) { var cs = getComputedStyle(e); if (/(auto|scroll)/.test(cs.overflowY) && e.scrollHeight > e.clientHeight + 4) { t = e; break; } e = e.parentElement; }
+  }
+  var h = (t === D.scrollingElement || t === D.documentElement ? W.innerHeight : t.clientHeight) * 0.8;
+  var o = where === 'top' ? { top:0 } : where === 'bottom' ? { top:t.scrollHeight } : { top:(t.scrollTop || 0) + (where === 'up' ? -h : h) };
+  o.behavior = 'smooth';
+  if (t === D.scrollingElement || t === D.documentElement) W.scrollTo(o); else t.scrollTo(o);
+}
+
+/* ------------------------------------------------------------------ Webs 3.10: a video's captions, for Web AI
+   The YouTube player's own data (on the page, or the watch page fetched again, since YouTube changes videos
+   without loading a page) names the caption tracks; the best one comes back as [m:ss] lines. Without
+   captions, the title and the description. */
+function xYt() {
+  var vid = ''; try { vid = new URLSearchParams(L.search).get('v') || ''; } catch (e) {}
+  var reply = function (o) { o.a = 'x-yt'; o.title = o.title || D.title; xReply(o, 't'); };
+  var go = function (pr) {
+    var det = pr && pr.videoDetails || {}, title = det.title || D.title, desc = String(det.shortDescription || '').slice(0, 6000);
+    var tr = pr && pr.captions && pr.captions.playerCaptionsTracklistRenderer, list = tr && tr.captionTracks || [];
+    var fallback = function () { reply({ t:'', desc:desc, title:title, none:1 }); };
+    if (!list.length) return fallback();
+    var pick = list.filter(function (c) { return /^en/.test(c.languageCode) && c.kind !== 'asr'; })[0] || list.filter(function (c) { return /^en/.test(c.languageCode); })[0] || list[0];
+    fetch(pick.baseUrl + '&fmt=json3', { credentials:'include' }).then(function (r) { return r.json(); }).then(function (j) {
+      var lines = (j.events || []).filter(function (e) { return e.segs; }).map(function (e) {
+        return '[' + clock(Math.floor((e.tStartMs || 0) / 1000)) + '] ' + e.segs.map(function (x) { return x.utf8 || ''; }).join('').replace(/\s+/g, ' ').trim();
+      }).filter(function (l) { return l.length > 9; });
+      if (!lines.length) return fallback();
+      reply({ t:lines.join('\n'), title:title, lang:pick.languageCode || '' });
+    }).catch(fallback);
+  };
+  var pr = W.ytInitialPlayerResponse;
+  if (pr && pr.videoDetails && pr.videoDetails.videoId === vid) return go(pr);
+  fetch(L.href, { credentials:'include' }).then(function (r) { return r.text(); }).then(function (h) {
+    var m = /ytInitialPlayerResponse\s*=\s*(\{.+?\})\s*;\s*(?:var\s|<\/script)/.exec(h);
+    var p = null; try { p = m ? JSON.parse(m[1]) : null; } catch (e) {}
+    go(p);
+  }).catch(function () { go(null); });
+}
+
+/* ------------------------------------------------------------------ Webs 3.10: Explain, next to text you select
+   Select a few words and a small ✦ Explain button shows beside them. Clicking it hands the selection and
+   the paragraph around it to the browser window, which asks Web AI, and the answer shows in the same
+   bubble. Nothing goes anywhere unless it's clicked. Off in Settings → Web pages. */
+var xpOn = false, xpHost = null, xpRoot = null, xpSel = '', xpCtx = '';
+function xpClose() { if (xpHost) { xpHost.remove(); xpHost = xpRoot = null; } }
+function xpPlace(r) {
+  var w = Math.min(360, W.innerWidth - 16), h = xpRoot.querySelector('.w').offsetHeight || 40, vh = W.innerHeight;
+  xpHost.style.left = Math.max(8, Math.min(r.left, W.innerWidth - w - 8)) + 'px';
+  xpHost.style.top = (r.bottom + 8 + h > vh ? Math.max(8, r.top - h - 8) : r.bottom + 8) + 'px';
+}
+function xpBubble(r) {
+  xpClose();
+  var host = D.createElement('wsb-badge');
+  host.style.cssText = 'all:initial;position:fixed;z-index:2147483647;left:0;top:0';
+  var root = host.attachShadow({ mode: 'closed' });
+  root.innerHTML = '<style>.w{font:13px/1.5 "Segoe UI",system-ui,sans-serif;color:#f3eff1;max-width:360px;animation:in .18s ease-out}@keyframes in{from{opacity:0;transform:translateY(-4px)}}' +
+    '.go{all:initial;font:600 12.5px "Segoe UI",system-ui,sans-serif;color:#fff;background:linear-gradient(135deg,#7f5cff,#e8342a);border-radius:999px;padding:5px 12px;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.35)}' +
+    '.go:hover{filter:brightness(1.1)}.go[hidden],.a[hidden]{display:none}.a{background:rgba(24,21,28,.97);border:1px solid rgba(255,255,255,.14);border-radius:12px;padding:10px 13px;max-height:260px;overflow:auto;box-shadow:0 12px 34px rgba(0,0,0,.5);white-space:pre-wrap}' +
+    '.a b{display:block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#b9a8ff;margin-bottom:4px}.a.err{color:#ffb4ab}.more{all:initial;display:block;margin-top:8px;font:12px "Segoe UI",system-ui;color:#b9a8ff;cursor:pointer}</style>' +
+    '<div class="w"><button class="go" title="Explain this with Web AI">✦ Explain</button><div class="a" hidden></div></div>';
+  (D.body || D.documentElement).appendChild(host);
+  xpHost = host; xpRoot = root; xpPlace(r);
+  var go = root.querySelector('.go');
+  go.addEventListener('mousedown', function (e) { e.preventDefault(); e.stopPropagation(); });
+  go.onclick = function (e) {
+    if (!e.isTrusted) return;
+    go.hidden = true;
+    xpShow({ t:'Thinking…', more:1 });
+    toolReply({ a:'x-explain', sel:xpSel.slice(0, 1500), ctx:xpCtx.slice(0, 3000), title:String(D.title || '').slice(0, 200) });
+  };
+}
+function xpShow(o) {
+  if (!xpRoot) return;
+  var a = xpRoot.querySelector('.a'), go = xpRoot.querySelector('.go');
+  go.hidden = true; a.hidden = false; a.className = 'a' + (o.err ? ' err' : '');
+  a.textContent = ''; var b = D.createElement('b'); b.textContent = '✦ Web AI'; a.appendChild(b);
+  a.appendChild(D.createTextNode(String(o.err || o.t || '')));
+  if (!o.more && !o.err) { var m = D.createElement('button'); m.className = 'more'; m.textContent = 'Ask more in Web AI ›'; m.onclick = function (e) { if (e.isTrusted) { toolReply({ a:'x-explain-more' }); xpClose(); } }; a.appendChild(m); }
+}
+W.addEventListener('mouseup', function (e) {
+  if (!xpOn || !TOP || !e.isTrusted || e.button !== 0) return;
+  if (xpHost && e.composedPath().indexOf(xpHost) >= 0) return;
+  setTimeout(function () {
+    var s = W.getSelection(), t = s && s.rangeCount ? String(s).replace(/\s+/g, ' ').trim() : '';
+    var ae = D.activeElement;
+    if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable)) return;
+    if (!t || t.split(' ').length < 2 || t.length > 1500) return;
+    var range = s.getRangeAt(0), r = range.getBoundingClientRect();
+    if (!r.width && !r.height) return;
+    var n = range.commonAncestorContainer; if (n && n.nodeType !== 1) n = n.parentNode;
+    var blk = n && n.closest ? n.closest('p,li,td,dd,blockquote,section,article,main,div') : null;
+    xpSel = t; xpCtx = String(blk && blk.innerText || '').replace(/\s+/g, ' ').trim();
+    xpBubble(r);
+  }, 10);
+}, true);
+W.addEventListener('mousedown', function (e) { if (xpHost && e.composedPath().indexOf(xpHost) < 0) xpClose(); }, true);
+W.addEventListener('keydown', function (e) { if (xpHost && e.key === 'Escape') xpClose(); }, true);
+W.addEventListener('scroll', function () { if (xpHost && xpRoot && xpRoot.querySelector('.a').hidden) xpClose(); }, true);
 
 /* The shell drops a page's answer when it is longer than 200,000 characters,
    so long text is cut to fit (and says so). */
@@ -786,3 +943,109 @@ W.addEventListener('keydown', function (e) {
   e.preventDefault(); e.stopImmediatePropagation();
   post('tool', { a: 'x-key', k: k });
 }, true);
+
+
+/* ------------------------------------------------------------------ Webs 3.10: is this shop fake?
+   x-shop reads what the page shows (prices, a cart, its discounts, the pages it links to, how it takes
+   money, pressure to buy, its contact email); the window adds how old the website is and decides
+   (js/privacy.js). x-shop-warn shows the result in a bar at the top of the page. */
+function xShopSigns() {
+  var o = { a: 'x-shop', host: L.hostname, https: L.protocol === 'https:', shop: false, deals: 0, trust: [], payOk: '', payRisky: '', urgency: '', freeMail: '' };
+  if (!TOP || !D.body) return o;
+  var text = String(D.body.innerText || '').slice(0, 200000), low = text.toLowerCase();
+  var prices = (text.match(/[$€£¥₹]\s?\d[\d.,]*|\d[\d.,]*\s?(€|eur|usd|£|zł|kr|chf)\b/gi) || []).length;
+  var cart = /add to (cart|bag|basket)|buy (it )?now|in den warenkorb|ajouter au panier|añadir al carrito|aggiungi al carrello|checkout|in winkelwagen/i;
+  var btns = D.querySelectorAll('button,a,input[type=submit],[role=button]'), hasCart = false;
+  for (var i = 0; i < btns.length && i < 3000; i++) { var bt = (btns[i].innerText || btns[i].value || btns[i].getAttribute('aria-label') || ''); if (bt.length < 40 && cart.test(bt)) { hasCart = true; break; } }
+  var ld = false;
+  D.querySelectorAll('script[type="application/ld+json"]').forEach(function (n) { if (/"@type"\s*:\s*"(Product|Offer|AggregateOffer)"/.test(n.textContent || '')) ld = true; });
+  var og = D.querySelector('meta[property="og:type"]'), ogP = og && /product/i.test(og.content || '');
+  o.shop = hasCart || ld || ogP || !!D.querySelector('meta[property="product:price:amount"]') || (prices >= 8 && /\b(cart|basket|shipping|in stock)\b/i.test(low));
+  var deals = 0, re = /(?:-|−|save\s+|up to\s+)\s?([5-9]\d)\s?%|\b([5-9]\d)\s?%\s?(?:off|rabatt|de descuento|de réduction|korting|sconto)/gi, m;
+  while ((m = re.exec(text)) && deals < 99) { if (+(m[1] || m[2]) >= 70) deals++; }
+  o.deals = deals;
+  var cats = { contact: /contact|kontakt|contacto|contatti|nous contacter/, about: /about( us)?|über uns|qui sommes|chi siamo|quiénes somos|our story/, returns: /return|refund|retour|rückgabe|widerruf|devoluci|resi\b|exchange/,
+    shipping: /shipping|delivery|versand|livraison|envío|spedizione/, privacy: /privacy|datenschutz|confidentialit|privacidad/, terms: /terms|conditions|agb|cgv|condiciones|termini/, imprint: /impressum|imprint|legal notice|mentions légales|aviso legal/ };
+  var links = D.querySelectorAll('a[href]'), found = {};
+  for (var j = 0; j < links.length && j < 4000; j++) {
+    var a = links[j], t2 = ((a.innerText || '') + ' ' + (a.getAttribute('href') || '')).toLowerCase().slice(0, 200);
+    for (var k in cats) if (!found[k] && cats[k].test(t2)) found[k] = 1;
+  }
+  o.trust = Object.keys(found);
+  var ok = low.match(/paypal|visa|mastercard|american express|amex|apple pay|google pay|klarna|shop pay|afterpay|maestro/), bad = low.match(/bank transfer|wire transfer|western union|moneygram|bitcoin|crypto(currency)?|usdt|gift card|zelle|cash app|friends and family/);
+  o.payOk = ok ? ok[0] : ''; o.payRisky = bad ? bad[0] : '';
+  var u = text.match(/only \d+ left[^.\n]{0,20}|\d+ (people|others) (are )?(viewing|looking at|bought)[^.\n]{0,25}|(sale|offer|deal) ends in[^.\n]{0,20}|hurry[^.\n]{0,30}|last chance[^.\n]{0,20}/i);
+  o.urgency = u ? u[0].trim() : '';
+  var fm = text.match(/[a-z0-9._%+-]+@(gmail|outlook|hotmail|yahoo|qq|163|126|proton|protonmail|aol|gmx|mail)\.[a-z.]{2,6}/i);
+  o.freeMail = fm ? fm[0] : '';
+  return o;
+}
+var xShopHost = null;
+function xShopWarn(o) {
+  if (!TOP) return;
+  if (xShopHost) { xShopHost.remove(); xShopHost = null; }
+  if (!o || o.level === 'ok') return;
+  var host = D.createElement('wsb-badge');
+  host.style.cssText = 'all:initial;position:fixed;z-index:2147483646;left:50%;top:10px;transform:translateX(-50%);width:min(560px,calc(100vw - 20px))';
+  var root = host.attachShadow({ mode: 'closed' });
+  var warn = o.level === 'warn';
+  root.innerHTML = '<style>' + X_CSS + '.s{font-size:13px;line-height:1.45;color:#fff;background:' + (warn ? 'linear-gradient(135deg,#b3261e,#7a1b16)' : 'linear-gradient(135deg,#a86a10,#6e470c)') +
+    ';border-radius:14px;padding:12px 14px;box-shadow:0 16px 44px rgba(0,0,0,.45);animation:in .3s cubic-bezier(.2,.9,.3,1.2)}.t{display:flex;gap:10px;align-items:flex-start}.t b{font-size:14px;display:block}' +
+    '.t i{font-style:normal;font-size:22px;line-height:1}ul{margin:8px 0 0 30px;padding:0}li{margin:2px 0}.g{opacity:.8;margin:6px 0 0 30px;font-size:12px}.btns{display:flex;gap:6px;margin:10px 0 0 30px;flex-wrap:wrap}' +
+    '.btns button{background:rgba(255,255,255,.16);color:#fff}.btns button:hover{background:rgba(255,255,255,.28)}.btns .m{background:#fff;color:#7a1b16}</style>' +
+    '<div class="s" role="alert"><div class="t"><i>' + (warn ? '⚠️' : '🧐') + '</i><div><b></b><span class="sub"></span></div></div><ul></ul><div class="g"></div><div class="btns">' +
+    '<button class="m" data-a="leave">Leave this site</button><button data-a="ai">Ask Web AI</button><button data-a="trust">I trust this shop</button><button data-a="close">Hide</button></div></div>';
+  root.querySelector('b').textContent = warn ? 'This shop might be fake' : 'Be careful with this shop';
+  root.querySelector('.sub').textContent = warn ? 'Webs found several signs of a scam shop. Check it before you pay.' : 'Some signs are worth a second look before you pay.';
+  var ul = root.querySelector('ul');
+  (o.reasons || []).slice(0, 6).forEach(function (r) { var li = D.createElement('li'); li.textContent = r; ul.appendChild(li); });
+  root.querySelector('.g').textContent = (o.good || []).length ? 'In its favour: ' + o.good.slice(0, 3).join('; ') : '';
+  root.querySelector('.btns').onclick = function (e) {
+    var b = e.target.closest('button'); if (!b || !e.isTrusted) return;
+    if (b.dataset.a !== 'close') toolReply({ a: 'x-shop-act', act: b.dataset.a });
+    host.remove(); xShopHost = null;
+  };
+  (D.body || D.documentElement).appendChild(host);
+  xShopHost = host;
+}
+
+/* ------------------------------------------------------------------ Webs 3.10: what this site sees about you
+   The answers this page's own scripts get (after fingerprint protection), for the window's panel. */
+function xSeen() {
+  var n = navigator, o = { a: 'x-seen', host: L.hostname };
+  o.ua = n.userAgent; o.lang = (n.languages || [n.language]).join(', '); o.platform = n.platform || '';
+  try { o.tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) { o.tz = ''; }
+  o.tzOff = -new Date().getTimezoneOffset();
+  o.screen = screen.width + ' × ' + screen.height; o.dpr = W.devicePixelRatio || 1;
+  o.cores = n.hardwareConcurrency || 0; o.mem = n.deviceMemory || 0; o.touch = n.maxTouchPoints || 0;
+  o.dnt = n.doNotTrack === '1'; o.gpc = !!n.globalPrivacyControl; o.battery = typeof n.getBattery === 'function';
+  o.dark = !!(W.matchMedia && W.matchMedia('(prefers-color-scheme: dark)').matches);
+  try {
+    var c = D.createElement('canvas'); c.width = 220; c.height = 40; var g = c.getContext('2d');
+    g.textBaseline = 'top'; g.font = '16px Arial'; g.fillStyle = '#f60'; g.fillRect(100, 1, 60, 20); g.fillStyle = '#069'; g.fillText('Webs 🕸️ fingerprint', 2, 15);
+    var s = c.toDataURL(), h = 2166136261; for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+    o.canvas = (h >>> 0).toString(16);
+  } catch (e) { o.canvas = ''; }
+  try { var gl = D.createElement('canvas').getContext('webgl'), ext = gl && gl.getExtension('WEBGL_debug_renderer_info'); o.gpu = gl ? String(gl.getParameter(ext ? 37446 : gl.RENDERER) || '') : ''; } catch (e) { o.gpu = ''; }
+  try {
+    var fonts = ['Arial', 'Calibri', 'Cambria', 'Consolas', 'Segoe UI', 'Tahoma', 'Verdana', 'Georgia', 'Comic Sans MS', 'Impact', 'Candara', 'Corbel', 'Franklin Gothic Medium', 'Gabriola',
+      'Lucida Console', 'Palatino Linotype', 'Book Antiqua', 'Garamond', 'Century Gothic', 'Bahnschrift', 'Ink Free', 'Javanese Text', 'Leelawadee UI', 'Malgun Gothic', 'Microsoft YaHei',
+      'MS Gothic', 'Nirmala UI', 'Sitka Text', 'Sylfaen', 'Yu Gothic'], k = 0;
+    if (D.fonts && D.fonts.check) fonts.forEach(function (f) { try { if (D.fonts.check('12px "' + f + '"')) k++; } catch (e) {} });
+    o.fonts = k;
+  } catch (e) {}
+  try { o.cookieN = D.cookie ? D.cookie.split(';').filter(function (x) { return x.trim(); }).length : 0; } catch (e) { o.cookieN = 0; }
+  try { o.storeN = W.localStorage.length + W.sessionStorage.length; } catch (e) { o.storeN = 0; }
+  var third = {}, me = L.hostname.split('.').slice(-2).join('.');
+  D.querySelectorAll('script[src],iframe[src],img[src]').forEach(function (n) {
+    try { var hh = new URL(n.src, L.href).hostname, base = hh.split('.').slice(-2).join('.'); if (hh && base !== me) third[base] = 1; } catch (e) {}
+  });
+  o.third = Object.keys(third).slice(0, 40); o.thirdN = o.third.length;
+  var perms = ['geolocation', 'notifications', 'camera', 'microphone'], got = {}, left = perms.length;
+  var done = function () { o.perms = got; toolReply(o); };
+  if (!n.permissions || !n.permissions.query) { done(); return; }
+  perms.forEach(function (p) {
+    n.permissions.query({ name: p }).then(function (r) { got[p === 'geolocation' ? 'location' : p] = r.state; }, function () {}).then(function () { if (--left === 0) done(); });
+  });
+  setTimeout(function () { if (left > 0) { left = -1; done(); } }, 1500);
+}

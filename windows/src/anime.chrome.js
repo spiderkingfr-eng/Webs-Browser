@@ -2,7 +2,9 @@
    The colors come through the "custom" color theme every page reads; here the window gets each
    theme's touch on top: a moving band across the top of the tab strip and the active tab's mark. Menu →
    Anime themes… picks one from anywhere (the new tab page's Background panel and Settings can too).
-   3.9: Menu → Anime wallpaper on this site… puts a live wallpaper behind websites, too (below). */
+   3.9: Menu → Anime wallpaper on this site… puts a live wallpaper behind websites, too (below).
+   3.10: a schedule changes the theme by itself (time of day or day of the week), and a screensaver (the
+   wallpaper and a big clock) covers the window when you've been away. */
 (function () {
 "use strict";
 if (!window.Anime) return;
@@ -34,6 +36,17 @@ function animePanel() {
     b.textContent = "Put a wallpaper behind " + hostOf(t.url) + "…"; b.onclick = sitePanel;
     go.appendChild(b); p.appendChild(go);
   }
+  const more = el("div", "anp-more");
+  more.innerHTML = '<label class="anp-snd"><input type="checkbox" id="anpTrail"> A trail behind the pointer on the new tab page</label>' +
+    '<div class="anp-row"><span>Screensaver</span><select id="anpSaver"><option value="0">Off</option><option value="2">After 2 minutes</option><option value="5">After 5 minutes</option><option value="10">After 10 minutes</option><option value="15">After 15 minutes</option></select>' +
+    '<button class="btn2" id="anpSvNow">Show it now</button></div><div class="anp-k">Schedule</div><div id="anpSched"></div>';
+  p.appendChild(more);
+  more.querySelector("#anpTrail").checked = !!cfg.animeTrail;
+  more.querySelector("#anpTrail").onchange = e => { cfg.animeTrail = e.target.checked; saveNow("settings"); };
+  const svs = more.querySelector("#anpSaver"); svs.value = String(+cfg.animeSaver || 0);
+  svs.onchange = () => { cfg.animeSaver = +svs.value; saveNow("settings"); idleWatch(true); };
+  more.querySelector("#anpSvNow").onclick = () => { closeOver(); setTimeout(showSaver, 50); };
+  Anime.schedEditor(more.querySelector("#anpSched"), cfg.animeSched || {}, sc => { cfg.animeSched = sc; cfg.animeSlot = ""; saveNow("settings"); schedNow(); });
   const snd = p.querySelector("input");
   snd.checked = !!(cfg.anime && cfg.ambient && Anime.get(cfg.anime) && cfg.ambient === Anime.get(cfg.anime).amb);
   const pk = Anime.picker(p.querySelector(".anp-pick"), { current:cfg.anime || "", onPick:id => { choose(id, snd.checked); toast(id ? Anime.get(id).name + " is on: open a new tab to see its wallpaper" : "Back to your own look"); } });
@@ -42,6 +55,65 @@ function animePanel() {
   new MutationObserver((m, o) => { if (!p.isConnected) { pk.stop(); o.disconnect(); } }).observe($("#over"), { childList:true });
 }
 X3.animePanel = animePanel;
+
+/* ---------------------------------------------------------------- 3.10: the schedule */
+function schedNow() {
+  const sc = cfg.animeSched, want = Anime.scheduled(sc), sl = Anime.slot(sc);
+  if (PRIVATE || !want || !sl || cfg.animeSlot === sl) return;
+  cfg.animeSlot = sl;
+  const id = want === "none" ? "" : want;
+  if ((cfg.anime || "") === id) { saveNow("settings"); return; }
+  const snd = !!(cfg.anime && cfg.ambient && Anime.get(cfg.anime) && cfg.ambient === Anime.get(cfg.anime).amb);
+  choose(id, snd);
+  toast(id ? Anime.get(id).name + " is on, by your schedule" : "Back to your own look, by your schedule");
+}
+setInterval(schedNow, 30000); setTimeout(schedNow, 3000);
+X3.schedNow = schedNow;
+
+/* ---------------------------------------------------------------- 3.10: the screensaver
+   It comes on after the minutes you pick with nothing happening: in this window, on the new tab page
+   and in the sidebar (they say when you use them), or anywhere at all when Windows can tell (the
+   idle detection the engine has, if it's allowed). While a website is on screen without that, it
+   never comes on: you might be reading. Never while something plays, or a menu is open. */
+let svLast = Date.now(), sv = null, svEnd = null, idleDet = null, sysIdle = false;
+const ich = typeof BroadcastChannel === "function" ? new BroadcastChannel("wsb-idle") : null;
+if (ich) ich.onmessage = () => { svLast = Date.now(); };
+["pointermove", "pointerdown", "keydown", "wheel"].forEach(t => addEventListener(t, () => { svLast = Date.now(); }, { capture:true, passive:true }));
+async function idleWatch(asked) {
+  if (idleDet || !(+cfg.animeSaver > 0) || typeof IdleDetector !== "function") return;
+  try {
+    if (asked) await IdleDetector.requestPermission();
+    const d = new IdleDetector();
+    d.addEventListener("change", () => { sysIdle = d.userState === "idle"; });
+    await d.start({ threshold:Math.max(60000, (+cfg.animeSaver || 5) * 60000) });
+    idleDet = d;
+  } catch (e) { idleDet = null; }
+}
+setTimeout(() => idleWatch(false), 4000);
+function showSaver() {
+  if (sv) return;
+  const box = el("div", "ansv");
+  openOver("ansv", box);
+  const id = !PRIVATE && Anime.has(cfg.anime) ? cfg.anime : "jjk", t0 = Date.now();
+  sv = Anime.saver(id, { parent:box, h24:!!cfg.clock24 });
+  svEnd = e => { if (e.type === "pointermove" && Date.now() - t0 < 900) return; stopSaver(); };
+  ["pointermove", "pointerdown", "keydown", "wheel"].forEach(t => addEventListener(t, svEnd, true));
+  new MutationObserver((m, o) => { if (!box.isConnected) { o.disconnect(); stopSaver(true); } }).observe($("#over"), { childList:true });
+}
+function stopSaver(closed) {
+  if (!sv) return;
+  const s = sv; sv = null; s.stop();
+  ["pointermove", "pointerdown", "keydown", "wheel"].forEach(t => removeEventListener(t, svEnd, true));
+  svLast = Date.now(); sysIdle = false;
+  if (!closed && overlay === "ansv") closeOver();
+}
+setInterval(() => {
+  const mins = +cfg.animeSaver || 0;
+  if (sv || PRIVATE || !mins || document.hidden || overlay || tabs.some(t => t.audio)) return;
+  const t = T(active), web = t && isWeb(t.url);
+  if (idleDet ? sysIdle : !web && Date.now() - svLast > mins * 60000) showSaver();
+}, 5000);
+X3.saver = { show:showSaver, stop:stopSaver, on:() => !!sv, idleFor:ms => { svLast = Date.now() - ms; } };
 const menuRows8 = X3.menuRows;
 X3.menuRows = function (m) {
   if (menuRows8) menuRows8(m);
@@ -173,6 +245,11 @@ html[data-anime="p5"] .anband{height:5px;background:linear-gradient(-45deg,#e600
 html[data-anime="p5"] .tab.on,html[data-anime="bleach"] .tab.on{box-shadow:inset 0 -2px 0 var(--accent)}
 .anp{width:560px}.anp .an-grid{grid-template-columns:repeat(4,1fr);gap:8px}.anp .an-tile b{font-size:12px}.anp .an-tile span{font-size:10.5px}
 .anp-snd{display:flex;align-items:center;gap:6px;margin-top:10px;font-size:12px;color:var(--dim)}
+.anp-more{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}.anp-k{margin:12px 0 6px;font-size:12px;font-weight:600}
+.anp-row{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:12.5px}.anp-row span{flex:1}.anp-row select{height:30px;border-radius:8px;border:1px solid var(--line);background:var(--bg3);color:var(--fg);font:inherit;font-size:12.5px}
+.anp-row .btn2{height:30px}
+#over>.ansv{position:fixed!important;left:0!important;top:0!important;right:0!important;bottom:0!important;width:auto!important;max-height:none!important;height:auto!important;padding:0!important;border:0!important;border-radius:0!important;background:#000!important;box-shadow:none!important;overflow:hidden!important}
+#over>.ansv .an-saver{position:absolute}
 .ansp .ans-k{margin:12px 0 6px;font-size:12px;font-weight:600;color:var(--fg)}.ansp .ans-k em{font-style:normal;font-weight:400;color:var(--dim);margin-left:4px}
 .ansp .an-tile canvas{aspect-ratio:16/9}.ansp .an-note{display:none}.ansp .an-none{aspect-ratio:16/9;font-size:24px}
 .ansp .mi.tg{cursor:pointer}.ansp .ans-all{margin-top:8px}

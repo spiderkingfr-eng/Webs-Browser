@@ -27,6 +27,8 @@ def anime_chrome():
 
 # chrome.html
 ch = rd(O, "chrome.html")
+# 3.10: phone preview sets how wide the sidebar is (src/gtd.chrome.js, X3.sideWFor)
+ch = once(ch, "const sideW = railOn ? Math.round(Math.min(cfg.sideW || 380, vpW * 0.5) * dpr) : 0;", "const sideW = railOn ? Math.round((window.X3 && X3.sideWFor ? X3.sideWFor(vpW) : Math.min(cfg.sideW || 380, vpW * 0.5)) * dpr) : 0;", "chrome: sidebar width")
 ch = once(ch, "</style>\n", rd(S, "chrome.add.css") + rd(S, "cloud.css") + rd(S, "support.css") + "</style>\n", "chrome: css")
 ch = once(ch, '  m.appendChild(row("tools", "Page tools…", "", toolsPanel));\n',
   '  m.appendChild(row("tools", "Page tools…", "", toolsPanel));\n  m.appendChild(row("grid", "More page tools (new)…", "", () => X3.toolsPanel()));\n', "chrome: menu row")
@@ -35,7 +37,7 @@ ch = once(ch, '  m.appendChild(row("sparkle", "What\'s new (287 features)", "", 
 ch = once(ch, '  m.appendChild(row("code", "Your CSS for this site…", "", cssPanel));\n',
   '  m.appendChild(row("code", "Your CSS for this site…", "", cssPanel));\n  m.appendChild(row("grid", "40 more page tools…", "", () => X3.toolsPanel()));\n', "chrome: tools panel row")
 ch = once(ch, "    [\"Close\", () => closeTab(id)]\n  ];\n  ctxMenu(e, items);", "    [\"Close\", () => closeTab(id)]\n  ];\n  if (window.X3) X3.tabItems(items, id);\n  ctxMenu(e, items);", "chrome: tab menu")
-ch = once(ch, "relayout();\n</script>", "relayout();\n</script>\n<script>\n" + rd(S, "chrome.add.js") + "\n</script>\n<script>\n" + rd(S, "../../js/live.js") + "\n</script>\n<script id=\"wsb-anime-js\">\n" + rd(S, "../../js/anime.js") + "\n</script>\n<script>\n" + rd(S, "cloud.js").replace("@@WEBS_VERSION@@", VERSION) + "\n</script>\n<script>\n" + rd(S, "studio.js") + "\n</script>\n<script>\n" + rd(S, "webai.js") + "\n</script>\n<script>\n" + rd(S, "../../js/support.settings.js") + "\n</script>\n<script>\n" + rd(S, "support.js") + "\n</script>\n<script>\n" + rd(S, "live.chrome.js").replace("@@WEBS_VERSION@@", VERSION) + "\n</script>\n<script>\n" + anime_chrome() + "\n</script>", "chrome: script")   # Help & support: the list is shared with the iPhone app and the server
+ch = once(ch, "relayout();\n</script>", "relayout();\n</script>\n<script>\n" + rd(S, "chrome.add.js") + "\n</script>\n<script>\n" + rd(S, "../../js/live.js") + "\n</script>\n<script id=\"wsb-anime-js\">\n" + rd(S, "../../js/anime.js") + "\n</script>\n<script>\n" + rd(S, "cloud.js").replace("@@WEBS_VERSION@@", VERSION) + "\n</script>\n<script>\n" + rd(S, "studio.js") + "\n</script>\n<script>\n" + rd(S, "webai.js") + "\n</script>\n<script>\n" + rd(S, "../../js/ai.js") + "\n</script>\n<script>\n" + rd(S, "webai.more.js") + "\n</script>\n<script>\n" + rd(S, "../../js/support.settings.js") + "\n</script>\n<script>\n" + rd(S, "support.js") + "\n</script>\n<script>\n" + rd(S, "live.chrome.js").replace("@@WEBS_VERSION@@", VERSION) + "\n</script>\n<script>\n" + anime_chrome() + "\n</script>\n<script>\n" + rd(S, "../../js/xp.js") + "\n</script>\n<script>\n" + rd(S, "xp.chrome.js") + "\n</script>\n<script>\n" + rd(S, "../../js/gtd.js") + "\n</script>\n<script>\n" + rd(S, "gtd.chrome.js") + "\n</script>\n<script>\n" + rd(S, "../../js/privacy.js") + "\n</script>\n<script>\n" + rd(S, "privacy.chrome.js") + "\n</script>\n<script>\n" + rd(S, "../../js/link.js") + "\n</script>\n<script>\n" + rd(S, "link.chrome.js") + "\n</script>\n<script>\n" + rd(S, "../../js/stats.js") + "\n</script>\n<script>\n" + rd(S, "stats.chrome.js").replace("@@WEBS_VERSION@@", VERSION) + "\n</script>", "chrome: script")   # Help & support: the list is shared with the iPhone app and the server
 chrome_html = ch   # written once the feature count is known
 
 def page(name, css=None, js=None, edits=()):
@@ -48,7 +50,7 @@ def page(name, css=None, js=None, edits=()):
     write(name, s)
 
 page("side.html", ["side.add.css", "webai.side.css", "support.side.css"], ["side.add.js", "webai.side.js", "webai.voice.js", "../../js/support.settings.js", "../../js/live.js", "support.side.js"])
-page("newtab.html", "newtab.add.css", ["../../js/phantom.js", "newtab.add.js", "../../js/live.js", "live.newtab.js", "../../js/anime.js", "anime.newtab.js"])     # the Phantom calendar and "From Webs" (js/live.js) are shared with the iPhone app
+page("newtab.html", "newtab.add.css", ["../../js/phantom.js", "newtab.add.js", "../../js/live.js", "live.newtab.js", "../../js/anime.js", "anime.newtab.js", "../../js/xp.js", "../../js/buddy.js", "xp.newtab.js", "link.newtab.js", "stats.newtab.js"])     # the Phantom calendar and "From Webs" (js/live.js) are shared with the iPhone app
 page("settings.html", None, ["settings.add.js", "settings.acct.js", "../../js/anime.js", "anime.settings.js"], edits=[
   ('    <div class="set">\n      <div class="txt"><b>Color theme</b>', rd(S, "anime.settings.html") + '    <div class="set">\n      <div class="txt"><b>Color theme</b>', "anime themes"),
   ('  <h2 id="vpn">VPN</h2>', rd(S, "settings.acct.html") + '  <h2 id="vpn">VPN</h2>', "account section"),
@@ -68,8 +70,8 @@ gm = once(gm, '<button data-g="word">Daily word <em id="bW"></em></button></div>
   '<button data-g="mineG">Minesweeper <em id="bX"></em></button><button data-g="brkG">Breakout <em id="bB"></em></button>'
   '<button data-g="pongG">Pong <em id="bP"></em></button><button data-g="typeG">Typing test <em id="bY"></em></button>'
   '<button data-g="reactG">Reaction time <em id="bRx"></em></button><button data-g="aimG">Aim trainer <em id="bA"></em></button></div>', "games: tabs")
-gm = once(gm, '<!-- Offline games: Web Runner, Snake and 2048.', '<!-- Offline games: Web Runner, Snake, 2048, Daily word, Tic-tac-toe, Memory, Minesweeper, Breakout, Pong, Typing test, Reaction time and Aim trainer.', "games: comment")
-gm = once(gm, '<div class="sub">Small games that work without internet.', '<div class="sub">Twelve small games that work without internet.', "games: sub")
+gm = once(gm, '<!-- Offline games: Web Runner, Snake and 2048.', '<!-- Offline games: Web Runner, Snake, 2048, Daily word, Tic-tac-toe, Memory, Minesweeper, Breakout, Pong, Typing test, Reaction time, Aim trainer, and (3.10, ../js/games.more.js) Sudoku, Solitaire, Chess and Blocks.', "games: comment")
+gm = once(gm, '<div class="sub">Small games that work without internet.', '<div class="sub">Sixteen small games that work without internet, and three to play with a friend.', "games: sub")
 gm = once(gm, "</style>\n", rd(S, "games.add.css") + "</style>\n", "games: css")
 gm = once(gm, "</main>", rd(S, "games.add.html") + "</main>", "games: sections")
 # Webs 3.7 (js/live.js): the weekly leaderboard, the community goal, and the daily word the owner picked
@@ -83,16 +85,23 @@ js = "".join(rd(S, f) for f in ("games.head.js", "games.port.js", "games.brk.js"
 i = gm.rindex("</script>")
 gm = gm[:i] + js + "showBest();\n" + gm[i:]
 i = gm.rindex("</script>") + 9
-gm = gm[:i] + "\n<script>\n" + rd(S, "../../js/live.games.js") + "\n</script>" + gm[i:]
+gm = gm[:i] + "\n<script>\n" + rd(S, "../../js/live.games.js") + "\n</script>\n<script>\n" + rd(S, "../../js/xp.js") + "\n</script>\n<script>\n" + rd(S, "../../js/games.more.js") + "\n</script>\n<script>\n" + rd(S, "../../js/link.js") + "\n</script>\n<script>\n" + rd(S, "../../js/games.online.js") + "\n</script>" + gm[i:]     # 3.10: Sudoku, Solitaire, Chess and Blocks, and XP
 write("games.html", gm)
 print("games built")
 
 # whatsnew.html: the newest features first; the count on the page is worked out from the list
 wn = rd(O, "whatsnew.html")
 wn = once(wn, "const F = {\n", "const F = {\n" + rd(S, "whatsnew.31.js") + rd(S, "whatsnew.add.js"), "whatsnew: list")
-wn = once(wn, "The groups marked New arrived in this update.", "The groups marked 3.9, 3.8, 3.7, 3.6, 3.5, 3.4, 3.3, 3.2, 3.1 and 3.0 are the newest; the ones marked New came just before.", "whatsnew: sub")
+wn = once(wn, "The groups marked New arrived in this update.", "The groups marked 3.10, 3.9, 3.8, 3.7, 3.6, 3.5, 3.4, 3.3, 3.2, 3.1 and 3.0 are the newest; the ones marked New came just before.", "whatsnew: sub")
 write("whatsnew.html", wn)
 body = wn[wn.index("const F = {"):wn.index("};\nlet n = 0;")]
 features = len(re.findall(r'^\s*\["', body, re.M))     # one card per line that starts a [title, what, where] entry
 write("chrome.html", chrome_html.replace("@@FEATURES@@", str(features)))
 print("whatsnew built:", features, "features; version", VERSION)
+
+# the public changelog (../changelog.html), from the same lists
+try:
+    import subprocess as _sp, sys as _sys
+    _sp.run([_sys.executable, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools", "make_changelog.py")], check=True)
+except Exception as e:
+    print("changelog not written:", e)

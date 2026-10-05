@@ -181,7 +181,7 @@ ${'<div class="ai">More words to read, so the page can scroll a little further d
   check((await sent()).some(x => x[1] === "2") === false, "a site switched off stays off");
   await c.evaluate(() => { const a = Object.assign({}, cfg.animeSites); delete a["example.com"]; cfg.animeSites = a; saveNow("settings"); __sent.length = 0; X3.animePanel(); }); await wait(300);
   await c.evaluate(() => { document.querySelector('#anp .an-tile[data-id="naruto"]').click(); }); await wait(300);
-  check((await sent()).some(x => x[1] === "2" && /"id":"naruto"/.test(x[3])) && !(await sent()).some(x => x[1] === "1"), "Match the browser follows a new theme; a site with its own stays");
+  check((await sent()).some(x => x[1] === "2" && /"id":"naruto"/.test(x[3])) && !(await sent()).some(x => x[1] === "1" && x[2] === "userjs"), "Match the browser follows a new theme; a site with its own stays");
   await c.evaluate(() => closeOver());
 
   /* ---------------------------------------------------------------- Settings */

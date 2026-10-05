@@ -9,7 +9,8 @@ const TOOLS = [
   ["xdiff", "↔️", "Compare text", "What changed between two texts"], ["xregex", ".*", "Regex tester", "Try a pattern on some text"],
   ["xmd", "Ⓜ️", "Markdown", "Write and see it formatted"], ["xcolors", "🎨", "Colors", "Palettes and contrast checks"],
   ["xbreathe", "🫧", "Breathe", "A minute of calm breathing"], ["xmetro", "🥁", "Metronome", "Keep the beat, tap the tempo"],
-  ["xdecide", "🎡", "Decision wheel", "Spin to choose for you"], ["xtally", "🔢", "Tally counter", "Count anything"], ["xunit", "🏷️", "Price per unit", "Which pack is cheaper?"]
+  ["xdecide", "🎡", "Decision wheel", "Spin to choose for you"], ["xtally", "🔢", "Tally counter", "Count anything"], ["xunit", "🏷️", "Price per unit", "Which pack is cheaper?"],
+  ["xphone", "📱", "Phone preview", "The page you're on, at a phone's size"]
 ];
 const IDS = ["xtools"].concat(TOOLS.map(t => t[0]));
 const E = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
@@ -38,6 +39,22 @@ function after(id) {
 }
 const HOOK = {};
 const BUILD = {};
+/* 3.10: phone preview. The browser window narrows the page to the size picked here (and asks the site for its
+   phone version); Done puts it back. They talk through storage (wsb.phonePrev). */
+const PHONES = [["iPhone 16", 393], ["iPhone SE", 375], ["iPhone 16 Pro Max", 440], ["Pixel 9", 412], ["Galaxy S24", 360], ["iPad mini", 744]];
+BUILD.xphone = b => {
+  const say = o => { try { localStorage.setItem("wsb.phonePrev", JSON.stringify(Object.assign({ t:Date.now() }, o))); } catch (e) {} };
+  let w = 393;
+  b.innerHTML = '<div class="xmsg">The page on the left is the size of a phone, as a phone would see it (the site\'s mobile version).</div><div class="xph xgrid"></div>' +
+    '<div class="xrow"><button class="b" id="xphRot" style="flex:1">Turn sideways</button><button class="b m" id="xphDone" style="flex:1">Done</button></div>';
+  const list = q(b, ".xph");
+  const paint = () => { list.innerHTML = PHONES.map(([n, x]) => '<button data-w="' + x + '" class="xcard' + (x === w || Math.round(x * 2.17) === w ? " on" : "") + '"><i>📱</i><b>' + n + "</b><span>" + x + " wide</span></button>").join(""); };
+  paint();
+  list.onclick = e => { const x = e.target.closest("button"); if (!x) return; w = +x.dataset.w; say({ w }); paint(); };
+  q(b, "#xphRot").onclick = () => { const base = PHONES.find(p => p[1] === w); w = base ? Math.round(w * 2.17) : (PHONES.find(p => Math.round(p[1] * 2.17) === w) || PHONES[0])[1]; say({ w }); paint(); };
+  q(b, "#xphDone").onclick = () => say({ off:1 });
+  HOOK.xphone = () => say({ w });
+};
 
 BUILD.xtools = b => {
   b.appendChild(E("div", "xlab", "Tools"));
@@ -434,4 +451,9 @@ BUILD.xunit = b => {
 function route2() { const h = decodeURIComponent(location.hash.slice(1)); if (IDS.indexOf(h) >= 0) { show(h); after(h); } else more.classList.remove("on"); }
 addEventListener("hashchange", route2);
 route2();
+})();
+/* 3.10: the window's screensaver waits while the sidebar is being used */
+(function () {
+  const ich = typeof BroadcastChannel === "function" ? new BroadcastChannel("wsb-idle") : null; let at = 0;
+  if (ich) ["pointermove", "keydown", "wheel", "pointerdown"].forEach(t => addEventListener(t, () => { const n = Date.now(); if (n - at > 10000) { at = n; ich.postMessage(n); } }, { passive:true }));
 })();

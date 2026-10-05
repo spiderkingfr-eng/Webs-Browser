@@ -27,7 +27,7 @@ const sec = document.createElement("section"); sec.id = "liveSec"; sec.className
 sec.innerHTML = '<div id="liveBox" class="lv-wrap lv-hide"></div>';
 $("f").after(sec);
 const off = () => PRIVATE || hidden("live");
-Live.init({ platform:"windows", version:VERSION, isPrivate:() => PRIVATE, hidden:() => hidden("live"), toast, noPing:true, onWall:() => paintBackground() });
+Live.init({ platform:"windows", version:VERSION, isPrivate:() => PRIVATE, hidden:() => hidden("live"), toast, noPing:true, onWall:() => paintBackground(), anime:() => { $("bgbox").classList.remove("hide"); paintBgBox(); scrollTo(0, 0); } });
 
 function paint() {
   Live.render($("liveBox"));

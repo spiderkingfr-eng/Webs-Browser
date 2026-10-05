@@ -7,7 +7,7 @@ const check = (c, w) => { if (c) ok++; else { bad++; console.log("  FAIL:", w); 
   await setup(ctx);
   const p = await ctx.newPage(); watch(p, errors, "games");
   await p.goto("https://browser.example/games.html"); await p.waitForTimeout(500);
-  check(await p.locator(".tabs button").count() === 12, "12 game tabs");
+  check(await p.locator(".tabs button").count() === 17, "17 game tabs (3.10: Sudoku, Solitaire, Chess, Blocks, Play a friend)");
   const tab = async g => { await p.click('.tabs button[data-g="' + g + '"]'); await p.waitForTimeout(250); };
   // tic-tac-toe: unbeatable never loses over a few random games
   await tab("tttG");

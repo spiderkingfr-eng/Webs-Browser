@@ -61,3 +61,6 @@ label.xck{display:flex;align-items:center;gap:8px;margin:5px 0;cursor:pointer}
 label.xck input{accent-color:var(--accent)}
 nav{overflow-x:auto;scrollbar-width:none}
 nav button{white-space:nowrap;padding-left:4px;padding-right:4px;min-width:0}
+
+/* 3.10: phone preview */
+.xph .xcard.on{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 40%,transparent)}

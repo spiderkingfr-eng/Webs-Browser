@@ -4,7 +4,8 @@
    card, a poll, a countdown, an owner's pick, quotes, trivia, mystery boxes and theme days by date,
    tomorrow's word for the daily puzzle, Webs's birthday, a community goal, a secret code hunt, secret
    words for the address bar, limited-time achievements, the wallpaper of the week, sticker packs,
-   help articles, and how new versions roll out.
+   help articles, and how new versions roll out. And (Windows 3.10, iPhone 2.9) a limited-time event theme for
+   the anime themes, and a vote on the next theme.
 
    The apps read it (GET /live), and say what they did:
      POST /live/ping  { device, platform, version, goal? }   about once an hour while Webs is open,
@@ -30,6 +31,7 @@ export const secretHash = w => sha16("webs:" + String(w || "").trim().toLowerCas
 export const FX = ["snow", "confetti", "hearts", "stars", "leaves", "halloween", "rainbow", "bubbles", "fireworks"];
 export const REACTS = ["👍", "❤️", "😂", "😮", "🎉"];
 export const GAMES = ["snake", "2048"];
+export const EVENTS = ["halloween", "winter", "newyear", "hearts"];     // the event themes in js/anime.js
 const week = t => { const d = new Date(t || now()); d.setUTCHours(0, 0, 0, 0); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); return d.toISOString().slice(0, 10); };   // the Monday it started
 
 /* ---------------------------------------------------------------- the owner's live settings, checked */
@@ -38,11 +40,21 @@ const url = v => { const u = String(v || "").trim(); return /^https?:\/\/[^\s"<>
 const dated = (list, n, f) => (Array.isArray(list) ? list : []).filter(x => x && isDate(x.date)).map(f).filter(Boolean).sort((a, b) => a.date < b.date ? -1 : 1).slice(-n);
 export function cleanLive(p, old) {
   const o = old || {}, v = {};
-  if (p.ann && txt(p.ann.text, 300)) v.ann = { id:p.ann.id && o.ann && o.ann.id === p.ann.id ? p.ann.id : id8(p.ann.id), text:txt(p.ann.text, 300), link:url(p.ann.link), until:until(p.ann.until), react:p.ann.react !== false };
+  // an announcement: (3.10) it can wait for its time ("from"), and have a second version for an A/B test (half see each)
+  const ann = (a, keep) => a && txt(a.text, 300) ? Object.assign({ id:a.id && keep ? a.id : id8(a.id), text:txt(a.text, 300), link:url(a.link), until:until(a.until), react:a.react !== false },
+    until(a.from) ? { from:until(a.from) } : {}, txt(a.textB, 300) ? { textB:txt(a.textB, 300), linkB:url(a.linkB) } : {}) : null;
+  if (p.ann && txt(p.ann.text, 300)) v.ann = ann(p.ann, o.ann && o.ann.id === p.ann.id);
+  const oldIds = (o.sched || []).map(x => x.id);
+  v.sched = (Array.isArray(p.sched) ? p.sched : []).map(a => ann(a, a && oldIds.indexOf(a.id) >= 0)).filter(a => a && a.from && (!a.until || a.until > now())).sort((a, b) => a.from - b.from).slice(0, 20);
   if (p.card && txt(p.card.title, 80)) v.card = { id:id8(p.card.id), title:txt(p.card.title, 80), text:txt(p.card.text, 400), sign:txt(p.card.sign, 60) || "The Phantom Thieves", until:until(p.card.until) };
   if (p.poll && txt(p.poll.q, 200)) {
     const opts = (Array.isArray(p.poll.opts) ? p.poll.opts : []).map(x => txt(x, 60)).filter(Boolean).slice(0, 4);
     if (opts.length >= 2) v.poll = { id:id8(p.poll.id), q:txt(p.poll.q, 200), opts, until:until(p.poll.until) };
+  }
+  if (p.event && EVENTS.includes(p.event.id)) v.event = { id:p.event.id, until:until(p.event.until) };
+  if (p.tvote && txt(p.tvote.q, 120)) {
+    const opts = (Array.isArray(p.tvote.opts) ? p.tvote.opts : []).filter(x => x && txt(x.n, 40)).slice(0, 4).map(x => ({ n:txt(x.n, 40), e:txt(x.e, 8) || "✨", d:txt(x.d, 120) }));
+    if (opts.length >= 2) v.tvote = { id:p.tvote.id && o.tvote && o.tvote.id === p.tvote.id ? p.tvote.id : id8(p.tvote.id), q:txt(p.tvote.q, 120), opts, until:until(p.tvote.until) };
   }
   v.words = dated(p.words, 60, x => /^[a-z]{5}$/i.test(x.w || "") ? { date:x.date, w:x.w.toUpperCase() } : null);
   v.themes = dated(p.themes, 60, x => FX.includes(x.kind) ? { date:x.date, kind:x.kind } : null);
@@ -114,7 +126,10 @@ export async function livePublic(env, base) {
   const out = { ok:true, rev:v.rev || 0, now:now() };
   if (c.maint.on) out.maint = { text:c.maint.text || "Web AI is down for maintenance. It'll be back soon." };
   else if (c.ai.paused) out.maint = { text:c.ai.pauseMsg || "Web AI is taking a break. Try again later.", ai:true };
-  for (const k of ["ann", "card", "poll", "pick"]) if (on(v[k])) out[k] = v[k];
+  for (const k of ["card", "poll", "pick"]) if (on(v[k])) out[k] = v[k];
+  // the announcement on now: the scheduled one that started last, or the main one
+  const anns = [v.ann].concat(v.sched || []).filter(on).sort((a, b) => (b.from || 0) - (a.from || 0));
+  if (anns.length) out.ann = anns[0];
   for (const k of ["words", "themes", "quotes", "trivia", "mystery"]) { const l = near(v[k]); if (l.length) out[k] = l; }
   if (v.countdown && v.countdown.date >= day(now() - 86400000)) out.countdown = v.countdown;
   if (v.birthday) out.birthday = v.birthday;
@@ -129,6 +144,8 @@ export async function livePublic(env, base) {
   if (v.rollback && v.rollback.win) out.rollback = v.rollback;
   if (agg.board && agg.board.wk === week()) out.board = agg.board;
   if (v.news && now() - v.news.at < 3 * 86400000) out.news = v.news;
+  if (on(v.event)) out.event = v.event;
+  if (on(v.tvote)) out.tvote = { ...v.tvote, counts:agg.tvote && agg.tvote.id === v.tvote.id ? agg.tvote.counts : null };
   return out;
 }
 
@@ -199,6 +216,11 @@ export async function liveApi(path, req, env, cors) {
     if (!on(p) || p.id !== body.id || !(ch >= 0 && ch < p.opts.length)) return json({ error:"gone", message:"That poll has closed." }, 409, cors);
     if (m.pv && m.pv[0] === p.id) return json({ ok:true, already:true }, 200, cors);
     m.pv = [p.id, ch];
+  } else if (k === "tvote") {
+    const p = v.tvote, ch = Math.round(+body.choice);
+    if (!on(p) || p.id !== body.id || !(ch >= 0 && ch < p.opts.length)) return json({ error:"gone", message:"That vote has closed." }, 409, cors);
+    if (m.tq && m.tq[0] === p.id) return json({ ok:true, already:true }, 200, cors);
+    m.tq = [p.id, ch];
   } else if (k === "trivia") {
     const t = (v.trivia || []).find(x => x.date === body.id), ch = Math.round(+body.choice);
     if (!t || !(ch >= 0 && ch < t.opts.length)) return json({ error:"gone", message:"That question has gone." }, 409, cors);
@@ -239,8 +261,9 @@ export async function liveApi(path, req, env, cors) {
 /* ---------------------------------------------------------------- adding it all up (every hour, or when the owner asks) */
 export async function aggregate(env) {
   const v = await liveCfg(env, true), c = await ownerCfg(env, true), t = Math.floor(now() / 60000), wk = week(), today = day();
-  const a = { at:now(), devices:0, active1:0, active24:0, active7:0, wroteToday:0, plat:{}, vers:{}, countries:{}, poll:null, trivia:{}, react:null, goal:null, hunt:null, ach:{}, board:{ wk }, nicks:[] };
+  const a = { at:now(), devices:0, active1:0, active24:0, active7:0, wroteToday:0, plat:{}, vers:{}, countries:{}, poll:null, tvote:null, trivia:{}, react:null, goal:null, hunt:null, ach:{}, board:{ wk }, nicks:[] };
   if (v.poll) a.poll = { id:v.poll.id, counts:v.poll.opts.map(() => 0) };
+  if (v.tvote) a.tvote = { id:v.tvote.id, counts:v.tvote.opts.map(() => 0) };
   if (v.ann) a.react = { id:v.ann.id, counts:{} };
   if (v.goal) a.goal = { id:v.goal.id, n:0 };
   if (v.hunt) a.hunt = { id:v.hunt.id, n:0 };
@@ -260,6 +283,7 @@ export async function aggregate(env) {
         if (m.c) a.countries[m.c] = (a.countries[m.c] || 0) + 1;
       }
       if (a.poll && m.pv && m.pv[0] === a.poll.id && a.poll.counts[m.pv[1]] != null) a.poll.counts[m.pv[1]]++;
+      if (a.tvote && m.tq && m.tq[0] === a.tvote.id && a.tvote.counts[m.tq[1]] != null) a.tvote.counts[m.tq[1]]++;
       if (m.tv) { const x = a.trivia[m.tv[0]] = a.trivia[m.tv[0]] || { n:0, right:0 }; x.n++; x.right += m.tv[1] ? 1 : 0; }
       if (a.react && m.rx && m.rx[0] === a.react.id) a.react.counts[m.rx[1]] = (a.react.counts[m.rx[1]] || 0) + 1;
       if (a.goal && m.g && m.g[0] === a.goal.id) a.goal.n += m.g[1] || 0;
@@ -285,7 +309,7 @@ export async function liveCron(env, t) {
 
 /* ---------------------------------------------------------------- the dashboard's requests */
 export async function liveAdmin(op, body, env, h) {
-  if (op === "live.get") return json({ ok:true, live:await liveCfg(env, true), agg:await liveAgg(env, true), fx:FX, reacts:REACTS, week:week() }, 200, h);
+  if (op === "live.get") return json({ ok:true, live:await liveCfg(env, true), agg:await liveAgg(env, true), fx:FX, reacts:REACTS, events:EVENTS, week:week() }, 200, h);
   if (op === "live.set") {
     const old = await liveCfg(env, true), p = body.live && typeof body.live === "object" ? body.live : {};
     // what the dashboard didn't send stays as it was

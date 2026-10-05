@@ -219,6 +219,12 @@ function paintSetup() {
     '<div class="xai-srv"><div class="xlab">Server address</div><input class="xin" id="xaiSrv" autocomplete="off" spellcheck="false" placeholder="https://web-ai.your-name.workers.dev"></div>' +
     '<div class="xrow"><button class="b m" id="xaiGo">Connect</button><button class="b" id="xaiBack">Back</button><button class="b" id="xaiOff">Disconnect</button></div><div class="xmsg" id="xaiMsg"></div>' +
     '<p class="xai-small">Your code stays on this computer. When you ask something, your question (and the text of the page, while "Use this page" is on) goes to the Web AI server and to Claude, made by Anthropic, which writes the answer. Nothing is sent from private windows\' pages.</p>');
+  // 3.10: how you like answers, sent with every question (and with Web AI's other jobs, ../../js/ai.js)
+  const pr = E("div", "xai-prefs", '<div class="xlab">Your instructions</div><textarea class="xin" rows="3" maxlength="600" placeholder="How you like answers, e.g. Keep it short. Use simple words. Answer in Spanish."></textarea>' +
+    '<p class="xai-small">Web AI follows these in every answer, here and in the address bar. They stay on this computer and go along with each question.</p>');
+  w.appendChild(pr);
+  const prT = pr.querySelector("textarea"); prT.value = s.prefs || "";
+  prT.oninput = () => setSt({ prefs:prT.value.slice(0, 600) });
   log.appendChild(w);
   const code = w.querySelector("#xaiCode"), srv = w.querySelector("#xaiSrv"), msg = w.querySelector("#xaiMsg");
   code.value = s.code || "";
@@ -314,7 +320,7 @@ async function ask(text) {
     paint();
   }
     const r = await fetch(server() + "/chat", { method:"POST", headers:{ "content-type":"application/json" }, signal:ctl.signal,
-      body:JSON.stringify({ code:codeToSend(), device:dev(), messages:turns() }) });
+      body:JSON.stringify({ code:codeToSend(), device:dev(), prefs:String(st().prefs || "").slice(0, 600), messages:turns() }) });
     if (!r.ok || !r.body) {
       let j = null; try { j = await r.json(); } catch (e) {}
       if (j && j.left === 0) setSt({ left:0 });
@@ -398,6 +404,12 @@ function route3() {
   show("xai"); start();
   const what = h.split(":")[1];
   if (what === "summarize") { history_replace(); whenReady(() => ask(SUGGEST[0][1])); }
+  // 3.10: a question from the address bar, to ask more about
+  if (what === "bar") {
+    history_replace();
+    let b = null; try { b = JSON.parse(localStorage.getItem("wsb.xaiBarQ") || "null"); localStorage.removeItem("wsb.xaiBarQ"); } catch (e) {}
+    if (b && typeof b.q === "string" && Date.now() - (+b.t || 0) < 30000) whenReady(() => ask(b.q.slice(0, 1000)));
+  }
 }
 function whenReady(fn, n) { if (ready()) fn(); else if ((n || 0) < 40) setTimeout(() => whenReady(fn, (n || 0) + 1), 150); }
 const history_replace = () => { try { history.replaceState(null, "", "#xai"); } catch (e) {} };

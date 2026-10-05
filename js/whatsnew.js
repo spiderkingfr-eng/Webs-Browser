@@ -1,8 +1,46 @@
-/* Webs Browser for iPhone - what's new in 2.8, 2.7, 2.6, 2.5, 2.4, 2.3, 2.2, 2.1 and 2.0, listed in the app
+/* Webs Browser for iPhone - what's new in 2.9, 2.8, 2.7, 2.6, 2.5, 2.4, 2.3, 2.2, 2.1 and 2.0, listed in the app
    (Menu → What's new) and offered once after each update. */
 "use strict";
 
 const WHATS_NEW = [
+  ["New in 2.9: your phone and your PC", "phone", [
+    "Link Webs on this phone with Webs on your PC: type a 6-digit code (Menu → Phone and PC)",
+    "A remote for the PC: play and pause, change tabs, scroll, zoom, or open a site on it",
+    "A shared clipboard: send what you copied to the PC, and copy what it sends",
+    "Pick up where you left off: what the PC has open, on a card on the start page",
+    "Send your tabs to the PC, or share them in a link anyone can open",
+    "Play a friend: chess, Connect Four and tic-tac-toe with someone on another phone or PC, with a join code (Games → Play a friend)"
+  ]],
+  ["New in 2.9: games and levels", "game", [
+    "Sudoku, Solitaire, Chess against the phone, and Blocks (Games)",
+    "XP and levels: games, daily visits and achievements earn XP and unlock frames for your card"
+  ]],
+  ["New in 2.9: anime extras", "sparkle", [
+    "Event themes for Halloween, winter, New Year and Valentine's, when the people who make Webs turn them on",
+    "Vote on the next theme, find the hidden spider in each wallpaper, and a sparkle trail when you touch the start page",
+    "Themes by the clock, a screensaver after a while, and Mochi, a small companion",
+    "A video or a GIF as your background"
+  ]],
+  ["New in 2.9: more from Web AI", "sparkle", [
+    "Answers in the address bar as you type a question",
+    "Study cards and a quiz from a page, compare pages, tidy your tabs and find a page you saw (Menu → More from Web AI)",
+    "Your instructions: tell Web AI once how you like answers"
+  ]],
+  ["New in 2.9: getting things done", "check", [
+    "Your morning sites on a card each morning, and reminders when you're back on a site",
+    "A bookmark checkup, a weekly reading digest and voice commands (Menu → Get things done)",
+    "Offline articles: save a page to read with no internet, and keep your reading list offline (Menu → Offline articles)",
+    "Side by side on an iPad: two pages at once, with a divider to drag (Menu → Side by side)"
+  ]],
+  ["New in 2.9: privacy", "lock", [
+    "Face ID (or Touch ID) for your passcode (Settings → Passcode lock)",
+    "What sites see about you: your internet address, roughly where you are, your device and its fingerprint (Menu → Privacy)",
+    "Is this shop real? A shop whose address looks like a trick is checked as it opens, with how old the website is"
+  ]],
+  ["New in 2.9: sharing", "gift", [
+    "Invite a friend: your own link, and an achievement for both of you when they join",
+    "A wallpaper gallery of backgrounds people shared, and sharing your own (Menu → Wallpaper gallery)"
+  ]],
   ["New in 2.8: anime themes", "sparkle", [
     "Nine whole looks inspired by Bleach, Tokyo Ghoul, Demon Slayer, Jujutsu Kaisen, Naruto, Attack on Titan, One Piece, Death Note and Persona 5 (Settings → Appearance → Anime themes)",
     "All of Webs takes the theme's colors and accent",

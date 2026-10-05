@@ -18,7 +18,15 @@ what's on everyone's start page, updates and settings (see **Your dashboard** be
 
 The server is this whole folder: `worker.js` (Web AI, notifications, support),
 `owner.js` (the owner's settings and security), `live.js` (what's on everyone's
-start page), `dash.js` and `icons.js` (the dashboard), `wrangler.jsonc` and `setup.cmd`.
+start page), `dash.js` and `icons.js` (the dashboard), `privacy.js` (what sites see,
+a website's age), `rooms.js` (live rooms for linked devices and games), `ledger.js`
+(the owner's counts, invites, the wallpaper gallery), `reader.js` (pages kept offline
+on iPhones), `wrangler.jsonc` and `setup.cmd`.
+
+**Updating to Windows 3.10 / iPhone 2.9:** run `setup.cmd` again and answer N to the key and
+the codes. It adds two Durable Objects (`ROOMS` and `LEDGER`, in `wrangler.jsonc`), which the
+free plan includes, so the phone-and-PC features, games with a friend, Insights, invites and the
+gallery start working. Until then the apps say so and everything else keeps working.
 Keep them together: `setup.cmd` puts all of them on Cloudflare at once.
 
 ## What it costs
@@ -167,12 +175,17 @@ you alerts.
 - **Overview:** questions today and what they cost, people using Webs right now, today and this
   week, their countries and versions, the last 14 days, and **Run the checks** (is the Claude key
   working, the storage, notifications, your websites).
+- **Insights** (3.10 / 2.9): the errors the apps ran into this week (the most widespread first),
+  which panels, sheets and page tools are used, versions, A/B test results and invites. Only from apps
+  with *Send anonymous counts* on, once a day each.
 - **Support:** the chats and problem reports (reply, mark fixed, block a device that misbehaves),
-  saved replies, an away message, how long finished chats are kept, and the help articles people see.
+  saved replies (and *Save this reply* next to Send), an away message, how long finished chats are kept, and the help articles people see.
 - **Start page:** what everyone sees under the search box: an announcement (with emoji reactions),
   a calling card, a poll, a countdown, your pick of the week, Webs's birthday, quotes, trivia,
   mystery boxes and theme days by date, tomorrow's daily word, a community goal, a secret code hunt,
-  secret words, limited-time achievements, the wallpaper of the week and sticker packs. Each part
+  secret words, limited-time achievements, the wallpaper of the week and sticker packs. And (3.10)
+  scheduled posts that go up and come down by themselves, a second version of the announcement
+  for an A/B test, and the wallpaper gallery: what people shared waits for you to approve it. Each part
   opens with a click and shows its results (votes, right answers, reactions, finds).
 - **Notifications:** send to every iPhone, to your own phone first, or at a time you pick; and the
   history of what was sent.
@@ -208,6 +221,17 @@ plan removes the limit.
 - **Anonymous counts** (Windows 3.7 and iPhone 2.7, unless *Send anonymous counts* is off): about once an hour, the app's version, whether it's on Windows or iPhone, and the country Cloudflare sees. Each device is a random id the server keeps only as a hash, for 90 days after it was last seen. Never what anyone browses.
 - **What people choose to send:** a vote, a trivia answer, a reaction, a found code, a nickname and best score for the weekly leaderboard, and a problem report (what they wrote, the version, the window size, recent errors). Problem reports are kept 90 days.
 - The server keeps no Web AI chats. It keeps only a number per person per day, for 3 days.
+- **Daily counts** (3.10 / 2.9, with *Send anonymous counts* on): once a day, how often each panel,
+  sheet and page tool was opened, the apps' own errors (the message and where in Webs, never a web
+  page's address) and whether an A/B announcement was seen or clicked. Kept 60 days, as totals.
+- **Linked devices and games with a friend:** what's passed between them goes through a live room
+  only they know (the clipboard, the open page, sets of tabs, a game's moves). A game is forgotten
+  two days after its last move.
+- **What sites see, the fake shop warning, offline articles:** your address as the server sees it
+  (not kept), a website's name to look up its age in the public registry (cached a day), and the
+  address of a page to keep offline (the server fetches it and keeps nothing).
+- **The wallpaper gallery and invites:** a shared picture with its name and the nickname you gave,
+  until you approve or turn it down; an invite code and how many joined with it.
 - Claude is made by Anthropic. Questions go to the Claude API under your Console account's terms.
 
 ## For developers
@@ -216,6 +240,8 @@ plan removes the limit.
 - `node test-support.mjs` tests Help & support: what's kept, who can read it, access, the list of settings and its time limit.
 - `node test-owner.mjs` tests the dashboard's settings and security (two-step login, codes, alerts, the spending cap, blocking, backups); `node test-live.mjs` tests the start page parts, check-ins, votes, scores and the hourly numbers.
 - `node test-push.mjs` tests notifications with a pretend Apple push service that decrypts each message with the phone's key and checks the signature.
+- `node test-privacy.mjs`, `test-rooms.mjs`, `test-ledger.mjs` and `test-reader.mjs` test what's new in 3.10 / 2.9;
+  `windows/tests/t_link.js` and `t_owner.js` run the apps against this code end to end.
 - `windows/tests/t_webai.js` runs the browser's Web AI against this worker end to end.
 - The browser sends `POST /chat` with `{ code, messages:[{ role, content }], web? }` and reads back one JSON object per line: `{ d }` for each piece of text, then `{ end, stop, left }`, or `{ error, message }`.
 - The model, answer length, effort, system prompt and tools are fixed here. The browser can't change them.

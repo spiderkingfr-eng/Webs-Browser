@@ -40,4 +40,9 @@ except (OSError, ValueError): pass
 manifest = { "version":new, "date":datetime.date.today().isoformat(), "notes":notes }
 if old.get("webai"): manifest["webai"] = old["webai"]      # the Web AI server's address (tools/set_webai_server.py)
 wr("updates/iphone.json", json.dumps(manifest, indent=2, ensure_ascii=False) + "\n")
+try:
+    import subprocess
+    subprocess.run([sys.executable, os.path.join(root, "tools", "make_changelog.py")], check=True)
+except Exception as e:
+    print("changelog not written:", e)
 print("iPhone app %s -> %s. Commit, push and merge into main; phones offer it when Webs is next opened." % (cur, new))

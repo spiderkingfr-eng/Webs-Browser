@@ -7,7 +7,7 @@ const check = (c, w) => { if (c) ok++; else { bad++; console.log("  FAIL:", w); 
   await setup(ctx);
   const p = await ctx.newPage(); watch(p, errors, "side");
   await p.goto("https://browser.example/side.html#xtools"); await p.waitForTimeout(500);
-  check(await p.evaluate(() => document.querySelectorAll("#xtools .xcard").length === 13 && $("xtools").classList.contains("on")), "tool hub");
+  check(await p.evaluate(() => document.querySelectorAll("#xtools .xcard").length === 14 && $("xtools").classList.contains("on")), "tool hub");
   await p.screenshot({ path:SHOTS + "side-hub.png" });
   const shots = ["xclocks", "xsketch", "xpass", "xjson", "xdiff", "xregex", "xmd", "xcolors", "xbreathe", "xmetro", "xdecide", "xtally", "xunit"];
   for (const id of shots) {

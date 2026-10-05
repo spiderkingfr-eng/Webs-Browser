@@ -15,7 +15,7 @@
    games, settings and backups - lives here and works offline. */
 "use strict";
 
-const VERSION = "2.8.1";
+const VERSION = "2.9.0";
 
 /* ---------------------------------------------------------------- look */
 const ACCENTS = ["#e8342a", "#ff7a1a", "#e0a100", "#2fa35f", "#1f9bd1", "#3d6cf0", "#8a5cf5", "#e0408a"];
@@ -834,18 +834,27 @@ const idb = {
   del(k) { return this.op("readwrite", s => s.delete(k)); }
 };
 let bgURL = "";
+// 2.9: a video (or a GIF, which moves by itself) can be the background too: kept as it is, played muted and looping
 async function background() {
-  const l = $("#bgl");
-  if (PRIVATE || !cfg.mbg) { l.style.backgroundImage = ""; document.body.classList.remove("pic"); return; }
+  const l = $("#bgl"), old = l.querySelector("video");
+  if (PRIVATE || !cfg.mbg) { l.style.backgroundImage = ""; if (old) old.remove(); document.body.classList.remove("pic"); return; }
   if (!bgURL) {
     try { const blob = await idb.get("bg"); if (blob) bgURL = URL.createObjectURL(blob); } catch (e) {}
   }
   if (!bgURL) { document.body.classList.remove("pic"); return; }
-  l.style.backgroundImage = "url(" + bgURL + ")";
+  if (cfg.mbgKind === "video") {
+    l.style.backgroundImage = "";
+    const v = old || Object.assign(document.createElement("video"), { muted:true, loop:true, playsInline:true, autoplay:true });
+    v.setAttribute("muted", ""); v.setAttribute("playsinline", ""); v.className = "bgvid";
+    if (v.src !== bgURL) v.src = bgURL;
+    if (!old) l.prepend(v);
+    if (cfg.motion === "off") v.pause(); else v.play().catch(() => {});
+  } else { if (old) old.remove(); l.style.backgroundImage = "url(" + bgURL + ")"; }
   l.style.setProperty("--dimv", (+cfg.bgDim || 0) / 100);
   document.body.classList.add("pic");
 }
 async function chooseBackground(file) {
+  if (file && (/^video\//.test(file.type) || file.type === "image/gif")) return chooseMoving(file);
   try {
     const img = await createImageBitmap(file);
     const k = Math.min(1, 2200 / Math.max(img.width, img.height));
@@ -856,10 +865,25 @@ async function chooseBackground(file) {
     if (bgURL) URL.revokeObjectURL(bgURL);
     bgURL = "";
     if (cfg.bgDim == null) setCfg("bgDim", 20);
+    setCfg("mbgKind", "");
     setCfg("mbg", true);
     background();
     toast("Background set");
   } catch (e) { toast("That picture could not be used"); }
+}
+
+async function chooseMoving(file) {
+  if (file.size > 80e6) { toast("That's too big: 80 MB at most"); return; }
+  try {
+    await idb.put("bg", file);
+    if (bgURL) URL.revokeObjectURL(bgURL);
+    bgURL = "";
+    if (cfg.bgDim == null) setCfg("bgDim", 20);
+    setCfg("mbgKind", /^video\//.test(file.type) ? "video" : "gif");
+    setCfg("mbg", true);
+    background();
+    toast(/^video\//.test(file.type) ? "Your video is the background now" : "Your GIF is the background now");
+  } catch (e) { toast("That file could not be used"); }
 }
 
 /* Seasonal effects: snow in winter, blossom in spring, fireflies in summer,
@@ -1479,6 +1503,7 @@ function customizeHTML() {
     GROUP("Background",
       SW("potd", "Wikipedia picture of the day", "A new picture every day", !!cfg.potd) +
       BTN("bgPick", cfg.mbg ? "Choose another picture" : "Choose your own picture", "", "", "edit") +
+      BTN("bgMove", "Choose a video or GIF (it moves)", "", "", "sparkle") +
       (cfg.mbg || cfg.potd ? ROW("Dim", SEG("bgDim", [["0", "None"], ["20", "Light"], ["40", "Strong"]], String(+cfg.bgDim || 0))) : "") +
       (cfg.mbg ? BTN("bgRemove", "Remove picture", "", "danger") : ""),
       "Your picture moves gently as you scroll.");
@@ -1547,7 +1572,8 @@ $("#sheetBody").addEventListener("click", e => {
       }, () => toast("Webs wasn't allowed to use your location"), { maximumAge:3600e3, timeout:15000 });
     },
     bgPick:() => pickFile("image/*", chooseBackground),
-    bgRemove:() => { setCfg("mbg", false); idb.del("bg").catch(() => {}); if (bgURL) URL.revokeObjectURL(bgURL); bgURL = ""; afterSetting(); refreshSettings(); }
+    bgMove:() => pickFile("video/*,image/gif", chooseMoving),
+    bgRemove:() => { setCfg("mbg", false); setCfg("mbgKind", ""); idb.del("bg").catch(() => {}); if (bgURL) URL.revokeObjectURL(bgURL); bgURL = ""; afterSetting(); refreshSettings(); }
   };
   const fn = SET[b.dataset.set] || SETACTIONS[b.dataset.set];
   if (fn) fn();
