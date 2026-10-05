@@ -47,7 +47,8 @@ function wav(ms) {
   });
   const c = await ctx.newPage(); watch(c, errors, "chrome");
   await c.goto("https://browser.example/chrome.html"); await wait(500);
-  await c.evaluate(() => { __host("viewport", 1280, 820); __host("tab-created", 1, 0, "https://news.example/story", "", 0, 0); __host("tab-title", 1, "Big news story"); __host("tab-created", 2, 0, "https://video.example/watch", "", 0, 0); __host("tab-title", 2, "A video"); __host("tab-selected", 1); X3.voice.setOn(true); });
+  await c.evaluate(() => { __host("viewport", 1280, 820); __host("tab-created", 1, 0, "https://news.example/story", "", 0, 0); __host("tab-title", 1, "Big news story"); __host("tab-created", 2, 0, "https://video.example/watch", "", 0, 0); __host("tab-title", 2, "A video"); __host("tab-selected", 1); X3.voice.setOn(true); closeOver();
+    window.__layouts = []; const pm = chrome.webview.postMessage; chrome.webview.postMessage = m => { if (/^layout\u0001/.test(String(m))) __layouts.push(String(m).split("\u0001")); return pm(m); }; });
   await wait(200);
   const sayIt = async text => { await c.evaluate(t => { __sent.length = 0; __sr.say(t, true); }, text); };
   const quiet = () => until(c, () => !X3.voice.speaker.busy() && !X3.voice.state().talking, 6000);
@@ -59,6 +60,12 @@ function wav(ms) {
   check(await until(c, () => document.querySelector(".asst") && !document.querySelector(".asst").classList.contains("hide")), "a card shows the conversation");
   check(await until(c, () => /tenth century/.test(document.querySelector(".asst-text").textContent)), "with the answer, as it's written");
   check(chats.length === 1 && chats[0].task === "jarvis", "asked as the assistant's job");
+  // where it shows: the bottom right of the window, and the window is told so the card can be seen and clicked
+  await quiet(); await wait(300);
+  const pos = await c.evaluate(() => { const b = document.querySelector(".asst").getBoundingClientRect(), l = __sent.filter(m => m.startsWith("layout\u0001")).pop() || window.__lastLayout || ""; return { top:b.top, bottom:b.bottom, right:b.right, layout:l.split("\u0001") }; });
+  const lay = await c.evaluate(() => __layouts[__layouts.length - 1]);
+  check(lay && +lay[2] >= pos.bottom && lay[4].split(";").some(r => { const [x, y, w, h] = r.split(",").map(Number); return Math.abs(y - pos.top) <= 2 && Math.abs(y + h - pos.bottom) <= 3 && w > 300; }), "the window gives the card room: " + JSON.stringify(lay));
+  check(Math.abs(pos.bottom - 804) <= 2 && Math.abs(pos.right - 1264) <= 2 && pos.top > 90, "the card sits at the bottom right of the window, not up in the toolbar: " + JSON.stringify([pos.top, pos.bottom, pos.right]));
   const m0 = chats[0].messages[chats[0].messages.length - 1].content;
   check(/<assistant>[\s\S]*name: Webs/.test(m0) && /<now>[\s\S]*This tab: Big news story \(https:\/\/news\.example\/story\)/.test(m0) && /Other tabs: A video/.test(m0), "it knows its name, the time and your tabs");
   check(/<commands>[\s\S]*Tabs and windows: new tab · close this tab/.test(m0) && !/fill in my address/.test(m0) && /They said: what's the capital of france$/.test(m0), "and what it can do");
@@ -113,6 +120,7 @@ function wav(ms) {
   await until(c, () => X3.voice.state().talking);
   await c.evaluate(() => document.querySelector(".asst-x").click());
   check(await c.evaluate(() => !X3.voice.speaker.busy() && document.querySelector(".asst").classList.contains("hide")), "✕ stops it and hides the card");
+  check(await c.evaluate(() => { const l = __layouts[__layouts.length - 1]; return +l[2] < 200 && !l[4]; }), "and gives the room back");
 
   /* ---------------------------------------------------------------- typing to it */
   answer = "Typing works too.";
@@ -171,6 +179,13 @@ function wav(ms) {
   check(await c.evaluate(() => !X3.voice.brain.on()), "and it isn't on");
   await c.evaluate(() => { cfg.xAssistant = true; });
 
+  /* ---------------------------------------------------------------- as in the real window: the toolbar's view is only as tall as the toolbar */
+  await c.setViewportSize({ width:1280, height:90 }); await wait(100);
+  await c.evaluate(() => { closeOver(); X3.voice.hud.close(); X3.voice.hud.open(); X3.voice.hud.text("Still at the bottom of the window."); X3.voice.hud.state("idle"); });
+  await wait(400);
+  const small = await c.evaluate(() => { const a = document.querySelector(".asst"); return { top:a.offsetTop, bottom:a.offsetTop + a.offsetHeight, l:__layouts[__layouts.length - 1] }; });
+  check(Math.abs(small.bottom - 804) <= 2 && small.l && +small.l[2] >= 804, "with the toolbar's view 90px tall, the card is still at the window's bottom and asks for the room: " + JSON.stringify(small));
+  await c.evaluate(() => X3.voice.hud.close());
   console.log(errors.length ? "errors:\n  " + errors.join("\n  ") : "errors: none");
   check(!errors.length, "no page errors: " + errors.join(" | "));
   console.log("checks passed:", ok, "failed:", bad);
