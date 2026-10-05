@@ -1,9 +1,13 @@
 {
-  "version": "2.8.1",
-  "date": "2026-10-04",
+  "version": "2.9.0",
+  "date": "2026-10-05",
   "notes": [
-    "Anime themes move all the time, on a loop: the wallpaper, the card (butterflies, rain, petals, leaves, a little ship, feathers) and the picker's tiles",
-    "They keep going with Reduce Motion on, just gentler; Animations: Off stops them"
+    "Your phone and your PC: a remote, a shared clipboard, pick up where you left off, and tabs sent either way",
+    "Play a friend: chess, Connect Four and tic-tac-toe with a join code",
+    "Sudoku, Solitaire, Chess and Blocks, and XP and levels",
+    "Offline articles, and side by side on an iPad",
+    "Face ID for your passcode, what sites see about you, and a fake shop warning",
+    "More from Web AI, getting things done, anime extras, invites and a wallpaper gallery"
   ],
   "webai": {
     "server": "https://web-ai.spiderkingfr.workers.dev",
