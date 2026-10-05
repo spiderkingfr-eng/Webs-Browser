@@ -67,10 +67,16 @@
      GET  /whoami                   what any website learns from your internet address
      GET  /domain?d=example.com     when a website's name was registered (the fake shop warning)
 
+     Live rooms (rooms.js, a Durable Object each): GET /room?k=… with a WebSocket, for linked devices
+     (the shared clipboard, the phone as a remote, pick up where you left off, sets of tabs) and games
+     with a join code
+
    setup.cmd sends this folder to Cloudflare (wrangler puts the files together). */
 import { ownerCfg, ownerGate, ownerAdmin, ownerCron, ownerChosen, allCodes, aiSettings, isBlocked, pushOwner, logA, addHist, dueScheduled } from "./owner.js";
 import { liveApi, liveAdmin, liveCron, liveNews } from "./live.js";
 import { privacyApi } from "./privacy.js";
+import { roomApi, Room } from "./rooms.js";
+export { Room };
 import { ADMIN_PAGE, DASH_JS, DASH_CSS, DASH_SW, DASH_MANIFEST, DASH_ICON, DASH_PNG } from "./dash.js";
 
 const API = "https://api.anthropic.com/v1/messages";
@@ -122,12 +128,13 @@ export default {
     try {
       if (req.method === "GET" && path === "/") {      // says what's missing, never any value
         const missing = setupProblem(env);
-        return json({ ok:true, name:"Web AI", ready:!missing, open:isOpen(env), model:model(env), features:["report", "link", "admin", "push", "support", "live", "owner", "privacy"], ...(missing ? { missing:"Still to do: " + missing } : {}) }, 200, cors);
+        return json({ ok:true, name:"Web AI", ready:!missing, open:isOpen(env), model:model(env), features:["report", "link", "admin", "push", "support", "live", "owner", "privacy", ...(env.ROOMS ? ["rooms"] : [])], ...(missing ? { missing:"Still to do: " + missing } : {}) }, 200, cors);
       }
       if ((req.method === "GET" && /^\/live(\/img\/[a-z0-9]{10})?$/.test(path)) || (req.method === "POST" && /^\/live\/(ping|act|replies)$/.test(path))) {
         if (!env.LIMITS || typeof env.LIMITS.get !== "function") return json({ error:"setup", message:"The storage (LIMITS) isn't set up." }, 503, cors);
         return await liveApi(path, req, env, cors);
       }
+      if (req.method === "GET" && path === "/room") return await roomApi(req, env, cors);
       if (req.method === "GET" && (path === "/whoami" || path === "/domain")) return await privacyApi(path, req, env, cors, ctx);
       const asset = req.method === "GET" && DASH_FILES[path];
       if (asset) return new Response(asset[1], { headers:{ "content-type":asset[0], "cache-control":"no-cache", ...(path === "/admin/sw.js" ? { "service-worker-allowed":"/" } : {}) } });
