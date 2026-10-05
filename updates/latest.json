@@ -1,14 +1,16 @@
 {
-  "version": "3.8.1",
-  "date": "2026-10-04",
+  "version": "3.9.0",
+  "date": "2026-10-05",
   "notes": [
-    "Anime themes move all the time, on a loop: the wallpaper, the card (butterflies, rain, petals, leaves, a little ship, feathers, sparkles), the picker's tiles and the band across the top of the window",
-    "They keep going with Windows' animation effects off, just gentler; only Animations: Off in Webs stops them"
+    "Anime wallpapers on websites: put a theme's live wallpaper behind the sites you choose (Menu → Anime wallpaper on this site…)",
+    "The site's big backgrounds turn see-through under a veil in its own color; messages, buttons, boxes you type in, pictures and videos keep their look and get every click",
+    "Each site its own look: which wallpaper, behind or faintly over the page, how much shows through, see-through sidebars, soft focus or a still picture",
+    "Or on every website, from Settings → Appearance"
   ],
   "exe": {
-    "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.8.1.exe",
-    "sha256": "e33aca7e7ca6c544fdf3cd5a5037f9d086a0656413aee2dbaa96655ae9a66d89",
-    "size": 3119104
+    "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.9.0.exe",
+    "sha256": "3a2779196a334e39f20d75576d0e0c6fd04c89c8ae90e4b8f29536e4e0ace2d0",
+    "size": 3148800
   },
   "updater": {
     "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebsUpdate.exe",
@@ -24,11 +26,11 @@
     "code": "jcku563mgxwn"
   },
   "previous": {
-    "version": "3.8.0",
+    "version": "3.8.1",
     "exe": {
-      "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.8.0.exe",
-      "sha256": "977e0b8cfe1369bf3f9a81f8dbaae8c688857526a580d01384b6c86b7c124897",
-      "size": 3079168
+      "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.8.1.exe",
+      "sha256": "e33aca7e7ca6c544fdf3cd5a5037f9d086a0656413aee2dbaa96655ae9a66d89",
+      "size": 3119104
     }
   }
 }

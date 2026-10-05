@@ -157,6 +157,32 @@ Settings → Appearance. The previous look is kept in `settings.animePrev` and c
 Everything loops (3.8.1): wallpapers, the cards' particle layer, the picker's tiles (paused off screen) and the
 band. Windows' animation effects off gives a gentler version; Animations: Off in Webs gives still frames.
 
+### Behind websites (3.9)
+
+Menu → Anime wallpaper on this site… (or the command palette) puts a theme's live wallpaper behind
+the site you're on, with a look of its own for each site: which theme (or the browser's), behind the
+page or faintly over it, how much shows through, see-through sidebars and bars, soft focus, a still
+picture. Settings → Appearance turns it off, on for the sites you choose, or on for every site, and
+lists the sites with a look of their own. Never in a private window.
+
+- **Sent to the page:** when a page on such a site finishes loading, `src/anime.chrome.js` sends
+  `src/anime.page.js` with `../js/anime.js` (the copy in the window, `<script id="wsb-anime-js">`)
+  through the host's `userjs` page tool, the same way as your own userscripts, so it works on strict
+  sites too. On that page, later changes send just the settings. `anime.js` runs inside a function
+  there, so the page gets no `window.Anime` and none of its styles.
+- **Behind the page:** a closed shadow root with the canvas and a veil, fixed behind everything
+  (`z-index:-2147483647`, no pointer events). It looks over the page at 48 points, from the top of
+  each stack down: big plain backgrounds (the page, the main column) get `data-wsb-anime="b"` and turn
+  see-through; sidebars and bars across the page get `g0`, `g1`… (their own color, half see-through).
+  Anything smaller with a background of its own stops the look at that point and keeps its look:
+  messages, cards, menus, inputs, buttons, pictures, video. The veil is the site's own background
+  color, so text stays readable; a light site gets about a third of the wallpaper, a dark one half.
+  The site redrawing itself, scrolling or changing its colors (its dark mode) is followed.
+- **Over the page:** the same canvas on top with `pointer-events:none`, faint (`screen` on dark
+  sites, `multiply` on light ones), for sites whose backgrounds are pictures.
+- `settings.animeWeb` is `""`, `"pick"` or `"all"`; `settings.animeSites` holds each site's look.
+  The iPhone app can't do this: iOS doesn't let a web app change other sites.
+
 ## Making the exe by hand
 
 ```
@@ -173,7 +199,7 @@ hash) before and after, and every embedded file read back by the .NET runtime ma
 ```
 npm install playwright
 python3 build.py
-node tests/t_chrome.js     # also t_side, t_ntp, t_games, t_shield, t_misc, t_examples, t_cloud, t_updated, t_autoupdate, t_studio, t_webai, t_voice, t_support, t_live and t_anime; `sh tests/t_updater.sh` tests the updater under Mono (23 checks, with a gradual rollout and going back)
+node tests/t_chrome.js     # also t_side, t_ntp, t_games, t_shield, t_misc, t_examples, t_cloud, t_updated, t_autoupdate, t_studio, t_webai, t_voice, t_support, t_live, t_anime and t_animesite; `sh tests/t_updater.sh` tests the updater under Mono (23 checks, with a gradual rollout and going back)
 ```
 
 470 checks pass (`t_cloud` fakes Google's sign-in, token and Drive endpoints and the update file; `t_webai` runs Web AI against the real server code with a pretend Claude; `t_support` runs Help & support against it and the owner's dashboard; `t_live` runs From Webs and the rollout against it; the server's own tests in `../server/web-ai/` add 315 checks). The exe itself was not run on Windows here: the tests run the same pages in

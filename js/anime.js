@@ -8,6 +8,7 @@
    Anime.run(canvas, id) the live wallpaper on a canvas; returns { stop() }. About 30 frames a second,
                          looping forever; paused while the page is hidden or the canvas is off screen.
                          Animations off: one still frame. Reduce motion: a gentler version.
+                         (Windows 3.9 also runs it behind web pages: windows/src/anime.page.js)
    Anime.preview(canvas, id)       one still frame
    Anime.card(el, id, opt)         the start page's card, with its own moving layer; call again to update the time
    Anime.picker(el, opt)           the tiles to choose one, each playing its wallpaper (opt: current, onPick(id))
@@ -582,18 +583,19 @@ const motion = () => {
   return 2;
 };
 // opt: still (one frame), from (the time to start at; the preview's moment by default), fps, pointer (follow the
-// mouse), virtual (draw the scene this wide and scale it down), scene (draw this instead of a wallpaper), clear
+// mouse), virtual (draw the scene this wide and scale it down), scene (draw this instead of a wallpaper), clear,
+// motion (0, 1 or 2 instead of this page's own setting: a web page has none), dpr (pixels per CSS pixel, at most)
 function run(cv, id, opt) {
   opt = opt || {};
   const w = opt.scene || WALL[id];
   if (!cv || !w) return { stop() {}, redraw() {}, setFps() {} };
-  const lvl = motion(), still = !!opt.still || lvl === 0, speed = lvl === 1 ? .5 : 1, from = opt.from != null ? opt.from : w.pt || 0;
+  const lvl = opt.motion != null ? opt.motion : motion(), still = !!opt.still || lvl === 0, speed = lvl === 1 ? .5 : 1, from = opt.from != null ? opt.from : w.pt || 0;
   const g = cv.getContext("2d"), m = { x:.5, y:.5, tx:.5, ty:.5, gentle:lvl === 1 };
   let W = 0, H = 0, S = null, raf = 0, last = 0, t0 = -1, fps = opt.fps || 30, stopped = false, seen = true, io = null;
   const move = e => { m.tx = e.clientX / innerWidth; m.ty = e.clientY / innerHeight; };
   if (!still && opt.pointer !== false) addEventListener("pointermove", move, { passive:true });
   const draw = now => {
-    const k = Math.min(2, devicePixelRatio || 1), cw = cv.clientWidth || cv.width, ch = cv.clientHeight || cv.height;
+    const k = Math.min(opt.dpr || 2, devicePixelRatio || 1), cw = cv.clientWidth || cv.width, ch = cv.clientHeight || cv.height;
     // a small canvas (the picker's tiles) gets the whole scene, drawn at a normal size and scaled down
     const vw = opt.virtual ? opt.virtual : cw, vh = opt.virtual ? opt.virtual * ch / Math.max(1, cw) : ch, sc = cw / vw;
     if (vw !== W || vh !== H || !S) { W = vw; H = vh; cv.width = Math.round(cw * k); cv.height = Math.round(ch * k); S = w.init(W, H, rng(opt.seed || 20261004)); }
@@ -790,13 +792,14 @@ function card(el, id, opt) {
 
 /* ---------------------------------------------------------------- choosing one */
 // every tile plays its wallpaper (a little slower than the real one, and only while it's on screen)
+// opt.none: the last tile, for no theme ({ name, show, e }); false leaves it out
 function picker(el, opt) {
   opt = opt || {};
   const runs = [];
   let dead = false;
   el.innerHTML = '<div class="an-grid"></div><p class="an-note">Fan-made looks inspired by these shows: drawn by Webs, not official, and not connected to their creators.</p>';
   const grid = el.querySelector(".an-grid");
-  THEMES.concat([{ id:"", name:"No anime theme", show:"Your own look", e:"✖️" }]).forEach(th => {
+  THEMES.concat(opt.none === false ? [] : [Object.assign({ id:"", name:"No anime theme", show:"Your own look", e:"✖️" }, opt.none)]).forEach(th => {
     const b = document.createElement("button");
     b.type = "button"; b.className = "an-tile" + (th.id === (opt.current || "") ? " on" : "") + (th.id ? "" : " none"); b.dataset.id = th.id;
     b.innerHTML = (th.id ? "<canvas></canvas>" : '<div class="an-none">' + th.e + "</div>") + "<b></b><span></span>";
@@ -929,7 +932,8 @@ css.textContent = `
 .an-none{aspect-ratio:16/10;display:grid;place-items:center;font-size:28px;background:rgba(127,127,127,.12)}
 .an-note{font-size:11.5px;opacity:.6;margin:10px 2px 0;line-height:1.45}
 `;
-(document.head || document.documentElement).appendChild(css);
+// (not on a web page, where only the wallpaper is used: the page's own styles stay as they are)
+if (!window.animeNoCss) (document.head || document.documentElement).appendChild(css);
 
 window.Anime = { THEMES, get:id => BY[id] || null, run, preview, card, picker, apply, has:id => !!BY[id], motion, _wall:WALL, _fx:FXC, _rng:rng };
 })();

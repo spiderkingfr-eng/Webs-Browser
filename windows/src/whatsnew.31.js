@@ -1,3 +1,10 @@
+"3.9 · Anime wallpapers on websites": [
+  ["A live wallpaper behind websites", "An anime theme's moving wallpaper behind the sites you choose, like a chat site or your mail. The site's big backgrounds turn see-through, under a veil in the site's own color so the text stays easy to read.", "Menu → Anime wallpaper on this site…"],
+  ["Out of the way", "Messages, buttons, menus, boxes you type in, pictures and videos keep their own look, every click and key goes to the site, and nothing on it is read or sent anywhere.", "Any website"],
+  ["Each site its own look", "Pick a different wallpaper for each site, or match the browser's theme. Behind the page or faintly over it, how much shows through, see-through sidebars, soft focus, or a still picture to save battery.", "Menu → Anime wallpaper on this site…"],
+  ["On every website", "Turn it on for every site at once, and off for the ones you'd rather keep plain. Settings lists the sites with a look of their own.", "Settings → Appearance → Anime wallpaper on websites"],
+  ["Follows the site's dark mode", "When a site switches between light and dark, the veil follows it.", "Any website"]
+],
 "3.8 · Anime themes": [
   ["Everything moves, on a loop (3.8.1)", "Every theme is animated now: the wallpaper, the card (butterflies, rain, petals, leaves, a little ship sailing its map, feathers, sparkles), the picker's tiles and the band across the top of the window. They keep going with Windows' animation effects off, just gentler; only Animations: Off in Webs stops them.", "Pick a theme"],
   ["Anime themes", "Nine whole looks inspired by popular shows: Bleach, Tokyo Ghoul, Demon Slayer, Jujutsu Kaisen, Naruto, Attack on Titan, One Piece, Death Note and Persona 5. Fan-made and drawn by Webs, not official.", "New tab → Background → Anime themes, or Menu → Anime themes…"],
