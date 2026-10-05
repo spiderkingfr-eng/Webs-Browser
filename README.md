@@ -101,6 +101,13 @@ Everything in a theme moves and loops forever (2.8.1 / 3.8.1): the wallpaper, a 
 the card, the picker's tiles and, on Windows, the band across the top. With the system's Reduce Motion
 on they play a gentler version (half speed, no flashes); only Webs' own *Animations: Off* stops them.
 
+On Windows (3.9), a theme's live wallpaper can also go behind websites: *Menu → Anime wallpaper on this
+site…* on, say, claude.ai. The site's big plain backgrounds turn see-through under a veil in the site's
+own color, while its messages, buttons, boxes you type in, pictures and videos keep their look and get
+every click. Each site can have its own wallpaper and look (behind the page or faintly over it, how much
+shows through, see-through sidebars, soft focus, a still picture), and *Settings → Appearance* can turn
+it on for every site. The iPhone app can't: iOS doesn't let a web app change other sites.
+
 ## What it does
 
 Version 2.0 adds 150 new things. They're all listed in the app under *Menu → What's new*.

@@ -1,5 +1,5 @@
 """Builds the new embedded pages: orig/ + src/ -> out/ (then repack.py puts them in the exe)."""
-import os, re, shutil, sys
+import json, os, re, shutil, sys
 here = os.path.dirname(os.path.abspath(__file__))
 O, S, OUT = (os.path.join(here, d) for d in ("orig", "src", "out"))
 os.makedirs(OUT, exist_ok=True)
@@ -19,6 +19,12 @@ sj = once(sj, "try { Object.defineProperty(W, Symbol.for('wsb.tool')", rd(S, "sh
 sj = once(sj, "function tool(action, arg) {\n  switch (action) {", "function tool(action, arg) {\n  if (xTool(action, arg)) return '';\n  switch (action) {", "shield: tool()")
 write("shield.js", sj)
 
+# Webs 3.9: the window sends the page side of the anime wallpapers to websites (with js/anime.js, from its own copy above)
+def anime_chrome():
+    pj = rd(S, "anime.page.js")
+    if "</script" in pj or "<!--" in pj: sys.exit("build: anime.page.js can't hold </script or <!--")
+    return once(rd(S, "anime.chrome.js"), "@@ANIME_PAGE@@", json.dumps(pj.strip(), ensure_ascii=False), "anime: page side")
+
 # chrome.html
 ch = rd(O, "chrome.html")
 ch = once(ch, "</style>\n", rd(S, "chrome.add.css") + rd(S, "cloud.css") + rd(S, "support.css") + "</style>\n", "chrome: css")
@@ -29,7 +35,7 @@ ch = once(ch, '  m.appendChild(row("sparkle", "What\'s new (287 features)", "", 
 ch = once(ch, '  m.appendChild(row("code", "Your CSS for this site…", "", cssPanel));\n',
   '  m.appendChild(row("code", "Your CSS for this site…", "", cssPanel));\n  m.appendChild(row("grid", "40 more page tools…", "", () => X3.toolsPanel()));\n', "chrome: tools panel row")
 ch = once(ch, "    [\"Close\", () => closeTab(id)]\n  ];\n  ctxMenu(e, items);", "    [\"Close\", () => closeTab(id)]\n  ];\n  if (window.X3) X3.tabItems(items, id);\n  ctxMenu(e, items);", "chrome: tab menu")
-ch = once(ch, "relayout();\n</script>", "relayout();\n</script>\n<script>\n" + rd(S, "chrome.add.js") + "\n</script>\n<script>\n" + rd(S, "../../js/live.js") + "\n</script>\n<script>\n" + rd(S, "../../js/anime.js") + "\n</script>\n<script>\n" + rd(S, "cloud.js").replace("@@WEBS_VERSION@@", VERSION) + "\n</script>\n<script>\n" + rd(S, "studio.js") + "\n</script>\n<script>\n" + rd(S, "webai.js") + "\n</script>\n<script>\n" + rd(S, "../../js/support.settings.js") + "\n</script>\n<script>\n" + rd(S, "support.js") + "\n</script>\n<script>\n" + rd(S, "live.chrome.js").replace("@@WEBS_VERSION@@", VERSION) + "\n</script>\n<script>\n" + rd(S, "anime.chrome.js") + "\n</script>", "chrome: script")   # Help & support: the list is shared with the iPhone app and the server
+ch = once(ch, "relayout();\n</script>", "relayout();\n</script>\n<script>\n" + rd(S, "chrome.add.js") + "\n</script>\n<script>\n" + rd(S, "../../js/live.js") + "\n</script>\n<script id=\"wsb-anime-js\">\n" + rd(S, "../../js/anime.js") + "\n</script>\n<script>\n" + rd(S, "cloud.js").replace("@@WEBS_VERSION@@", VERSION) + "\n</script>\n<script>\n" + rd(S, "studio.js") + "\n</script>\n<script>\n" + rd(S, "webai.js") + "\n</script>\n<script>\n" + rd(S, "../../js/support.settings.js") + "\n</script>\n<script>\n" + rd(S, "support.js") + "\n</script>\n<script>\n" + rd(S, "live.chrome.js").replace("@@WEBS_VERSION@@", VERSION) + "\n</script>\n<script>\n" + anime_chrome() + "\n</script>", "chrome: script")   # Help & support: the list is shared with the iPhone app and the server
 chrome_html = ch   # written once the feature count is known
 
 def page(name, css=None, js=None, edits=()):
@@ -84,7 +90,7 @@ print("games built")
 # whatsnew.html: the newest features first; the count on the page is worked out from the list
 wn = rd(O, "whatsnew.html")
 wn = once(wn, "const F = {\n", "const F = {\n" + rd(S, "whatsnew.31.js") + rd(S, "whatsnew.add.js"), "whatsnew: list")
-wn = once(wn, "The groups marked New arrived in this update.", "The groups marked 3.8, 3.7, 3.6, 3.5, 3.4, 3.3, 3.2, 3.1 and 3.0 are the newest; the ones marked New came just before.", "whatsnew: sub")
+wn = once(wn, "The groups marked New arrived in this update.", "The groups marked 3.9, 3.8, 3.7, 3.6, 3.5, 3.4, 3.3, 3.2, 3.1 and 3.0 are the newest; the ones marked New came just before.", "whatsnew: sub")
 write("whatsnew.html", wn)
 body = wn[wn.index("const F = {"):wn.index("};\nlet n = 0;")]
 features = len(re.findall(r'^\s*\["', body, re.M))     # one card per line that starts a [title, what, where] entry

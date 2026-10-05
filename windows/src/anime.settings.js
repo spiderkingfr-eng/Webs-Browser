@@ -22,4 +22,25 @@ btn.onclick = () => {
 };
 snd.onclick = () => { snd.classList.toggle("on"); if (cfg.anime) choose(cfg.anime, snd.classList.contains("on")); };
 paint();
+
+// 3.9: the wallpaper behind websites (src/anime.chrome.js): on or off, and the sites with a look of their own
+const web = $("#anWeb"), list = $("#anSites");
+web.value = cfg.animeWeb || "";
+web.onchange = () => { cfg.animeWeb = web.value; commit(); sites(); };
+function sites() {
+  const all = cfg.animeSites || {}, hosts = Object.keys(all).sort();
+  list.classList.toggle("hidden", !hosts.length);
+  list.innerHTML = hosts.length ? "<p>Sites with a look of their own (Remove brings back the usual one):</p>" : "";
+  hosts.forEach(h => {
+    const o = all[h], th = Anime.get(o.id), r = document.createElement("div");
+    r.className = "set"; r.style.padding = "8px 0";
+    r.innerHTML = '<div class="txt"><b></b><span></span></div><button class="act">Remove</button>';
+    r.querySelector("b").textContent = h;
+    r.querySelector("span").textContent = [o.on === false ? "Off" : o.on ? "On" : "", th ? th.name : "Matches the browser", o.mode === "over" ? "over the page" : "behind the page",
+      o.k ? Math.round(o.k * 100) + "% shows through" : "", o.still ? "still" : "", o.soft ? "soft focus" : ""].filter(Boolean).join(" · ");
+    r.querySelector("button").onclick = () => { const a = Object.assign({}, cfg.animeSites); delete a[h]; cfg.animeSites = a; commit(); sites(); };
+    list.appendChild(r);
+  });
+}
+sites();
 })();
