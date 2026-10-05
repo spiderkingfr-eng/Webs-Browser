@@ -10,7 +10,7 @@ const check = (c, w) => { if (c) ok++; else { bad++; console.log("  FAIL:", w); 
   // the count on the page matches the cards (build.py counts the list the same way)
   const cards = await p.locator(".f").count();
   check(cards > 450 && await p.textContent("#count") === String(cards), cards + " features counted and shown");
-  check(/3\.10 · Your phone and this PC/.test(await p.textContent("#out h2")), "the newest group (3.10) first");
+  check(/3\.11 · Happening near you/.test(await p.textContent("#out h2")), "the newest group (3.11) first");
   await p.fill("#q", "breakout"); await p.waitForTimeout(100);
   check(await p.locator(".f:not(.hide)").count() >= 1, "search finds Breakout");
   await p.fill("#q", ""); await p.waitForTimeout(1500); await p.screenshot({ path:SHOTS + "whatsnew.png" });

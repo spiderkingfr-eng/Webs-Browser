@@ -108,6 +108,14 @@ every click. Each site can have its own wallpaper and look (behind the page or f
 shows through, see-through sidebars, soft focus, a still picture), and *Settings → Appearance* can turn
 it on for every site. The iPhone app can't: iOS doesn't let a web app change other sites.
 
+## New in iPhone 2.10 and Windows 3.11: happening near you
+
+A card on the start page with the big things around you: concerts, sports, festivals and shows (from Ticketmaster),
+severe weather warnings and earthquakes, local news, and local posts you add on the dashboard (Start page →
+Happening near you: local posts). *Menu → Happening near you* shows them all. It goes by your town (from your
+internet address, no question asked), or your exact position rounded to about 10 km, or a city you pick. Events need
+a free Ticketmaster key: `server/web-ai/setup.cmd` asks for it (developer.ticketmaster.com → My Apps → Consumer Key).
+
 ## New in iPhone 2.9 and Windows 3.10
 
 Fifty new things across both apps (each app lists them under *What's new*, and every version's changes are
@@ -203,6 +211,7 @@ On an iPhone, an app can only show a website inside itself when that website all
 | `js/privacy.js`, `js/privacy.app.js` | The fake shop warning, what sites see, Face ID for the passcode (2.9) |
 | `js/link.js`, `js/link.app.js` | Your phone and your PC: linking, the remote, the clipboard, tabs (2.9) |
 | `js/stats.js`, `js/stats.app.js` | Counts for the owner, invites and the wallpaper gallery (2.9) |
+| `js/near.js`, `js/near.app.js` | Happening near you (2.10, shared with Windows) |
 | `js/offline.app.js`, `js/ipad.app.js` | Offline articles, and side by side on an iPad (2.9) |
 | `changelog.html` | Every version's changes, made by `tools/make_changelog.py` from the apps' What's new lists |
 | `js/live.js` | From Webs (2.7): what's on everyone's start page, shared with Windows; `js/live.app.js` puts it in the app and `js/live.games.js` in the games |

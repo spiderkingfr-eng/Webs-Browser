@@ -1,13 +1,9 @@
 {
-  "version": "2.9.0",
+  "version": "2.10.0",
   "date": "2026-10-05",
   "notes": [
-    "Your phone and your PC: a remote, a shared clipboard, pick up where you left off, and tabs sent either way",
-    "Play a friend: chess, Connect Four and tic-tac-toe with a join code",
-    "Sudoku, Solitaire, Chess and Blocks, and XP and levels",
-    "Offline articles, and side by side on an iPad",
-    "Face ID for your passcode, what sites see about you, and a fake shop warning",
-    "More from Web AI, getting things done, anime extras, invites and a wallpaper gallery"
+    "Happening near you: events, severe weather, earthquakes and local news on your start page",
+    "See everything in Menu → Happening near you, for your town, your exact position or any city you choose"
   ],
   "webai": {
     "server": "https://web-ai.spiderkingfr.workers.dev",

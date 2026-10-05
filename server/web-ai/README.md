@@ -23,6 +23,10 @@ a website's age), `rooms.js` (live rooms for linked devices and games), `ledger.
 (the owner's counts, invites, the wallpaper gallery), `reader.js` (pages kept offline
 on iPhones), `wrangler.jsonc` and `setup.cmd`.
 
+**Happening near you (Windows 3.11 / iPhone 2.10):** `near.js`. Events come from Ticketmaster: get a free key at
+developer.ticketmaster.com (My Apps → the Consumer Key) and give it to `setup.cmd` when it asks (the
+`TICKETMASTER_KEY` secret). Weather warnings, earthquakes and local news need no key.
+
 **Updating to Windows 3.10 / iPhone 2.9:** run `setup.cmd` again and answer N to the key and
 the codes. It adds two Durable Objects (`ROOMS` and `LEDGER`, in `wrangler.jsonc`), which the
 free plan includes, so the phone-and-PC features, games with a friend, Insights, invites and the
@@ -227,6 +231,7 @@ plan removes the limit.
 - **Linked devices and games with a friend:** what's passed between them goes through a live room
   only they know (the clipboard, the open page, sets of tabs, a game's moves). A game is forgotten
   two days after its last move.
+- **Happening near you:** the area, rounded to about 10 km (or the city's name), to look up events, weather, earthquakes and news there. Each area's answer is cached an hour; nothing about who asked is kept.
 - **What sites see, the fake shop warning, offline articles:** your address as the server sees it
   (not kept), a website's name to look up its age in the public registry (cached a day), and the
   address of a page to keep offline (the server fetches it and keeps nothing).
@@ -240,6 +245,7 @@ plan removes the limit.
 - `node test-support.mjs` tests Help & support: what's kept, who can read it, access, the list of settings and its time limit.
 - `node test-owner.mjs` tests the dashboard's settings and security (two-step login, codes, alerts, the spending cap, blocking, backups); `node test-live.mjs` tests the start page parts, check-ins, votes, scores and the hourly numbers.
 - `node test-push.mjs` tests notifications with a pretend Apple push service that decrypts each message with the phone's key and checks the signature.
+- `node test-near.mjs` tests Happening near you; `windows/tests/t_near.js` runs it in both apps.
 - `node test-privacy.mjs`, `test-rooms.mjs`, `test-ledger.mjs` and `test-reader.mjs` test what's new in 3.10 / 2.9;
   `windows/tests/t_link.js` and `t_owner.js` run the apps against this code end to end.
 - `windows/tests/t_webai.js` runs the browser's Web AI against this worker end to end.

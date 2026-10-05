@@ -1,20 +1,14 @@
 {
-  "version": "3.10.0",
+  "version": "3.11.0",
   "date": "2026-10-05",
   "notes": [
-    "Your phone and this PC: link with a code, then a shared clipboard, your phone as a remote, pick up where you left off, and sets of tabs sent either way",
-    "Play a friend: chess, Connect Four and tic-tac-toe online with a join code",
-    "Sudoku, Solitaire, Chess and Blocks, and XP and levels",
-    "Anime extras: event themes, a theme vote, themes by the clock, a screensaver, a cursor trail, Mochi and a hidden spider",
-    "More from Web AI: answers in the address bar, a video's key moments, tidy and compare tabs, study mode, Explain, find it again, your instructions",
-    "Getting things done: a morning routine, site reminders, a bookmark checkup, a reading digest, your address filled in (encrypted), PDF notes, phone preview and voice commands",
-    "Privacy: containers, cleaning up a site when you close it, a fake shop warning, and what sites see about you",
-    "Invite a friend, a wallpaper gallery, and the changelog online"
+    "Happening near you: concerts, sports, festivals and shows near you, severe weather warnings, earthquakes and local news on the new tab page",
+    "See everything in Menu → Happening near you, for your town, your exact position or any city you choose"
   ],
   "exe": {
-    "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.10.0.exe",
-    "sha256": "d73ca822f5300c77c5c1a9e12641534b7530784d80fab04057d5bb0b99093192",
-    "size": 3614720
+    "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.11.0.exe",
+    "sha256": "25f4318a6b5f7d28765f7e76000318c3413b6701bbc06ab2e90274bbbd77d8e7",
+    "size": 3643392
   },
   "updater": {
     "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebsUpdate.exe",
@@ -30,11 +24,11 @@
     "code": "jcku563mgxwn"
   },
   "previous": {
-    "version": "3.9.0",
+    "version": "3.10.0",
     "exe": {
-      "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.9.0.exe",
-      "sha256": "3a2779196a334e39f20d75576d0e0c6fd04c89c8ae90e4b8f29536e4e0ace2d0",
-      "size": 3148800
+      "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.10.0.exe",
+      "sha256": "d73ca822f5300c77c5c1a9e12641534b7530784d80fab04057d5bb0b99093192",
+      "size": 3614720
     }
   }
 }

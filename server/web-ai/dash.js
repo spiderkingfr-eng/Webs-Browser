@@ -579,6 +579,30 @@ PANES.live = async function (p) {
     } catch (e) { galL.appendChild(E("p", "err", e.message)); }
   };
   galF.addEventListener("toggle", function () { if (galF.open && !galL.childNodes.length) paintGallery(); });
+  // 3.11: local posts in Happening near you
+  var nrF = fold(p, "📍 Happening near you: local posts", "A post that shows in Happening near you to people around a place you pick (a meetup, a local deal, a warning). Concerts and games come from Ticketmaster by themselves once its key is set (setup.cmd).", !!(L.near && L.near.length), false);
+  var nrL = E("div"); nrF.appendChild(nrL);
+  (L.near || []).forEach(function (x, i) {
+    add(nrL, rowOf(E("span", "", "📌 " + x.title + " · " + (x.place || (x.lat + ", " + x.lon)) + " · " + x.r + " km" + (x.date ? " · " + x.date : "") + (x.until ? " · until " + tsDate(x.until) : "")), E("span", "sp"),
+      btn("Remove", async function (b) { var l = L.near.slice(); l.splice(i, 1); await act(b, function () { return saveLive({ near:l }); }, "Removed."); built.live = false; show("live"); }, "danger small")));
+  });
+  if (!(L.near || []).length) nrL.appendChild(E("p", "d small", "No local posts."));
+  var nrT = inp("Title", "", { maxlength:100, placeholder:"Webs meetup at the café" }), nrX = inp("Details (optional)", "", { maxlength:300 }), nrK = inp("Link (optional)", "", { placeholder:"https://…" });
+  var nrP = inp("Place", "", { placeholder:"Type a town or city, then Find" }), nrHits = E("div"), nrAt = null;
+  var nrR = sel("Show to people within", "30", [["5", "5 km"], ["15", "15 km"], ["30", "30 km"], ["60", "60 km"], ["150", "150 km"], ["500", "500 km"]]), nrD = inp("Date of the event (optional)", "", { type:"date" }), nrU = untilField("Show until (optional)", 0);
+  var nrFind = btn("Find", async function (b) {
+    nrHits.innerHTML = ""; nrAt = null;
+    try { var r = await (await fetch("/near/geo?q=" + encodeURIComponent(nrP.input.value))).json();
+      if (!r.places || !r.places.length) { nrHits.appendChild(E("p", "d small", "No place with that name.")); return; }
+      r.places.forEach(function (x) { var h = btn(x.name, function () { nrAt = x; nrP.input.value = x.name; nrHits.innerHTML = ""; nrHits.appendChild(E("p", "d small", "✓ " + x.name)); }, "ghost small"); nrHits.appendChild(h); });
+    } catch (e) { toast("Couldn't look that up."); }
+  }, "ghost small");
+  add(nrF, nrT, nrX, nrK, nrP, rowOf(nrFind), nrHits, nrR, nrD, nrU, rowOf(btn("Post it", async function (b) {
+    if (!nrT.input.value.trim()) return toast("Give it a title.");
+    if (!nrAt) return toast("Find the place first.");
+    await act(b, function () { return saveLive({ near:(L.near || []).concat([{ title:nrT.input.value, text:nrX.input.value, link:nrK.input.value, place:nrAt.short || nrAt.name, lat:nrAt.lat, lon:nrAt.lon, r:+nrR.input.value, date:nrD.input.value, until:dateTs(nrU.input.value, true) }]) }); }, "Posted for people nearby.");
+    built.live = false; show("live");
+  })));
   // the calling card
   var cc = fold(p, "🎭 Calling card", "A full-screen Persona 5-style card everyone sees once, the next time they open a new tab.", !!L.card);
   var ct = inp("Title", L.card && L.card.title, { maxlength:80, placeholder:"TAKE YOUR TIME!" }), cx = inp("Message", L.card && L.card.text, { area:1, maxlength:400, placeholder:"We will steal your boredom this Friday: a new update is coming." }), cs = inp("Signed", L.card ? L.card.sign : "The Phantom Thieves", { maxlength:60 });
