@@ -1,9 +1,8 @@
 {
-  "version": "2.10.0",
+  "version": "2.10.1",
   "date": "2026-10-05",
   "notes": [
-    "Happening near you: events, severe weather, earthquakes and local news on your start page",
-    "See everything in Menu → Happening near you, for your town, your exact position or any city you choose"
+    "Happening near you no longer stops working when the Web AI server hasn't been updated yet"
   ],
   "webai": {
     "server": "https://web-ai.spiderkingfr.workers.dev",
