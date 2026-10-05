@@ -1,3 +1,9 @@
+"3.11 · Happening near you": [
+  ["Big things around you", "Concerts, sports, festivals and shows nearby in the next three weeks, severe weather warnings, earthquakes and local news, on the new tab page.", "New tab"],
+  ["See it all", "Every event, alert and headline in tabs, with links to tickets and stories.", "Menu → Happening near you"],
+  ["Your town, or anywhere", "It goes by your town (from your internet address) without asking, or your exact position (rounded to about 10 km), or any city you pick.", "Happening near you → Where"],
+  ["From the people who make Webs", "Local posts, like a meetup, for people around a place.", "Happening near you"]
+],
 "3.10 · Your phone and this PC": [
   ["Link your iPhone", "Type a 6-digit code on the other device and they're linked. It all goes through a live room only your devices know.", "Menu → Phone and PC"],
   ["Shared clipboard", "What you copy here can go to your phone, and what the phone sends shows here with a Copy button.", "Phone and PC → Shared clipboard"],

@@ -34,6 +34,13 @@ call npx --yes wrangler@4 secret put WEB_AI_CODES
 if errorlevel 1 goto failed
 :done
 echo.
+choice /c YN /m "Add (or change) a Ticketmaster key for events in Happening near you (optional, free at developer.ticketmaster.com)"
+if errorlevel 2 goto finish
+echo Paste the Consumer Key from your Ticketmaster app, then press Enter.
+call npx --yes wrangler@4 secret put TICKETMASTER_KEY
+if errorlevel 1 goto failed
+:finish
+echo.
 echo All done. Open the workers.dev address from step 1 in a browser: it should say "ready":true
 pause
 exit /b 0

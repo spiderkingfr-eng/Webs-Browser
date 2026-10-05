@@ -1,8 +1,13 @@
-/* Webs Browser for iPhone - what's new in 2.9, 2.8, 2.7, 2.6, 2.5, 2.4, 2.3, 2.2, 2.1 and 2.0, listed in the app
+/* Webs Browser for iPhone - what's new in 2.10, 2.9, 2.8, 2.7, 2.6, 2.5, 2.4, 2.3, 2.2, 2.1 and 2.0, listed in the app
    (Menu → What's new) and offered once after each update. */
 "use strict";
 
 const WHATS_NEW = [
+  ["New in 2.10: happening near you", "world", [
+    "Big things around you on the start page: concerts, sports, festivals and shows, severe weather warnings, earthquakes and local news",
+    "Everything in Menu → Happening near you, with links to tickets and stories",
+    "It goes by your town without asking, or your exact position (rounded to about 10 km), or any city you pick"
+  ]],
   ["New in 2.9: your phone and your PC", "phone", [
     "Link Webs on this phone with Webs on your PC: type a 6-digit code (Menu → Phone and PC)",
     "A remote for the PC: play and pause, change tabs, scroll, zoom, or open a site on it",

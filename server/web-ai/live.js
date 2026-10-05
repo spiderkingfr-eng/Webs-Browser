@@ -75,6 +75,10 @@ export function cleanLive(p, old) {
   v.ach = (Array.isArray(p.ach) ? p.ach : []).filter(x => x && txt(x.name, 40)).slice(0, 20).map(x => ({ id:id8(x.id), emoji:txt(x.emoji, 8) || "🏅", name:txt(x.name, 40), desc:txt(x.desc, 120) || "Open Webs while it's on",
     from:until(x.from), until:until(x.until) }));
   if (p.wall && /^[a-z0-9]{10}$/.test(p.wall.id || "")) v.wall = { id:p.wall.id, credit:txt(p.wall.credit, 100), until:until(p.wall.until) };
+  // (3.11) local posts for Happening near you: shown to people within r km of the place
+  v.near = (Array.isArray(p.near) ? p.near : []).filter(x => x && txt(x.title, 100) && isFinite(+x.lat) && isFinite(+x.lon) && Math.abs(+x.lat) <= 90 && Math.abs(+x.lon) <= 180).slice(0, 30)
+    .map(x => ({ id:id8(x.id), title:txt(x.title, 100), text:txt(x.text, 300), link:url(x.link), place:txt(x.place, 100), lat:Math.round(+x.lat * 100) / 100, lon:Math.round(+x.lon * 100) / 100,
+      r:Math.max(1, Math.min(500, Math.round(+x.r) || 30)), date:isDate(x.date) ? x.date : "", from:until(x.from), until:until(x.until) }));
   v.stickers = (Array.isArray(p.stickers) ? p.stickers : []).filter(x => x && /^[a-z0-9]{10}$/.test(x.id || "")).slice(0, 24).map(x => ({ id:x.id, name:txt(x.name, 40) }));
   v.faq = (Array.isArray(p.faq) ? p.faq : []).filter(x => x && txt(x.q, 200) && txt(x.a, 2000)).slice(0, 30).map(x => ({ q:txt(x.q, 200), a:txt(x.a, 2000) }));
   const ro = p.rollout || {}, rv = s => /^\d+\.\d+\.\d+$/.test(String(s || "")) ? s : "";
