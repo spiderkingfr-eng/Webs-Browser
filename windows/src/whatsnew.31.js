@@ -1,4 +1,5 @@
 "3.13 · Your assistant": [
+  ["Fixed (3.13.1)", "The assistant's card now shows at the bottom right of the window instead of getting stuck behind the toolbar at the top.", "The card"],
   ["Talk to Webs, and it talks back", "Say “Hey Webs” and then anything: what isn't a voice command becomes a conversation with Web AI, which answers out loud, a sentence at a time while it thinks.", "Voice control"],
   ["It does things for you", "“Put on some lo-fi and give me twenty minutes of focus”: it opens pages, sets timers, switches tabs and more, using the voice commands, and asks before anything that can't be undone.", "Voice control"],
   ["Adam's voice", "It talks in Adam, a well-known ElevenLabs voice, through your Web AI server (add a free ElevenLabs key in setup.cmd), with an optional “suit” effect. Or pick any Windows voice.", "Voice control → Assistant → Voice"],

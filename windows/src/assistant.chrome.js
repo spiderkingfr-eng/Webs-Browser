@@ -207,9 +207,20 @@ const hud = (function () {
   c.querySelector(".asst-x").onclick = () => { stopAll(); api.close(); };
   c.querySelector("form").onsubmit = e => { e.preventDefault(); const i = c.querySelector("form input"), v = i.value.trim(); if (v) { i.value = ""; V.run(v); } };
   const api = {
-    open() { clearTimeout(hideT); c.classList.remove("hide"); c.querySelector(".asst-top b").textContent = name(); api.side(); },
-    side() { c.classList.toggle("left", !!overlay); },     // a panel open on the right: the card moves left
-    close() { clearTimeout(hideT); c.classList.add("hide"); },
+    open() { const was = c.classList.contains("hide"); clearTimeout(hideT); c.classList.remove("hide"); c.querySelector(".asst-top b").textContent = name(); api.side(); if (was) relayout(); },
+    side() { api.place(); },     // a panel open on the right: the card moves left
+    // the window's top part is only as tall as the toolbar unless it asks for more (relayout, below): the card is placed
+    // from the real window size (vpW, vpH) at the bottom right, clear of the sidebar
+    place() {
+      if (c.classList.contains("hide")) return;
+      c.classList.toggle("left", !!overlay);
+      const top = Math.ceil($("#chrome").getBoundingClientRect().height), rail = $("#rail"), rw = rail && rail.classList.contains("on") ? rail.offsetWidth : 0;
+      const sideW = side.open ? Math.round(Math.min(cfg.sideW || 380, vpW * 0.5)) : 0;
+      c.style.maxHeight = Math.max(140, vpH - top - 24) + "px";
+      c.style.top = Math.max(top + 8, vpH - c.offsetHeight - 16) + "px";
+      if (c.classList.contains("left")) { c.style.left = "16px"; c.style.right = "auto"; } else { c.style.right = (16 + rw + sideW) + "px"; c.style.left = "auto"; }
+    },
+    close() { clearTimeout(hideT); c.classList.add("hide"); relayout(); },
     you(t) { c.querySelector(".asst-you").textContent = t ? "“" + t + "”" : ""; },
     text(t) { c.querySelector(".asst-text").textContent = t; },
     state(s) { api.side(); c.dataset.s = s; c.querySelector(".asst-st").textContent = (ST[s] || "").replace("{w}", cfg.xVoiceWake || "Hey Webs"); if (s !== "idle" && s !== "follow") clearTimeout(hideT); },
@@ -222,6 +233,26 @@ const hud = (function () {
   return api;
 })();
 V.hud = hud;
+// the card's area is added to what the toolbar asks the window for, so it shows and can be clicked
+let cardSent = "";
+const relayoutA = relayout;
+relayout = function () {
+  relayoutA.apply(this, arguments);
+  const c = hud.el;
+  if (c.classList.contains("hide") || !lastLayout) { if (cardSent) { cardSent = ""; const s = lastLayout; lastLayout = ""; relayoutA(); if (!lastLayout) lastLayout = s; } return; }
+  hud.place();
+  // where it rests (offset*, not the rectangle mid-way through its slide-in)
+  const b = { left:c.offsetLeft, top:c.offsetTop, width:c.offsetWidth, height:c.offsetHeight }; b.bottom = b.top + b.height;
+  const dpr = devicePixelRatio || 1, p = lastLayout.split("/");
+  if (!b.width || !b.height || p.length < 6) return;
+  p[1] = String(Math.max(+p[1], Math.round((Math.ceil(b.bottom) + 2) * dpr)));
+  p[3] = (p[3] ? p[3] + ";" : "") + [Math.floor(b.left * dpr), Math.floor(b.top * dpr), Math.ceil(b.width * dpr) + 1, Math.ceil(b.height * dpr) + 1, Math.round(18 * dpr)].join(",");
+  const s = p.join("/");
+  if (s === cardSent) return;
+  cardSent = s;
+  send("layout", ...p);
+};
+new ResizeObserver(() => { if (!hud.el.classList.contains("hide")) relayout(); }).observe(hud.el);
 // no microphone needed: the command list opens the card to type to it
 const commandsA = commands;
 commands = function () { return commandsA().concat([{ t:"Talk to the assistant (" + name() + ")", k:"", i:"speech", fn:() => { if (!AI.ready()) { toast("Open Web AI once to connect it first"); return; } hud.open(); hud.you(""); hud.text("What can I do for you?"); hud.clearActs(); hud.state("idle"); setTimeout(() => hud.el.querySelector(".asst-type input").focus(), 50); } }]); };
@@ -279,7 +310,7 @@ try { speechSynthesis.addEventListener("voiceschanged", () => { if (overlay === 
 
 const st = document.createElement("style");
 st.textContent = `
-.asst{position:fixed;right:16px;bottom:16px;z-index:60;width:min(380px,calc(100vw - 32px));display:flex;gap:12px;padding:14px;border-radius:18px;background:color-mix(in srgb,var(--bg2) 92%,transparent);backdrop-filter:blur(14px);box-shadow:0 12px 40px rgba(0,0,0,.35),inset 0 0 0 1px color-mix(in srgb,var(--accent) 30%,transparent);color:var(--fg);animation:asstIn .22s ease}
+.asst{position:fixed;right:16px;top:60px;z-index:60;overflow:auto;box-sizing:border-box;width:min(380px,calc(100vw - 32px));display:flex;gap:12px;padding:14px;border-radius:18px;background:color-mix(in srgb,var(--bg2) 92%,transparent);backdrop-filter:blur(14px);box-shadow:0 12px 40px rgba(0,0,0,.35),inset 0 0 0 1px color-mix(in srgb,var(--accent) 30%,transparent);color:var(--fg);animation:asstIn .22s ease}
 .asst.hide{display:none}.asst.left{right:auto;left:16px}@keyframes asstIn{from{opacity:0;transform:translateY(10px)}}
 .asst-orb{position:relative;flex:0 0 46px;height:46px}.asst-orb i{position:absolute;inset:0;border-radius:50%;border:2px solid var(--accent);opacity:.8}
 .asst-orb i:nth-child(1){background:radial-gradient(circle,color-mix(in srgb,var(--accent) 70%,#fff) 0,var(--accent) 35%,transparent 70%);border:0}
