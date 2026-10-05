@@ -387,17 +387,28 @@ function fail(why) {
   if (cfg.xVoiceOffline) startOffline();
   else { chip("err", why === "choose" ? "Windows' speech recognition can only use the default microphone here. Click to use the offline engine with yours." : "Voice needs the offline engine here. Click to set it up."); if (overlay === "voicep") voicePanel(); }
 }
+// loading takes a while: turning voice off (or hiding the window) meanwhile must not leave a microphone open
+let loadN = 0;
 async function startOffline() {
-  try { L.eng = await offlineEngine(); L.engine = "offline"; L.err = ""; }
-  catch (e) { L.eng = null; L.err = "offline"; chip("err", e && e.name === "NotAllowedError" ? "The microphone isn't allowed for Webs." : (e.message || "The offline engine didn't start.")); }
+  if (L.loading) return;
+  const n = ++loadN; L.loading = true;
+  try {
+    const eng = await offlineEngine();
+    if (n !== loadN || !L.on || L.eng || (cfg.xVoiceFront !== false && document.hidden)) { eng.stop(); if (n === loadN && !L.eng) chip(L.on ? "paused" : "off"); return; }
+    L.eng = eng; L.engine = "offline"; L.err = "";
+  }
+  catch (e) { if (n !== loadN) return; L.eng = null; L.err = "offline"; chip("err", e && e.name === "NotAllowedError" ? "The microphone isn't allowed for Webs." : (e.message || "The offline engine didn't start.")); }
+  finally { if (n === loadN) L.loading = false; }
 }
+const engKey = () => (cfg.xVoiceOffline ? "offline" : "web") + "|" + (cfg.xVoiceMic || "");
 function start() {
-  if (L.eng || !L.on) return;
+  if (L.eng || L.loading || !L.on) return;
+  L.with = engKey();
   if (cfg.xVoiceFront !== false && document.hidden) return;
   if (cfg.xVoiceOffline || !(window.SpeechRecognition || window.webkitSpeechRecognition)) { if (cfg.xVoiceOffline) startOffline(); else fail("web"); return; }
   L.eng = webEngine(); L.engine = "web"; chip("on");
 }
-function stop() { if (L.eng) { try { L.eng.stop(); } catch (e) {} L.eng = null; } chip(L.on ? "paused" : "off"); }
+function stop() { loadN++; L.loading = false; if (L.eng) { try { L.eng.stop(); } catch (e) {} L.eng = null; } chip(L.on ? "paused" : "off"); }
 function setOn(on) {
   L.on = !!on; cfg.xVoice = L.on; saveCfg();
   if (L.on) { L.err = ""; start(); toast("🎙️ Listening for “" + (cfg.xVoiceWake || "Hey Webs") + "”" + (cfg.xVoiceNoWake ? "" : ". Say it, then a command."), { label:"Commands", fn:() => voicePanel(true) }); }
@@ -528,7 +539,12 @@ const commandsV = commands;
 commands = function () { return commandsV().concat([{ t:"Voice control: listen for “Hey Webs”", k:"Alt+Shift+M", i:"speech", fn:() => setOn(!L.on) }, { t:"Voice commands: what you can say", k:"", i:"speech", fn:() => voicePanel(true) }]); };
 // Settings → Voice control changed it
 const reloadSettingsV = reloadSettings;
-reloadSettings = function () { reloadSettingsV.apply(this, arguments); if (!!cfg.xVoice !== L.on) { L.on = !!cfg.xVoice; if (L.on) start(); else stop(); } };
+reloadSettings = function () {
+  reloadSettingsV.apply(this, arguments);
+  const changed = (L.eng || L.loading) && L.with !== engKey();
+  if (!!cfg.xVoice !== L.on) { L.on = !!cfg.xVoice; if (L.on) start(); else stop(); }
+  else if (L.on && changed) { stop(); L.err = ""; start(); }   // the engine or microphone was switched in Settings
+};
 X3.voice = { mics, openMic, stopMeter, parse, run, hear:heard, setOn, voicePanel, norm, calc, secs, num, COMMANDS:C, state:() => L, wakeRe };
 if (cfg.xVoice) setTimeout(() => { L.on = true; start(); chip(L.eng ? "on" : "paused"); }, 2500); else chip("off");
 

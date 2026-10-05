@@ -1,5 +1,6 @@
 "3.12 · Hey Webs": [
   ["Choose your microphone (3.12.1)", "Pick which microphone Webs listens to, with a bar that moves when it hears you. If it's unplugged, Webs uses Windows' default and says so.", "Voice control → Microphone"],
+  ["Bug fixes (3.12.1)", "Turning voice control off while the offline engine is still loading no longer leaves the microphone on, and switching the engine or microphone in Settings takes effect at once. Plus small fixes found by clicking every button in Webs.", "Everywhere"],
   ["Always listening, when you want it", "Turn it on and say “Hey Webs”, then what you want. Only the words after the wake phrase are used; nothing is recorded or kept, and never in private windows.", "The 🎙️ button, or Alt+Shift+M"],
   ["Over a hundred commands", "Tabs, going places, the page, video and sound, bookmarks and notes, Web AI, quick answers, themes, games and Webs's own features: “open YouTube”, “skip 30 seconds”, “set a timer for 10 minutes”, “what's happening near me”.", "Voice control → What you can say"],
   ["Answers out loud", "Webs says what it did, works out sums, tells the time, and passes questions to Web AI.", "Voice control"],

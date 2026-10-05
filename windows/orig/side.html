@@ -425,11 +425,13 @@ $("nBack").onclick = closeNote;
 $("nq").oninput = listNotes;
 $("nExport").onclick = () => {
   flushNote();
+  if (!cur) return;
   const name = (cur.title || "note").replace(/[\\/:*?"<>|]+/g, " ").trim().slice(0, 60) || "note";
   send("save-text", name + ".txt", (cur.title ? cur.title + "\r\n\r\n" : "") + cur.text.replace(/\r?\n/g, "\r\n"));
 };
 $("nExportMd").onclick = () => {
   flushNote();
+  if (!cur) return;
   const name = (cur.title || "note").replace(/[\\/:*?"<>|]+/g, " ").trim().slice(0, 60) || "note";
   send("save-text", name + ".md", (cur.title ? "# " + cur.title + "\n\n" : "") + toMd($("nText")));
 };

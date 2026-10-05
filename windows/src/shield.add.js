@@ -794,6 +794,7 @@ function xMarks(arg) {
   xMarked.forEach(function (m) { if (m.parentNode) m.parentNode.replaceChild(D.createTextNode(m.textContent), m); });
   xMarked = [];
   var list = []; try { list = JSON.parse(arg) || []; } catch (e) { list = String(arg || '').split(','); }
+  if (!Array.isArray(list)) list = [];
   list = list.map(function (w) { return String(w).trim(); }).filter(Boolean).slice(0, 6);
   if (!list.length) { badge('Highlights cleared'); return; }
   var re = new RegExp('(' + list.map(function (w) { return w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }).join('|') + ')', 'gi');

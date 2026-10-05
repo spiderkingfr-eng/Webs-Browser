@@ -152,7 +152,22 @@ const until = async (p, fn, ms = 4000) => { const end = Date.now() + ms; while (
   check(await c.evaluate(() => /vosk-model-small-en-us/.test(window.__modelUrl) && cfg.xVoiceOffline === true), "with the small English model, and remembered");
   await c.evaluate(() => { __sent.length = 0; __rec.emit("result", { result:{ text:"hey webs next tab" } }); }); await wait(150);
   check(await c.evaluate(() => __sent.includes("select-tab\u00013")), "a command heard by the offline engine");
-  await c.evaluate(() => { closeOver(); X3.voice.setOn(false); __sr.fail = ""; cfg.xVoiceOffline = false; });
+  // turned off while the offline engine is still loading: the microphone is not left open
+  await c.evaluate(() => { closeOver(); X3.voice.stopMeter(); }); await wait(100);
+  await c.evaluate(() => {
+    X3.voice.setOn(false); window.__open = 0; window.__gate = null;
+    const cm = window.__cm = Vosk.createModel; Vosk.createModel = url => new Promise(r => { window.__gate = () => r(cm(url)); });
+    navigator.mediaDevices.getUserMedia = async () => { window.__open++; const ac = new AudioContext(), d = ac.createMediaStreamDestination(); const s = d.stream; s.getTracks().forEach(t => { const st = t.stop.bind(t); t.stop = () => { window.__open--; st(); }; }); return s; };
+    X3.voice.setOn(true); X3.voice.setOn(false); X3.voice.setOn(true); X3.voice.setOn(false);
+  });
+  await until(c, () => !!window.__gate); await c.evaluate(() => __gate()); await wait(300);
+  check(await c.evaluate(() => window.__open === 0 && !X3.voice.state().eng && !X3.voice.state().loading), "voice turned off while the offline engine loads: no microphone left open");
+  await c.evaluate(() => { X3.voice.setOn(true); }); await until(c, () => !!window.__gate); await c.evaluate(() => __gate());
+  check(await until(c, () => X3.voice.state().engine === "offline" && !!X3.voice.state().eng && window.__open === 1), "and on again: one engine, one microphone");
+  // switching the engine on the Settings page takes effect at once
+  await c.evaluate(() => { cfg.xVoiceOffline = false; saveNow("settings"); reloadSettings(); });
+  check(await until(c, () => X3.voice.state().engine === "web" && window.__open === 0), "Settings: back to Windows' speech recognition at once");
+  await c.evaluate(() => { closeOver(); X3.voice.setOn(false); __sr.fail = ""; cfg.xVoiceOffline = false; Vosk.createModel = __cm; });
 
   /* ---------------------------------------------------------------- your own commands, and the panel */
   await c.evaluate(() => X3.voice.voicePanel(true)); await wait(100);
