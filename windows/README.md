@@ -183,6 +183,20 @@ lists the sites with a look of their own. Never in a private window.
 - `settings.animeWeb` is `""`, `"pick"` or `"all"`; `settings.animeSites` holds each site's look.
   The iPhone app can't do this: iOS doesn't let a web app change other sites.
 
+## 3.10: fifty more
+
+Each part is a script in `src/` (the window) with what both apps share in `../js/`, put in by `build.py`:
+
+| Part | Files | How it works |
+| --- | --- | --- |
+| Games and XP | `../js/games.more.js`, `../js/xp.js`, `src/xp.*.js` | Sudoku, Solitaire, Chess (all the rules, checked with perft) and Blocks on the games page; XP from games, visits and achievements |
+| Anime extras | `../js/anime.js`, `src/anime.*.js`, `../js/buddy.js` | Event themes and a theme vote from the dashboard, a schedule, a screensaver, a trail, the hidden spider, Mochi |
+| Web AI | `../js/ai.js`, `src/webai.more.js` | One question per job (`task` on `/chat`): address bar answers, key moments, tidy, compare, study, explain, find |
+| Getting things done | `../js/gtd.js`, `src/gtd.chrome.js` | The routine, reminders, the checkup, the digest, voice; the address kept with a non-extractable AES key in IndexedDB; `x-fill` fills a form |
+| Privacy | `../js/privacy.js`, `src/privacy.chrome.js` | `x-shop` reads a shop's signs and `x-shop-warn` shows the bar; `x-seen` lists what the page sees. Clean up: `site-clear` before the last tab closes (the host's "Cookies and data for … cleared" closes it). Containers are profiles named `Container …`: the address goes across with the folder sync command (`sync-write`) into the updater's folder, and the container's window reads it (`sync-read`) as it opens |
+| Phone and PC, Play a friend | `../js/link.js`, `src/link.*.js`, `../js/games.online.js` | A WebSocket to the server's live rooms (`rooms.js`): your linked devices' room, or a game's |
+| Owner's tools | `../js/stats.js`, `src/stats.*.js` | Counts (panels as they open, page tools on their way to the host), errors, A/B, invites and the gallery, through the ledger (`ledger.js`) |
+
 ## Making the exe by hand
 
 ```
@@ -199,7 +213,7 @@ hash) before and after, and every embedded file read back by the .NET runtime ma
 ```
 npm install playwright
 python3 build.py
-node tests/t_chrome.js     # also t_side, t_ntp, t_games, t_shield, t_misc, t_examples, t_cloud, t_updated, t_autoupdate, t_studio, t_webai, t_voice, t_support, t_live, t_anime and t_animesite; `sh tests/t_updater.sh` tests the updater under Mono (23 checks, with a gradual rollout and going back)
+node tests/t_chrome.js     # also t_side, t_ntp, t_games, t_shield, t_misc, t_examples, t_cloud, t_updated, t_autoupdate, t_studio, t_webai, t_voice, t_support, t_live, t_anime, t_animesite, and (3.10) t_moregames, t_looks, t_ai, t_gtd, t_privacy, t_link, t_owner and t_ipad; `sh tests/t_updater.sh` tests the updater under Mono (23 checks, with a gradual rollout and going back)
 ```
 
 470 checks pass (`t_cloud` fakes Google's sign-in, token and Drive endpoints and the update file; `t_webai` runs Web AI against the real server code with a pretend Claude; `t_support` runs Help & support against it and the owner's dashboard; `t_live` runs From Webs and the rollout against it; the server's own tests in `../server/web-ai/` add 315 checks). The exe itself was not run on Windows here: the tests run the same pages in

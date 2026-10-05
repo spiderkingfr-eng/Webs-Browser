@@ -108,6 +108,33 @@ every click. Each site can have its own wallpaper and look (behind the page or f
 shows through, see-through sidebars, soft focus, a still picture), and *Settings → Appearance* can turn
 it on for every site. The iPhone app can't: iOS doesn't let a web app change other sites.
 
+## New in iPhone 2.9 and Windows 3.10
+
+Fifty new things across both apps (each app lists them under *What's new*, and every version's changes are
+on one page: [changelog.html](https://spiderkingfr-eng.github.io/Webs-Browser/changelog.html)):
+
+- **Your phone and your PC together** (*Phone and PC* in each app's menu): link them with a 6-digit code, then
+  share the clipboard, use the phone as a remote for the PC, pick up on one what the other had open, and send a
+  set of tabs either way (or put them in a link anyone can open).
+- **Play a friend**: chess, Connect Four and tic-tac-toe with someone on another phone or PC, with a join code.
+- **More games and levels**: Sudoku, Solitaire, Chess against the computer, Blocks, and XP that unlocks frames.
+- **Anime extras**: event themes, a vote on the next theme, themes by the time of day, a screensaver, a cursor
+  trail, Mochi the companion, a hidden spider in each wallpaper, and (Windows) the wallpaper moving to the music.
+- **More from Web AI**: answers in the address bar, a video's key moments, tidying and comparing tabs, study
+  cards and a quiz, Explain for selected words (Windows), finding a page again, and your own instructions.
+- **Getting things done**: a morning routine, reminders for a site, a bookmark checkup, a weekly reading digest,
+  voice commands, and on Windows your address filled into forms (encrypted), notes on PDFs and phone preview.
+- **Privacy**: a fake shop warning, what sites see about you, Face ID for the iPhone's passcode, and on Windows
+  containers (a site in its own window, with its own logins) and cleaning up a site when its last tab closes.
+- **iPhone and iPad**: offline articles, and two pages side by side on an iPad.
+- **Sharing**: invite a friend (an achievement for both of you) and a wallpaper gallery of backgrounds people share.
+- **For you, the owner** (the dashboard): an Insights tab with the apps' errors, which features are used and A/B
+  test results, scheduled posts and a second version of the announcement to test, the gallery to approve, and
+  *Save this reply* in support chats.
+
+These need the Web AI server updated: run `server/web-ai/setup.cmd` again (it adds two Durable Objects, the
+live rooms and the ledger, which Cloudflare's free plan includes).
+
 ## What it does
 
 Version 2.0 adds 150 new things. They're all listed in the app under *Menu → What's new*.
@@ -169,6 +196,15 @@ On an iPhone, an app can only show a website inside itself when that website all
 | `js/support.js` | Help & support (2.6): the chat, and support's changes with Undo |
 | `js/support.settings.js` | The only settings support may change, shared with Windows and the server |
 | `js/anime.js` | Anime themes (2.8): the looks, live wallpapers, cards and picker, shared with Windows; `js/anime.app.js` puts them in the app |
+| `js/games.more.js`, `js/games.online.js` | Sudoku, Solitaire, Chess and Blocks; playing a friend (2.9, shared with Windows) |
+| `js/xp.js`, `js/xp.app.js`, `js/buddy.js` | XP and levels, and Mochi (2.9) |
+| `js/ai.js`, `js/ai.app.js` | Web AI's newer jobs: address bar answers, study, compare, tidy, find (2.9) |
+| `js/gtd.js`, `js/gtd.app.js` | Getting things done (2.9) |
+| `js/privacy.js`, `js/privacy.app.js` | The fake shop warning, what sites see, Face ID for the passcode (2.9) |
+| `js/link.js`, `js/link.app.js` | Your phone and your PC: linking, the remote, the clipboard, tabs (2.9) |
+| `js/stats.js`, `js/stats.app.js` | Counts for the owner, invites and the wallpaper gallery (2.9) |
+| `js/offline.app.js`, `js/ipad.app.js` | Offline articles, and side by side on an iPad (2.9) |
+| `changelog.html` | Every version's changes, made by `tools/make_changelog.py` from the apps' What's new lists |
 | `js/live.js` | From Webs (2.7): what's on everyone's start page, shared with Windows; `js/live.app.js` puts it in the app and `js/live.games.js` in the games |
 | `js/qrcode.js` | [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) by Kazuhiko Arase (MIT license), for QR codes |
 | `games.html` | The offline games |

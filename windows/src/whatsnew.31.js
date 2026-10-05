@@ -1,3 +1,59 @@
+"3.10 · Your phone and this PC": [
+  ["Link your iPhone", "Type a 6-digit code on the other device and they're linked. It all goes through a live room only your devices know.", "Menu → Phone and PC"],
+  ["Shared clipboard", "What you copy here can go to your phone, and what the phone sends shows here with a Copy button.", "Phone and PC → Shared clipboard"],
+  ["Your phone as a remote", "Play and pause, change tabs, scroll, go back, zoom, full screen, or open a site or a search on the PC from the phone. Only when you allow it.", "Phone and PC → Let my phone be a remote"],
+  ["Pick up where you left off", "What your phone has open shows on the new tab page, and this PC's page shows on the phone.", "New tab"],
+  ["Send a set of tabs", "All your tabs (or a group) to the phone in one go, or into a link anyone can open. The phone's tabs come here the same way, in a group.", "Right-click a tab → Share all tabs"]
+],
+"3.10 · Play a friend": [
+  ["Chess, Connect Four and tic-tac-toe online", "Make a game, send its code, and play someone on another PC or iPhone. Either of you can close the page and come back; others with the code can watch.", "Games → Play a friend"]
+],
+"3.10 · Four more games, and levels": [
+  ["Sudoku", "Three levels, every puzzle with one answer, notes, mistakes shown if you want, and your best times.", "Games → Sudoku"],
+  ["Solitaire", "Klondike with one or three cards, drag or tap, undo, and Finish when it's won.", "Games → Solitaire"],
+  ["Chess", "Against the computer at three levels, with every rule (castling, en passant, promotion), undo and the board turned for black.", "Games → Chess"],
+  ["Blocks", "Falling blocks: hold one for later, see what's next, levels that speed up.", "Games → Blocks"],
+  ["XP and levels", "Games, daily visits and achievements earn XP. Levels unlock frames and bands for the window.", "Menu → Levels and XP"]
+],
+"3.10 · Anime extras": [
+  ["Event themes", "Halloween, winter, New Year and Valentine's themes when the people who make Webs turn them on, with their own wallpapers and cards.", "Anime themes"],
+  ["Vote on the next theme", "Pick the theme you'd like next on the new tab page.", "New tab"],
+  ["Themes by the clock", "A different anime theme for the morning, afternoon, evening and night, or for each day of the week.", "Settings → Appearance → Anime themes → Schedule"],
+  ["A screensaver", "The anime wallpaper fills the screen after a few minutes away.", "Settings → Appearance → Screensaver"],
+  ["Cursor trail and Mochi", "Sparkles behind the mouse on the new tab page, and Mochi, a small companion in the corner.", "New tab → Customize"],
+  ["Music moves the wallpaper", "The wallpaper pulses with Webs's own music player.", "New tab"],
+  ["A hidden spider", "Somewhere in each wallpaper. Find it for XP.", "New tab"]
+],
+"3.10 · More from Web AI": [
+  ["Answers in the address bar", "Type a question and a short answer shows in the list.", "Address bar"],
+  ["A video's key moments", "A YouTube video's parts, with times to jump to.", "Menu → More from Web AI"],
+  ["Tidy and compare tabs", "Group your tabs by topic and see which to close, or compare open products side by side in a table.", "Menu → More from Web AI"],
+  ["Study mode", "Flashcards and a quiz from the page you're on.", "Menu → More from Web AI"],
+  ["Explain", "Select a few words on a page: a ✦ Explain button explains them in place.", "Any web page"],
+  ["Find it again", "Describe a page you saw and Web AI finds it in your history.", "Menu → More from Web AI"],
+  ["Your instructions", "Tell Web AI how you like answers, once.", "Web AI → Settings"]
+],
+"3.10 · Getting things done": [
+  ["Morning routine", "Your sites open at the time you pick, in a ☀️ Morning group.", "Menu → Get things done"],
+  ["Remind me on this site", "A note that pops up when you're back on a site.", "Right-click a tab"],
+  ["Bookmark checkup", "Copies of the same page, and links that are gone.", "Menu → Get things done"],
+  ["Weekly reading digest", "What's still waiting on your reading list.", "Menu → Get things done"],
+  ["Fill in my address", "Your address, kept encrypted on this PC, put into a form when you ask.", "Alt+Shift+F"],
+  ["Notes on a PDF", "Notes by page, kept with the PDF.", "Menu → Get things done"],
+  ["Phone preview", "The page at a phone's size, as a phone sees it.", "Sidebar → Phone preview"],
+  ["Voice commands", "\"New tab\", \"scroll down\", \"open youtube.com\", \"search for…\" and more.", "Alt+Shift+V"]
+],
+"3.10 · Privacy": [
+  ["Containers", "Keep a site in a window of its own, with its own cookies and logins: Shopping, Work, Banking…", "Menu → Privacy tools → Containers"],
+  ["Clean up when I close a site", "Its cookies and data go when its last tab closes, for the sites you pick or all but the ones you keep.", "Menu → Privacy tools"],
+  ["Is this shop real?", "Shops are checked as they open: huge discounts, missing contact pages, risky payment, pressure to buy, a brand in someone else's name, and how old the website is. A bar on the page says why.", "Any shop"],
+  ["What sites see about you", "Your internet address and roughly where you are, your device, the fingerprint a site can build, and what Webs already hides.", "Menu → Privacy tools"]
+],
+"3.10 · Sharing": [
+  ["Invite a friend", "Your own invite link: when a friend joins with it, you both get an achievement.", "Menu → Invite a friend"],
+  ["Wallpaper gallery", "Wallpapers people shared, for your new tab page, and sharing your own (each one is checked first).", "Menu → Wallpaper gallery"],
+  ["The changelog online", "Every change in every version, for Windows and iPhone, on one page.", "spiderkingfr-eng.github.io/Webs-Browser/changelog.html"]
+],
 "3.9 · Anime wallpapers on websites": [
   ["A live wallpaper behind websites", "An anime theme's moving wallpaper behind the sites you choose, like a chat site or your mail. The site's big backgrounds turn see-through, under a veil in the site's own color so the text stays easy to read.", "Menu → Anime wallpaper on this site…"],
   ["Out of the way", "Messages, buttons, menus, boxes you type in, pictures and videos keep their own look, every click and key goes to the site, and nothing on it is read or sent anywhere.", "Any website"],
