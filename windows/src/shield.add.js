@@ -588,11 +588,71 @@ function xTool(action, arg) {
     case 'x-laser': xLaser(); return true;
     case 'x-init': xInit(arg); return true;
     case 'x-yt': xYt(); return true;
+    case 'x-fill': toolReply({ a:'x-fill', n:xFill(arg) }); return true;
+    case 'x-scrollto': xScrollTo(arg); return true;
     case 'x-seek': { var sv = bestVideo(); if (sv) { sv.currentTime = Math.max(0, +arg || 0); if (sv.paused) sv.play().catch(function () {}); badge('→ ' + clock(sv.currentTime)); } return true; }
     case 'x-explain-on': xpOn = arg === '1'; if (!xpOn) xpClose(); return true;
     case 'x-explain-show': { var eo = null; try { eo = JSON.parse(arg); } catch (e) {} if (eo) xpShow(eo); return true; }
   }
   return false;
+}
+
+/* ------------------------------------------------------------------ Webs 3.10: your address in a form
+   The browser window keeps it (encrypted) and hands it over only when you ask (Menu → Fill in my address,
+   or Alt+Shift+F). Each box is matched by what the site says it's for (autocomplete), else its name, its
+   label or its placeholder. Password and hidden boxes are never touched; what's already filled stays. */
+var FILL_AC = { 'name':'name', 'given-name':'given', 'family-name':'family', 'email':'email', 'tel':'phone', 'tel-national':'phone', 'street-address':'street', 'address-line1':'street',
+  'address-line2':'street2', 'address-level2':'city', 'postal-code':'postcode', 'address-level1':'state', 'country-name':'country', 'country':'country', 'organization':'company' };
+var FILL_RE = [['email', /e-?mail/], ['phone', /phone|mobile|\btel\b|telephone/], ['given', /first.?name|given.?name|fname|forename/], ['family', /last.?name|surname|family.?name|lname/],
+  ['postcode', /zip|postal|post.?code|postcode/], ['city', /\bcity\b|\btown\b|locality/], ['state', /\bstate\b|province|region|county/], ['country', /country/],
+  ['street2', /address.?2|line.?2|apartment|\bapt\b|suite/], ['street', /address|street|addr|line.?1/], ['company', /company|organi[sz]ation/], ['name', /\bname\b|full.?name/]];
+function xFill(arg) {
+  var p = {}; try { p = JSON.parse(arg) || {}; } catch (e) {}
+  var parts = String(p.name || '').trim().split(/\s+/);
+  var v = { name:p.name, given:parts[0] || '', family:parts.length > 1 ? parts.slice(1).join(' ') : '', email:p.email, phone:p.phone, street:p.street, street2:p.street2, city:p.city,
+    postcode:p.postcode, state:p.state, country:p.country, company:p.company };
+  var n = 0;
+  var setVal = function (el, val) {
+    var proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype, d = Object.getOwnPropertyDescriptor(proto, 'value');
+    if (d && d.set) d.set.call(el, val); else el.value = val;
+    el.dispatchEvent(new Event('input', { bubbles:true })); el.dispatchEvent(new Event('change', { bubbles:true }));
+  };
+  D.querySelectorAll('input,select,textarea').forEach(function (el) {
+    var type = (el.type || '').toLowerCase();
+    if (el.disabled || el.readOnly || /^(password|hidden|submit|button|checkbox|radio|file|image|reset|search|date|number|range|color)$/.test(type)) return;
+    var r = el.getBoundingClientRect(); if (!r.width || !r.height) return;
+    var key = FILL_AC[String(el.getAttribute('autocomplete') || '').toLowerCase().replace(/^(shipping|billing)\s+/, '').trim()];
+    if (!key) {
+      var lab = (el.labels && el.labels[0] ? el.labels[0].textContent : '') + ' ' + (el.name || '') + ' ' + (el.id || '') + ' ' + (el.placeholder || '') + ' ' + (el.getAttribute('aria-label') || '');
+      lab = lab.toLowerCase(); if (/user|login|captcha|coupon|promo|search|card|cvv|code\b/.test(lab) && !/post.?code|zip/.test(lab)) return;
+      if (type === 'email') key = 'email'; else if (type === 'tel') key = 'phone';
+      else for (var i = 0; i < FILL_RE.length && !key; i++) if (FILL_RE[i][1].test(lab)) key = FILL_RE[i][0];
+    }
+    var val = key && v[key] ? String(v[key]) : '';
+    if (!val) return;
+    if (el.tagName === 'SELECT') {
+      var lv = val.toLowerCase(), o = [].find.call(el.options, function (x) { return x.value.toLowerCase() === lv || x.text.trim().toLowerCase() === lv; }) ||
+        [].find.call(el.options, function (x) { return lv.length > 2 && x.text.toLowerCase().indexOf(lv) === 0; });
+      if (o && el.value !== o.value) { el.value = o.value; el.dispatchEvent(new Event('change', { bubbles:true })); n++; }
+      return;
+    }
+    if (String(el.value || '').trim()) return;
+    setVal(el, val); n++;
+  });
+  badge(n ? 'Filled ' + n + ' box' + (n === 1 ? '' : 'es') + ' with your details' : 'No boxes here for your address');
+  return n;
+}
+/* scrolling by voice: the page, or the biggest box on it that scrolls (apps that scroll inside themselves) */
+function xScrollTo(where) {
+  var t = D.scrollingElement || D.documentElement;
+  if (t.scrollHeight <= t.clientHeight + 4) {
+    var e = D.elementFromPoint(W.innerWidth / 2, W.innerHeight / 2);
+    while (e && e !== D.body) { var cs = getComputedStyle(e); if (/(auto|scroll)/.test(cs.overflowY) && e.scrollHeight > e.clientHeight + 4) { t = e; break; } e = e.parentElement; }
+  }
+  var h = (t === D.scrollingElement || t === D.documentElement ? W.innerHeight : t.clientHeight) * 0.8;
+  var o = where === 'top' ? { top:0 } : where === 'bottom' ? { top:t.scrollHeight } : { top:(t.scrollTop || 0) + (where === 'up' ? -h : h) };
+  o.behavior = 'smooth';
+  if (t === D.scrollingElement || t === D.documentElement) W.scrollTo(o); else t.scrollTo(o);
 }
 
 /* ------------------------------------------------------------------ Webs 3.10: a video's captions, for Web AI
