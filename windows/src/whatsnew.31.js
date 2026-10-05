@@ -1,3 +1,13 @@
+"3.13 · Your assistant": [
+  ["Talk to Webs, and it talks back", "Say “Hey Webs” and then anything: what isn't a voice command becomes a conversation with Web AI, which answers out loud, a sentence at a time while it thinks.", "Voice control"],
+  ["It does things for you", "“Put on some lo-fi and give me twenty minutes of focus”: it opens pages, sets timers, switches tabs and more, using the voice commands, and asks before anything that can't be undone.", "Voice control"],
+  ["Adam's voice", "It talks in Adam, a well-known ElevenLabs voice, through your Web AI server (add a free ElevenLabs key in setup.cmd), with an optional “suit” effect. Or pick any Windows voice.", "Voice control → Assistant → Voice"],
+  ["A real conversation", "After it answers it keeps listening for a few seconds, so follow-ups need no wake phrase, and it remembers what you were talking about. Say its name to stop it mid-sentence.", "Voice control"],
+  ["Make it yours", "Give it a name, choose what it calls you (sir, boss, your name) and its personality: calm and witty, short, friendly or detailed.", "Voice control → Assistant"],
+  ["Type to it too", "A card shows what it heard, what it's saying and what it did, with a box to type instead of talking. Also in the command list: “Talk to the assistant”.", "The card, or Ctrl+K"],
+  ["Choose your microphone", "Pick which microphone Webs listens to, with a bar that moves when it hears you. If it's unplugged, Webs uses Windows' default and says so.", "Voice control → Microphone"],
+  ["Bug fixes", "Turning voice control off while the offline engine is still loading no longer leaves the microphone on, and switching the engine or microphone in Settings takes effect at once. Plus small fixes found by clicking every button in Webs.", "Everywhere"],
+],
 "3.12 · Hey Webs": [
   ["Always listening, when you want it", "Turn it on and say “Hey Webs”, then what you want. Only the words after the wake phrase are used; nothing is recorded or kept, and never in private windows.", "The 🎙️ button, or Alt+Shift+M"],
   ["Over a hundred commands", "Tabs, going places, the page, video and sound, bookmarks and notes, Web AI, quick answers, themes, games and Webs's own features: “open YouTube”, “skip 30 seconds”, “set a timer for 10 minutes”, “what's happening near me”.", "Voice control → What you can say"],

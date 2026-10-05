@@ -251,6 +251,9 @@ async function run(text) {
     return reply("Done: " + p.custom.say);
   }
   if (p) { const r = await exec(p); if (r !== null) return reply(r || "Done"); }
+  // the assistant (3.13, assistant.chrome.js): anything else is a conversation with Web AI, which can also do things
+  const brain = X3.voice && X3.voice.brain;
+  if (brain && brain.on()) return brain.ask(String(text || "").trim(), s);
   // a question nothing else answered: Web AI
   if (/^(what|who|whom|whose|why|how|when|where|which|is|are|can|does|do|should|could|will|would|tell me|explain)\b/.test(s) && s.split(" ").length >= 3) return reply(askAI(s));
   return reply("Sorry, I didn't catch that. Say “what can I say” for the list.", true);
@@ -281,9 +284,17 @@ exec = async function (p) {
   return null;
 };
 const bump = id => { const u = load("voiceUse", {}); u[id] = (u[id] || 0) + 1; save("voiceUse", u); if (window.Stats) Stats.use("v." + id); };
+// a command run for the assistant: no reply of its own; null when it isn't a command
+async function act(text) {
+  const p = parse(text);
+  if (!p || p.custom) return null;
+  return exec(p);
+}
 function reply(text, missed) {
   lastSaid = text;
   chip(missed ? "miss" : "done", text);
+  const sp = X3.voice && X3.voice.speaker;
+  if (sp && cfg.xVoiceTalk !== false && text) { sp.say(text); return text; }      // the assistant's voice, when it has one
   if (cfg.xVoiceTalk !== false && text && window.speechSynthesis) {
     try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text.replace(/[“”]/g, "")); u.rate = 1.05; L.talking = true; u.onend = u.onerror = () => { setTimeout(() => { L.talking = false; }, 400); }; speechSynthesis.speak(u); } catch (e) { L.talking = false; }
   }
@@ -298,9 +309,15 @@ function wakeRe() {
   return new RegExp("(?:^|\\s)" + w + "(?:\\s|$)(.*)$");
 }
 async function heard(text, final) {
-  if (!L.on || L.talking || !text) return;
+  if (!L.on || !text) return;
   const t = String(text).toLowerCase().replace(/[.,!?]+/g, " ").replace(/\s+/g, " ").trim();
   if (!t) return;
+  if (L.talking) {
+    // while it talks it only listens for its name, which stops it (and anything said after is the next request)
+    if (cfg.xVoiceNoWake || !wakeRe().test(t)) return;
+    const sp = X3.voice && X3.voice.speaker; if (sp) sp.hush(); else try { speechSynthesis.cancel(); } catch (e) {}
+    L.talking = false;
+  }
   if (cfg.xVoiceNoWake) { if (final) { chip("heard", t); await run(t); } else chip("partial", t); return; }
   const m = wakeRe().exec(t);
   if (m) {
@@ -316,12 +333,31 @@ async function heard(text, final) {
 function ding() {
   try { const c = new AudioContext(), o = c.createOscillator(), g = c.createGain(); o.frequency.value = 880; g.gain.value = 0.05; o.connect(g); g.connect(c.destination); o.start(); o.frequency.setValueAtTime(1320, c.currentTime + 0.08); o.stop(c.currentTime + 0.16); setTimeout(() => c.close(), 400); } catch (e) {}
 }
+/* ---- which microphone (3.13): Windows' default, or one you pick (settings.xVoiceMic, its device id; xVoiceMicName to
+   show it when it's unplugged). The browser's recognition can take a chosen mic where WebView2 lets it (start(track));
+   otherwise the offline engine uses it. A chosen mic that isn't plugged in: the default, and Webs says so. */
+const AUDIO = { echoCancellation:true, noiseSuppression:true, channelCount:1 };
+async function openMic() {
+  const id = cfg.xVoiceMic || "";
+  if (id) {
+    try { return await navigator.mediaDevices.getUserMedia({ video:false, audio:Object.assign({ deviceId:{ exact:id } }, AUDIO) }); }
+    catch (e) {
+      if (e && e.name === "NotAllowedError") throw e;
+      toast("🎙️ " + (cfg.xVoiceMicName || "Your chosen microphone") + " isn't plugged in. Using Windows' default microphone.");
+    }
+  }
+  return navigator.mediaDevices.getUserMedia({ video:false, audio:AUDIO });
+}
+async function mics() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return [];
+  return (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "audioinput" && d.deviceId && d.deviceId !== "default" && d.deviceId !== "communications");
+}
 // the browser's own speech recognition, kept going
 function webEngine() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) return null;
-  let r = null, stopped = false, fails = 0, okAt = 0;
-  const start = () => {
+  let r = null, stopped = false, fails = 0, okAt = 0, track = null, stream = null;
+  const start = async () => {
     if (stopped) return;
     try { r = new SR(); } catch (e) { fail("none"); return; }
     r.continuous = true; r.interimResults = true; r.lang = navigator.language || "en-US"; r.maxAlternatives = 1;
@@ -332,10 +368,18 @@ function webEngine() {
       if (++fails >= 3 && Date.now() - okAt > 60000) { stopped = true; fail("web"); }
     };
     r.onend = () => { if (!stopped) setTimeout(start, fails ? 1500 : 200); };
+    if (cfg.xVoiceMic) {
+      // a chosen microphone: handed to the recognition as an audio track, where WebView2 can do that
+      try { if (!track || track.readyState === "ended") { stream = await openMic(); track = stream.getAudioTracks()[0]; } }
+      catch (e) { stopped = true; fail(e && e.name === "NotAllowedError" ? "mic" : "web"); return; }
+      if (stopped) return;
+      try { r.start(track); return; }
+      catch (e) { if (e instanceof TypeError || (e && e.name === "TypeError")) { stopped = true; if (stream) stream.getTracks().forEach(t => t.stop()); fail("choose"); return; } setTimeout(start, 1000); return; }
+    }
     try { r.start(); } catch (e) { setTimeout(start, 1000); }
   };
   start();
-  return { name:"web", stop() { stopped = true; try { r && r.abort(); } catch (e) {} } };
+  return { name:"web", stop() { stopped = true; try { r && r.abort(); } catch (e) {} try { stream && stream.getTracks().forEach(t => t.stop()); } catch (e) {} } };
 }
 // the offline engine: Vosk in WebAssembly, the small English model (downloaded once, then cached by the browser)
 function loadScript(src) { return new Promise((ok, bad) => { if (window.Vosk) { ok(); return; } const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = () => bad(new Error("The offline engine couldn't be downloaded.")); document.head.appendChild(s); }); }
@@ -343,7 +387,7 @@ async function offlineEngine() {
   chip("loading", "Getting the offline voice engine ready (40 MB, only the first time)…");
   await loadScript(VOSK_JS);
   const model = await Vosk.createModel(VOSK_MODEL);
-  const stream = await navigator.mediaDevices.getUserMedia({ video:false, audio:{ echoCancellation:true, noiseSuppression:true, channelCount:1 } });
+  const stream = await openMic();
   const ctx = new AudioContext(), rec = new model.KaldiRecognizer(ctx.sampleRate);
   rec.on("result", m => { const t = m && m.result && m.result.text; if (t) heard(t, true); });
   rec.on("partialresult", m => { const t = m && m.result && m.result.partial; if (t) heard(t, false); });
@@ -358,19 +402,30 @@ function fail(why) {
   L.err = why;
   if (why === "mic") { chip("err", "The microphone isn't allowed for Webs. Allow it in Windows → Settings → Privacy → Microphone."); return; }
   if (cfg.xVoiceOffline) startOffline();
-  else { chip("err", "Voice needs the offline engine here. Click to set it up."); if (overlay === "voicep") voicePanel(); }
+  else { chip("err", why === "choose" ? "Windows' speech recognition can only use the default microphone here. Click to use the offline engine with yours." : "Voice needs the offline engine here. Click to set it up."); if (overlay === "voicep") voicePanel(); }
 }
+// loading takes a while: turning voice off (or hiding the window) meanwhile must not leave a microphone open
+let loadN = 0;
 async function startOffline() {
-  try { L.eng = await offlineEngine(); L.engine = "offline"; L.err = ""; }
-  catch (e) { L.eng = null; L.err = "offline"; chip("err", e && e.name === "NotAllowedError" ? "The microphone isn't allowed for Webs." : (e.message || "The offline engine didn't start.")); }
+  if (L.loading) return;
+  const n = ++loadN; L.loading = true;
+  try {
+    const eng = await offlineEngine();
+    if (n !== loadN || !L.on || L.eng || (cfg.xVoiceFront !== false && document.hidden)) { eng.stop(); if (n === loadN && !L.eng) chip(L.on ? "paused" : "off"); return; }
+    L.eng = eng; L.engine = "offline"; L.err = "";
+  }
+  catch (e) { if (n !== loadN) return; L.eng = null; L.err = "offline"; chip("err", e && e.name === "NotAllowedError" ? "The microphone isn't allowed for Webs." : (e.message || "The offline engine didn't start.")); }
+  finally { if (n === loadN) L.loading = false; }
 }
+const engKey = () => (cfg.xVoiceOffline ? "offline" : "web") + "|" + (cfg.xVoiceMic || "");
 function start() {
-  if (L.eng || !L.on) return;
+  if (L.eng || L.loading || !L.on) return;
+  L.with = engKey();
   if (cfg.xVoiceFront !== false && document.hidden) return;
   if (cfg.xVoiceOffline || !(window.SpeechRecognition || window.webkitSpeechRecognition)) { if (cfg.xVoiceOffline) startOffline(); else fail("web"); return; }
   L.eng = webEngine(); L.engine = "web"; chip("on");
 }
-function stop() { if (L.eng) { try { L.eng.stop(); } catch (e) {} L.eng = null; } chip(L.on ? "paused" : "off"); }
+function stop() { loadN++; L.loading = false; if (L.eng) { try { L.eng.stop(); } catch (e) {} L.eng = null; } chip(L.on ? "paused" : "off"); }
 function setOn(on) {
   L.on = !!on; cfg.xVoice = L.on; saveCfg();
   if (L.on) { L.err = ""; start(); toast("🎙️ Listening for “" + (cfg.xVoiceWake || "Hey Webs") + "”" + (cfg.xVoiceNoWake ? "" : ". Say it, then a command."), { label:"Commands", fn:() => voicePanel(true) }); }
@@ -394,8 +449,9 @@ function chip(state, text) {
   l.textContent = state === "awake" ? "Listening…" : state === "partial" || state === "heard" ? "“" + String(text).slice(0, 40) + "”" : state === "done" || state === "miss" ? String(text || "").slice(0, 50) : state === "loading" ? "Getting ready…" : state === "err" ? "⚠" : "";
   if (state === "err" && text) toast("🎙️ " + text, { label:"Voice control", fn:() => voicePanel() });
   if (state === "done" || state === "miss") { if (text) toast("🎙️ " + text); chipT = setTimeout(() => chip(L.on ? "on" : "off"), 3500); }
-  if (state === "awake") chipT = setTimeout(() => { if (Date.now() >= L.awakeUntil) chip(L.on ? "on" : "off"); }, 8200);
+  if (state === "awake") chipT = setTimeout(() => { if (Date.now() >= L.awakeUntil) chip(L.on ? "on" : "off"); }, Math.max(0, L.awakeUntil - Date.now()) + 200);
   if (overlay === "voicep") { const s = document.querySelector("#voicep .vc-live"); if (s) s.textContent = l.textContent || (L.on ? "🎙️ Listening for “" + (cfg.xVoiceWake || "Hey Webs") + "”" : "Off"); }
+  if (X3.voice && X3.voice.onChip) X3.voice.onChip(state, text);
 }
 
 /* ---------------------------------------------------------------- the panel */
@@ -403,13 +459,17 @@ function voicePanel(list) {
   const p = el("div", "xpane gtp vcp");
   p.innerHTML = '<div class="xhead"><div class="xic">🎙️</div><div><b>Voice control</b><span></span></div></div><div class="gtb"></div>';
   p.querySelector(".xhead span").textContent = L.on ? (L.eng ? "Listening for “" + (cfg.xVoiceWake || "Hey Webs") + "”" + (L.engine === "offline" ? " (offline engine)" : "") : L.err ? "Not listening yet" : "Paused") : "Off";
-  const n = openOver("voicep", p); n.style.right = "8px";
+  const n = openOver("voicep", p), rail = $("#rail"); n.style.right = (rail && rail.offsetWidth && getComputedStyle(rail).display !== "none" ? rail.offsetWidth + 8 : 8) + "px";
   const b = p.querySelector(".gtb"), sw = (k, label, sub, def) => '<label class="lksw"><span><b>' + label + "</b><em>" + sub + '</em></span><input type="checkbox" data-k="' + k + '"' + ((cfg[k] === undefined ? def : cfg[k]) ? " checked" : "") + "></label>";
   const groups = []; C.forEach(c => { if (groups.indexOf(c.g) < 0) groups.push(c.g); });
   b.innerHTML = '<div class="vc-live"></div>' +
     '<button class="btn2 main vc-on">' + (L.on ? "Stop listening" : "Start listening") + "</button>" +
+    (L.err === "choose" ? '<div class="vc-warn">Windows\' speech recognition can only listen to the default microphone here. The offline engine can use the one you picked: a 40 MB download once (Vosk), and then nothing you say leaves this PC.<button class="btn2 vc-off">Use the offline engine</button></div>' : "") +
     (L.err === "web" || L.err === "offline" ? '<div class="vc-warn">Speech recognition doesn\'t work inside Windows here. The offline engine does: a 40 MB download once (Vosk), and then nothing you say ever leaves this PC.<button class="btn2 vc-off">Use the offline engine</button></div>' : "") +
+    '<div class="vc-asst"></div>' +
     '<div class="gtk">Settings</div>' +
+    '<label class="gtf"><span>Microphone</span><select class="xin vc-mic"><option value="">Windows\' default microphone</option></select></label>' +
+    '<div class="vc-meter" title="How loud the microphone hears you"><i></i></div><div class="xsmall vc-micnote"></div>' +
     '<label class="gtf"><span>Wake phrase (say it first)</span><input class="xin vc-wake" maxlength="30" placeholder="Hey Webs"></label>' +
     sw("xVoiceTalk", "Answer out loud", "Webs says what it did, and answers questions", true) +
     sw("xVoiceFront", "Only while Webs is in front", "Stops listening when another window is in front", true) +
@@ -423,6 +483,7 @@ function voicePanel(list) {
   chip(btn.dataset.s);
   b.querySelector(".vc-on").onclick = () => setOn(!L.on);
   const off = b.querySelector(".vc-off"); if (off) off.onclick = () => { cfg.xVoiceOffline = true; saveCfg(); L.err = ""; if (L.on) { stop(); start(); } voicePanel(); };
+  micPicker(b);
   const wk = b.querySelector(".vc-wake"); wk.value = cfg.xVoiceWake || ""; wk.onchange = () => { cfg.xVoiceWake = wk.value.trim().slice(0, 30); saveCfg(); };
   b.querySelectorAll("[data-k]").forEach(c => { c.onchange = () => { cfg[c.dataset.k] = c.checked; saveCfg(); if (c.dataset.k === "xVoiceOffline" && L.on) { stop(); L.err = ""; start(); } }; });
   const tr = b.querySelector(".vc-try"), goT = async () => { if (tr.value.trim()) { const r = await run(tr.value); tr.value = ""; const s = b.querySelector(".vc-live"); if (s) s.textContent = r; } };
@@ -441,6 +502,50 @@ function voicePanel(list) {
     cfg.xVoiceCustom = custom().concat([{ say:s.slice(0, 60), do:d.slice(0, 300) }]).slice(-30); saveCfg();
     b.querySelector(".vc-say").value = ""; b.querySelector(".vc-do").value = ""; paintMine();
   };
+  if (X3.voice && X3.voice.panelHook) X3.voice.panelHook(b.querySelector(".vc-asst"));
+}
+
+/* ---------------------------------------------------------------- the microphone picker, and a meter to see it's the right one */
+let meter = null;
+function stopMeter() { if (meter) { cancelAnimationFrame(meter.raf); try { meter.stream.getTracks().forEach(t => t.stop()); } catch (e) {} try { meter.ctx.close(); } catch (e) {} meter = null; } }
+async function startMeter(b) {
+  stopMeter();
+  const bar = b.querySelector(".vc-meter i"); if (!bar) return;
+  let stream; try { stream = await openMic(); } catch (e) { return; }
+  if (!b.isConnected) { stream.getTracks().forEach(t => t.stop()); return; }
+  const ctx = new AudioContext(), an = ctx.createAnalyser(); an.fftSize = 512; ctx.createMediaStreamSource(stream).connect(an);
+  const buf = new Uint8Array(an.fftSize);
+  meter = { stream, ctx, raf:0 };
+  const tick = () => {
+    if (!b.isConnected || overlay !== "voicep") { stopMeter(); return; }
+    an.getByteTimeDomainData(buf); let peak = 0; for (const v of buf) peak = Math.max(peak, Math.abs(v - 128));
+    bar.style.width = Math.min(100, peak / 128 * 220) + "%";
+    meter.raf = requestAnimationFrame(tick);
+  };
+  tick();
+}
+async function micPicker(b) {
+  const sel = b.querySelector(".vc-mic"), note = b.querySelector(".vc-micnote");
+  const paint = async () => {
+    let l = await mics();
+    // names show once the microphone has been allowed: ask once, quietly
+    if (l.length && !l.some(d => d.label)) { try { const s = await navigator.mediaDevices.getUserMedia({ audio:true }); s.getTracks().forEach(t => t.stop()); l = await mics(); } catch (e) {} }
+    if (!sel.isConnected) return;
+    const cur = cfg.xVoiceMic || "";
+    sel.innerHTML = '<option value="">Windows\' default microphone</option>' + l.map((d, i) => '<option value="' + esc(d.deviceId) + '">' + esc(d.label || "Microphone " + (i + 1)) + "</option>").join("");
+    if (cur && !l.some(d => d.deviceId === cur)) sel.insertAdjacentHTML("beforeend", '<option value="' + esc(cur) + '">' + esc(cfg.xVoiceMicName || "Your microphone") + " (not plugged in)</option>");
+    sel.value = cur;
+    note.textContent = l.length ? "Talk: the bar should move." : "No microphone found. Plug one in.";
+  };
+  await paint();
+  sel.onchange = () => {
+    cfg.xVoiceMic = sel.value; cfg.xVoiceMicName = sel.value ? sel.options[sel.selectedIndex].textContent.replace(/ \(not plugged in\)$/, "") : ""; saveCfg();
+    toast("🎙️ " + (sel.value ? "Using " + cfg.xVoiceMicName : "Using Windows' default microphone"));
+    if (L.on) { stop(); L.err = ""; start(); }
+    startMeter(b);
+  };
+  startMeter(b);
+  if (navigator.mediaDevices && !micPicker.watching) { micPicker.watching = true; navigator.mediaDevices.addEventListener("devicechange", () => { const p = document.querySelector("#voicep .gtb"); if (p) micPicker(p); }); }
 }
 
 /* ---------------------------------------------------------------- hooks */
@@ -454,8 +559,14 @@ const commandsV = commands;
 commands = function () { return commandsV().concat([{ t:"Voice control: listen for “Hey Webs”", k:"Alt+Shift+M", i:"speech", fn:() => setOn(!L.on) }, { t:"Voice commands: what you can say", k:"", i:"speech", fn:() => voicePanel(true) }]); };
 // Settings → Voice control changed it
 const reloadSettingsV = reloadSettings;
-reloadSettings = function () { reloadSettingsV.apply(this, arguments); if (!!cfg.xVoice !== L.on) { L.on = !!cfg.xVoice; if (L.on) start(); else stop(); } };
-X3.voice = { parse, run, hear:heard, setOn, voicePanel, norm, calc, secs, num, COMMANDS:C, state:() => L, wakeRe };
+reloadSettings = function () {
+  reloadSettingsV.apply(this, arguments);
+  const changed = (L.eng || L.loading) && L.with !== engKey();
+  if (!!cfg.xVoice !== L.on) { L.on = !!cfg.xVoice; if (L.on) start(); else stop(); }
+  else if (L.on && changed) { stop(); L.err = ""; start(); }   // the engine or microphone was switched in Settings
+};
+X3.voice = { mics, openMic, stopMeter, parse, run, act, hear:heard, setOn, voicePanel, norm, calc, secs, num, COMMANDS:C, state:() => L, wakeRe, chip,
+  awake:ms => { L.awakeUntil = Date.now() + ms; chip("awake"); }, brain:null, speaker:null, onChip:null, panelHook:null };
 if (cfg.xVoice) setTimeout(() => { L.on = true; start(); chip(L.eng ? "on" : "paused"); }, 2500); else chip("off");
 
 const st = document.createElement("style");
@@ -464,7 +575,7 @@ st.textContent = `
 .vcb.on .ic{color:#ef4444}.vcb[data-s="awake"]{background:color-mix(in srgb,#ef4444 18%,transparent);animation:vcPulse 1s infinite}.vcb[data-s="awake"] .ic,.vcb[data-s="partial"] .ic,.vcb[data-s="heard"] .ic{color:#ef4444}
 .vcb[data-s="err"] .ic{color:#e8a33a}@keyframes vcPulse{50%{box-shadow:0 0 0 4px color-mix(in srgb,#ef4444 25%,transparent)}}
 .vcp{width:min(420px,calc(100vw - 120px))}.vcp .gtb{max-height:70vh;overflow:auto}.vc-live{min-height:20px;font-size:13.5px;margin-bottom:8px;color:var(--dim)}.vc-warn{background:color-mix(in srgb,#e8a33a 15%,transparent);border-radius:10px;padding:10px;margin:10px 0;font-size:12.5px}
-.vc-warn .btn2{margin-top:8px}.vc-add{display:grid;gap:6px;margin:6px 0}.vc-add .xin{margin:0}.vc-row{display:grid;grid-template-columns:1fr auto;gap:2px 8px;padding:6px 0;border-bottom:1px solid var(--line);font-size:12.5px}
+.vc-warn .btn2{margin-top:8px}.vc-mic{width:100%}.vc-meter{height:6px;border-radius:3px;background:var(--bg3);overflow:hidden;margin:4px 0 2px}.vc-meter i{display:block;height:100%;width:0;background:#4ec98a;transition:width .08s}.vc-add{display:grid;gap:6px;margin:6px 0}.vc-add .xin{margin:0}.vc-row{display:grid;grid-template-columns:1fr auto;gap:2px 8px;padding:6px 0;border-bottom:1px solid var(--line);font-size:12.5px}
 .vc-row span{color:var(--dim);grid-column:1}.vc-row button{grid-row:1/3;grid-column:2}.vc-list details{border-bottom:1px solid var(--line);padding:6px 0}.vc-list summary{cursor:pointer;font-weight:600;font-size:13px}
 .vc-list ul{margin:6px 0 4px 18px;font-size:12.5px;color:var(--dim);columns:2}
 `;

@@ -176,5 +176,5 @@ css.textContent = `
 .ai-done{display:flex;flex-direction:column;align-items:center;gap:6px;padding:16px}.ai-done b{font-size:28px}.ai-none{opacity:.7}
 `;
 (document.head || document.documentElement).appendChild(css);
-window.AI = { ask, json, md, inline, isQuestion, quick, quickGet, plain, study, historyLines, prefs, setPrefs, ready:() => !!server(), server, dev };
+window.AI = { ask, json, md, inline, isQuestion, quick, quickGet, plain, study, historyLines, prefs, setPrefs, ready:() => !!server(), server, dev, code:codeToSend };
 })();

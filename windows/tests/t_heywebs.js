@@ -124,8 +124,10 @@ const until = async (p, fn, ms = 4000) => { const end = Date.now() + ms; while (
   check(await c.evaluate(() => __sent.includes("back\u00012")), "your own wake phrase");
   await c.evaluate(() => { cfg.xVoiceWake = ""; });
   // its own voice isn't heard as a command
-  await c.evaluate(() => { X3.voice.state().talking = true; __sent.length = 0; __sr.say("hey webs new tab", true); X3.voice.state().talking = false; }); await wait(60);
-  check(await c.evaluate(() => !__sent.length), "Webs talking: not heard as a command");
+  await c.evaluate(() => { X3.voice.state().talking = true; X3.voice.state().awakeUntil = Date.now() + 5000; __sent.length = 0; __sr.say("new tab", true); }); await wait(60);
+  check(await c.evaluate(() => !__sent.length), "Webs talking: its own voice isn't heard as a command");
+  await c.evaluate(() => { __sr.say("hey webs new tab", true); }); await wait(80);
+  check(await c.evaluate(() => __sent.some(m => m.startsWith("new-tab"))), "but its name stops it, and what follows is the next command");
   // hidden window: stops, back: starts
   await c.evaluate(() => { Object.defineProperty(document, "hidden", { configurable:true, get:() => true }); document.dispatchEvent(new Event("visibilitychange")); });
   check(await c.evaluate(() => !X3.voice.state().eng), "another window in front: not listening");
@@ -152,7 +154,22 @@ const until = async (p, fn, ms = 4000) => { const end = Date.now() + ms; while (
   check(await c.evaluate(() => /vosk-model-small-en-us/.test(window.__modelUrl) && cfg.xVoiceOffline === true), "with the small English model, and remembered");
   await c.evaluate(() => { __sent.length = 0; __rec.emit("result", { result:{ text:"hey webs next tab" } }); }); await wait(150);
   check(await c.evaluate(() => __sent.includes("select-tab\u00013")), "a command heard by the offline engine");
-  await c.evaluate(() => { closeOver(); X3.voice.setOn(false); __sr.fail = ""; cfg.xVoiceOffline = false; });
+  // turned off while the offline engine is still loading: the microphone is not left open
+  await c.evaluate(() => { closeOver(); X3.voice.stopMeter(); }); await wait(100);
+  await c.evaluate(() => {
+    X3.voice.setOn(false); window.__open = 0; window.__gate = null;
+    const cm = window.__cm = Vosk.createModel; Vosk.createModel = url => new Promise(r => { window.__gate = () => r(cm(url)); });
+    navigator.mediaDevices.getUserMedia = async () => { window.__open++; const ac = new AudioContext(), d = ac.createMediaStreamDestination(); const s = d.stream; s.getTracks().forEach(t => { const st = t.stop.bind(t); t.stop = () => { window.__open--; st(); }; }); return s; };
+    X3.voice.setOn(true); X3.voice.setOn(false); X3.voice.setOn(true); X3.voice.setOn(false);
+  });
+  await until(c, () => !!window.__gate); await c.evaluate(() => __gate()); await wait(300);
+  check(await c.evaluate(() => window.__open === 0 && !X3.voice.state().eng && !X3.voice.state().loading), "voice turned off while the offline engine loads: no microphone left open");
+  await c.evaluate(() => { X3.voice.setOn(true); }); await until(c, () => !!window.__gate); await c.evaluate(() => __gate());
+  check(await until(c, () => X3.voice.state().engine === "offline" && !!X3.voice.state().eng && window.__open === 1), "and on again: one engine, one microphone");
+  // switching the engine on the Settings page takes effect at once
+  await c.evaluate(() => { cfg.xVoiceOffline = false; saveNow("settings"); reloadSettings(); });
+  check(await until(c, () => X3.voice.state().engine === "web" && window.__open === 0), "Settings: back to Windows' speech recognition at once");
+  await c.evaluate(() => { closeOver(); X3.voice.setOn(false); __sr.fail = ""; cfg.xVoiceOffline = false; Vosk.createModel = __cm; });
 
   /* ---------------------------------------------------------------- your own commands, and the panel */
   await c.evaluate(() => X3.voice.voicePanel(true)); await wait(100);
@@ -175,6 +192,46 @@ const until = async (p, fn, ms = 4000) => { const end = Date.now() + ms; while (
   check(await c.evaluate(() => X3.voice.state().on), "Alt+Shift+M turns it on");
   await c.evaluate(() => __host("tool-result", 2, JSON.stringify({ a:"x-key", k:"M" })));
   check(await c.evaluate(() => !X3.voice.state().on), "and off again from a page");
+
+  /* ---------------------------------------------------------------- choosing the microphone */
+  await c.evaluate(() => {
+    window.__gum = [];
+    window.__devs = [{ kind:"audioinput", deviceId:"default", label:"Default" }, { kind:"audioinput", deviceId:"mic-usb", label:"Blue Yeti USB Microphone" }, { kind:"audioinput", deviceId:"mic-cam", label:"Webcam Microphone" }, { kind:"videoinput", deviceId:"cam", label:"Webcam" }];
+    navigator.mediaDevices.enumerateDevices = async () => window.__devs;
+    navigator.mediaDevices.getUserMedia = async c => { window.__gum.push(JSON.stringify(c.audio)); const id = c.audio && c.audio.deviceId && c.audio.deviceId.exact;
+      if (id && !window.__devs.some(d => d.deviceId === id)) throw Object.assign(new Error("gone"), { name:"OverconstrainedError" });
+      const ac = new AudioContext(), d = ac.createMediaStreamDestination(); const s = d.stream; s.__id = id || "default"; return s; };
+    __sr.startArgs = [];
+    const SR0 = window.webkitSpeechRecognition;
+    window.SpeechRecognition = window.webkitSpeechRecognition = function () { SR0.call(this); const me = this, st = me.start; me.start = t => { __sr.startArgs.push(t ? "track" : "none"); if (t && __sr.noTrack) throw new TypeError("no track support"); st(); }; };
+    X3.voice.voicePanel();
+  });
+  check(await until(c, () => [...document.querySelectorAll("#voicep .vc-mic option")].map(o => o.textContent).join("|") === "Windows' default microphone|Blue Yeti USB Microphone|Webcam Microphone"), "the panel lists your microphones (not cameras)");
+  check(await c.evaluate(() => !!document.querySelector("#voicep .vc-meter i")), "with a level meter to see it's the right one");
+  await c.screenshot({ path:SHOTS + "heywebs-mics.png" });
+  await c.evaluate(() => { const s = document.querySelector("#voicep .vc-mic"); s.value = "mic-usb"; s.dispatchEvent(new Event("change")); }); await wait(100);
+  check(await c.evaluate(() => cfg.xVoiceMic === "mic-usb" && cfg.xVoiceMicName === "Blue Yeti USB Microphone" && /Using Blue Yeti/.test(document.getElementById("toast").textContent)), "picking one: remembered");
+  check(await c.evaluate(() => __gum.some(g => /"exact":"mic-usb"/.test(g))), "the meter listens to it");
+  await c.evaluate(() => { __gum.length = 0; __sr.startArgs = []; closeOver(); X3.voice.setOn(true); }); await wait(200);
+  check(await c.evaluate(() => __gum.some(g => /"exact":"mic-usb"/.test(g)) && __sr.startArgs[0] === "track" && X3.voice.state().engine === "web"), "listening uses that microphone (handed to the recognition)");
+  await c.evaluate(() => { __sent.length = 0; __sr.say("hey webs next tab", true); }); await wait(150);
+  check(await c.evaluate(() => __sent.some(m => m.startsWith("select-tab"))), "and commands still work");
+  await c.evaluate(() => X3.voice.setOn(false));
+  // where the recognition can't take a chosen mic: the offline engine can
+  await c.evaluate(() => { __sr.noTrack = true; X3.voice.setOn(true); }); await wait(200);
+  check(await c.evaluate(() => X3.voice.state().err === "choose" && /default microphone/.test(document.getElementById("toast").textContent)), "if Windows' recognition can't use it: says so, and offers the offline engine");
+  await c.evaluate(() => { __gum.length = 0; X3.voice.voicePanel(); });
+  check(await until(c, () => /can only listen to the default microphone/.test(document.querySelector("#voicep").textContent)), "the panel explains it");
+  await c.evaluate(() => document.querySelector("#voicep .vc-off").click());
+  check(await until(c, () => X3.voice.state().engine === "offline" && __gum.some(g => /"exact":"mic-usb"/.test(g))), "the offline engine listens to your chosen microphone");
+  await c.evaluate(() => { closeOver(); X3.voice.setOn(false); cfg.xVoiceOffline = false; __sr.noTrack = false; });
+  // unplugged: the default, and it says so
+  await c.evaluate(() => { __devs = __devs.filter(d => d.deviceId !== "mic-usb"); __gum.length = 0; X3.voice.setOn(true); }); await wait(250);
+  check(await c.evaluate(() => /Blue Yeti USB Microphone isn't plugged in/.test(document.getElementById("toast").textContent) && __gum.some(g => !/exact/.test(g)) && X3.voice.state().eng), "your mic unplugged: Windows' default, and Webs says so");
+  await c.evaluate(() => X3.voice.voicePanel());
+  check(await until(c, () => /Blue Yeti USB Microphone \(not plugged in\)/.test(document.querySelector("#voicep .vc-mic").textContent)), "the picker shows it's not plugged in");
+  await c.evaluate(() => { const s = document.querySelector("#voicep .vc-mic"); s.value = ""; s.dispatchEvent(new Event("change")); closeOver(); X3.voice.setOn(false); });
+  check(await c.evaluate(() => cfg.xVoiceMic === "" && /Windows' default/.test(document.getElementById("toast").textContent) || cfg.xVoiceMic === ""), "back to Windows' default");
 
   /* ---------------------------------------------------------------- Settings */
   const st = await ctx.newPage(); watch(st, errors, "settings");

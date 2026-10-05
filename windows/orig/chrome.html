@@ -3671,6 +3671,7 @@ let permAsked = 0;
 function permPanel() { permAsked = Date.now(); send("perm-list"); }
 function gotPerms(json) {
   let l = []; try { l = JSON.parse(json) || []; } catch (e) {}
+  if (!Array.isArray(l)) l = [];
   l = l.filter(x => x && /^https?:\/\//.test(x.o || "") && x.s !== "Default");
   save("permSeen", { ts:Date.now(), n:l.filter(x => x.s === "Allow" && /Camera|Microphone|Geolocation/.test(x.k)).length });
   if (Date.now() - permAsked > 10000 && overlay !== "permp") return;
@@ -5480,7 +5481,7 @@ function on(p) {
     paintMedia();
     if (overlay === "mediap" && +p[1] === active) fillMedia();
   }
-  else if (c === "media-list") { try { mediaList = JSON.parse(p[1]); } catch (e) {} if (overlay === "mediap") fillMedia(); }
+  else if (c === "media-list") { try { const m = JSON.parse(p[1]); mediaList = Array.isArray(m) ? m : []; } catch (e) {} if (overlay === "mediap") fillMedia(); }
   else if (c === "watch") onWatch(+p[1], p[2], p[3], +p[4], +p[5]);
   else if (c === "tool-result") onToolResult(+p[1], p[2]);
   else if (c === "shot-edit") { if (/^user\/shots\/e\d+\.png$/.test(p[1] || "")) newTab(HOME + "shotedit.html#" + p[1], false, active); }

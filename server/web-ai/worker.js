@@ -16,11 +16,14 @@
      NETWORK_DAILY_LIMIT text     questions per internet connection per day without a code (100)
      TOTAL_DAILY_LIMIT   text     questions for everyone together per day (150)
      TICKETMASTER_KEY    secret   (optional) for events in Happening near you: free at developer.ticketmaster.com
+     ELEVENLABS_KEY      secret   (optional) the assistant's voice, "Adam" (speak.js): elevenlabs.io → API keys
+     SPEAK_DAILY         text     characters the voice may say per person per day (20000)
      MODEL               text     claude-sonnet-5-5 (or claude-haiku-4-5, about half the price)
 
    The browser talks to it as:
      GET  /        is it running?
      POST /check   { code?, device? }          -> { ok, name, left, limit, open }
+     POST /speak   { code?, device?, text, voice? }   -> audio/mpeg in the assistant's voice (speak.js)
      POST /chat    { code?, device?, messages:[{role, content}], web?, prefs?, task? }
                    web:true (the iPhone app, which can't read pages itself) lets Claude
                    fetch the page's address once, at most about 6,000 tokens of it
@@ -87,6 +90,7 @@ import { roomApi, Room } from "./rooms.js";
 import { ledgerApi, ledgerAdmin, Ledger } from "./ledger.js";
 import { readApi } from "./reader.js";
 import { nearApi } from "./near.js";
+import { speakApi, speakReady } from "./speak.js";
 export { Room, Ledger };
 import { ADMIN_PAGE, DASH_JS, DASH_CSS, DASH_SW, DASH_MANIFEST, DASH_ICON, DASH_PNG } from "./dash.js";
 
@@ -119,6 +123,7 @@ const TASKS = {
   compare:"The message holds several <page> blocks from the person's open tabs, usually products or offers. Compare them: a Markdown table with a row for each page (its name and short title, the price if there is one, and the facts that differ most), then two or three sentences on which suits whom. Use only what's on the pages, and write ? for anything a page doesn't say. If the <page> blocks have addresses but no text, fetch each address first (once each).",
   study:"Make study material from the <page> block's main content. Reply with only JSON in a ```json block, like {\"cards\":[{\"q\":\"a question or a term\",\"a\":\"a short answer\"}],\"quiz\":[{\"q\":\"a question\",\"opts\":[\"a\",\"b\",\"c\",\"d\"],\"a\":0}]}, with 8 to 12 cards and 5 quiz questions, each with four choices and \"a\" the number of the right one, 0 for the first.",
   explain:"Explain the <selection> simply, in two to four short sentences, using the page around it (in the <page> block, if there is one) for context. Plain text, no headings or lists.",
+  jarvis:"You are the person's spoken assistant inside Webs Browser on their Windows PC, like JARVIS for Tony Stark: calm, quick, capable, a little dry wit, never fawning. Everything you write is read aloud, so: plain sentences only (no Markdown, lists, headings, emoji, code or web addresses), and short (one to three sentences) unless they ask for detail or a story. The <assistant> block in their message says your name, what to call them and the style they chose; the <now> block says the time, the page they're on and their open tabs. To do things in the browser, put each action on its own line as [[do: command]] with a command written like the examples in the <commands> block (for example [[do: open youtube]] or [[do: set a timer for 5 minutes]]), up to 5 actions, in order, and say briefly what you're doing. Only use commands like those listed; for anything else, say what you can do instead. Before anything that loses work or can't be undone (closing several tabs, clearing things) ask first and act only when they say yes. Don't invent facts about the page you can't see: suggest reading it with a command, or answer from general knowledge and say so.",
   find:"The message lists pages from the person's history, one per line as: number | when | title | address, and then what they're looking for. Find the pages that match. Reply with only JSON in a ```json block, like {\"hits\":[{\"n\":12,\"why\":\"a few words\"}]}, with at most 6, the best first, or {\"hits\":[]} if none fit."
 };
 const PREFS_MAX = 600;
@@ -139,7 +144,7 @@ export default {
     try {
       if (req.method === "GET" && path === "/") {      // says what's missing, never any value
         const missing = setupProblem(env);
-        return json({ ok:true, name:"Web AI", ready:!missing, open:isOpen(env), model:model(env), features:["report", "link", "admin", "push", "support", "live", "owner", "privacy", ...(env.ROOMS ? ["rooms"] : []), ...(env.LEDGER ? ["ledger"] : []), "near", ...(String(env.TICKETMASTER_KEY || "").trim() ? ["events"] : [])], ...(missing ? { missing:"Still to do: " + missing } : {}) }, 200, cors);
+        return json({ ok:true, name:"Web AI", ready:!missing, open:isOpen(env), model:model(env), features:["report", "link", "admin", "push", "support", "live", "owner", "privacy", ...(env.ROOMS ? ["rooms"] : []), ...(env.LEDGER ? ["ledger"] : []), "near", ...(String(env.TICKETMASTER_KEY || "").trim() ? ["events"] : []), "assistant", ...(speakReady(env) ? ["voice"] : [])], ...(missing ? { missing:"Still to do: " + missing } : {}) }, 200, cors);
       }
       if ((req.method === "GET" && /^\/live(\/img\/[a-z0-9]{10})?$/.test(path)) || (req.method === "POST" && /^\/live\/(ping|act|replies)$/.test(path))) {
         if (!env.LIMITS || typeof env.LIMITS.get !== "function") return json({ error:"setup", message:"The storage (LIMITS) isn't set up." }, 503, cors);
@@ -148,6 +153,7 @@ export default {
       if (req.method === "GET" && path === "/changelog") return Response.redirect(APP_URL.replace(/\/?$/, "/") + "changelog.html", 302);
       if (req.method === "GET" && (path === "/near" || path === "/near/geo")) return await nearApi(path, req, env, cors, ctx);
       if (req.method === "GET" && path === "/read") return await readApi(req, env, cors);
+      if (req.method === "POST" && path === "/speak") { if (!env.LIMITS || typeof env.LIMITS.get !== "function") return json({ error:"setup", message:"The storage (LIMITS) isn't set up." }, 503, cors); return await speakApi(req, env, cors, ctx, { json, person, ownerCfg, isBlocked }); }
       if (req.method === "GET" && path === "/room") return await roomApi(req, env, cors);
       if ((req.method === "GET" && /^\/gallery(\/img\/[a-z0-9]{10})?$/.test(path)) || (req.method === "POST" && /^\/(stats|gallery\/send|invite\/new|invite\/claim)$/.test(path))) return await ledgerApi(path, req, env, cors);
       if (req.method === "GET" && (path === "/whoami" || path === "/domain")) return await privacyApi(path, req, env, cors, ctx);
@@ -200,7 +206,7 @@ export default {
         headers:{ "content-type":"application/json", "x-api-key":String(env.ANTHROPIC_API_KEY).trim(), "anthropic-version":"2023-06-01" },
         body:JSON.stringify({
           model:ai.model,
-          max_tokens:body.task === "answer" ? Math.min(ai.maxTokens, 500) : ai.maxTokens,
+          max_tokens:body.task === "answer" ? Math.min(ai.maxTokens, 500) : body.task === "jarvis" ? Math.min(ai.maxTokens, 900) : ai.maxTokens,
           system:system(new Date().toUTCString().slice(0, 16), body.prefs, body.task),
           messages,
           // chat: short or no thinking, a quick first word (Haiku 4.5 has no effort setting)

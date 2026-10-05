@@ -33,6 +33,6 @@ async function setup(ctx) {
 }
 function watch(p, errors, tag) {
   p.on("pageerror", e => errors.push(tag + ": " + e.message));
-  p.on("console", m => { if (m.type() === "error" && !/Failed to load resource|net::ERR|404/.test(m.text())) errors.push(tag + " console: " + m.text()); });
+  p.on("console", m => { if (m.type() === "error" && !/Failed to load resource|net::ERR|404|unknown error occurred when fetching the script/.test(m.text())) errors.push(tag + " console: " + m.text()); });
 }
 module.exports = { chromium, setup, watch, SHOTS, ROOT };

@@ -57,7 +57,7 @@ const SERVER = "https://web-ai.test.workers.dev";
   const WIN = await c.evaluate(() => WIN);
 
   // the toolbar button opens Web AI in the sidebar
-  check(await c.evaluate(() => !!document.querySelector("#aib") && document.querySelector("#aib").nextElementSibling.id === "sideb"), "Web AI button next to the sidebar button");
+  check(await c.evaluate(() => !!document.querySelector("#aib") && ["sideb", "vcb"].includes(document.querySelector("#aib").nextElementSibling.id)), "Web AI button next to the sidebar button (Hey Webs may sit between)");
   await c.click("#aib"); await c.waitForTimeout(100);
   const opened = await c.evaluate(() => __sent.filter(m => m.startsWith("side-open")).pop() || "");
   check(opened === "side-open\u0001https://browser.example/side.html?w=" + WIN + "#xai", "opens side.html#xai for this window: " + opened);
