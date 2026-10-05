@@ -228,9 +228,12 @@ function paintSetup(log) {
     '<div class="group"><h3>Your Web AI code</h3><div class="card"><input id="aiCode" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="From the person who runs Web AI"></div></div>' +
     '<div class="group aisrv' + (fromUpdate && !s.server ? " hide" : "") + '"><h3>Server address</h3><div class="card"><input id="aiSrv" type="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://web-ai.your-name.workers.dev"></div></div>' +
     '<div class="aibtns"><button type="button" class="btn main" id="aiGo">Connect</button>' + (s.code ? '<button type="button" class="btn" id="aiOff">Disconnect</button>' : "") + '</div><p class="aimsg" id="aiMsg"></p>' +
+    '<div class="group"><h3>Your instructions</h3><div class="card"><textarea id="aiPrefs" rows="3" maxlength="600" placeholder="How you like answers, e.g. Keep it short. Use simple words. Answer in Spanish."></textarea></div></div>' +
+    '<p class="aismall">Web AI follows your instructions in every answer, here and in the address bar.</p>' +
     '<p class="aismall">Your code stays on this phone. When you ask something, your question (and the address of the page, while "Use this page" is on) goes to the Web AI server and to Claude, made by Anthropic, which writes the answer.</p></div>';
   const code = $("#aiCode"), srv = $("#aiSrv"), msg = $("#aiMsg");
   code.value = s.code || ""; srv.value = s.server || "";
+  const pf = $("#aiPrefs"); pf.value = s.prefs || ""; pf.oninput = () => setSt({ prefs:pf.value.slice(0, 600) });
   if (fromUpdate) srv.placeholder = fromUpdate;
   const off = $("#aiOff"); if (off) off.onclick = () => { setSt({ code:"", name:"", left:null, limit:0, auto:false }); autoState = "idle"; setupOpen = false; paint(); };
   if (s.auto && !s.code) {
@@ -283,7 +286,7 @@ async function ask(text) {
   const ctl = new AbortController(); busy = ctl; working(true); paint();
   try {
     const r = await fetch(server() + "/chat", { method:"POST", headers:{ "content-type":"application/json" }, signal:ctl.signal,
-      body:JSON.stringify({ code:codeToSend(), device:dev(), web, messages:turns() }) });
+      body:JSON.stringify({ code:codeToSend(), device:dev(), web, prefs:String(st().prefs || "").slice(0, 600), messages:turns() }) });
     if (!r.ok || !r.body) {
       let j = null; try { j = await r.json(); } catch (e) {}
       if (j && j.left === 0) setSt({ left:0 });
@@ -440,5 +443,5 @@ closeSheet = function () { if (isOpen()) { if (busy) busy.abort(); hangUp(); } c
 $("#sheetDone").addEventListener("click", () => { if (call) hangUp(); });      // Done was wired to the plain close before this file loaded
 const openSheet0 = openSheet;
 openSheet = function (title, html, opts) { const h = $("#aiHead"); if (h) h.remove(); return openSheet0(title, html, opts); };
-window.WebAI = { open:openAI };
+window.WebAI = { open:openAI, ask:q => { openAI(); setTimeout(() => ask(q), 60); } };
 })();

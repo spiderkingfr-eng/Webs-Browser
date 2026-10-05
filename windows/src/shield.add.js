@@ -587,9 +587,103 @@ function xTool(action, arg) {
     case 'x-keys': xKeys(); return true;
     case 'x-laser': xLaser(); return true;
     case 'x-init': xInit(arg); return true;
+    case 'x-yt': xYt(); return true;
+    case 'x-seek': { var sv = bestVideo(); if (sv) { sv.currentTime = Math.max(0, +arg || 0); if (sv.paused) sv.play().catch(function () {}); badge('→ ' + clock(sv.currentTime)); } return true; }
+    case 'x-explain-on': xpOn = arg === '1'; if (!xpOn) xpClose(); return true;
+    case 'x-explain-show': { var eo = null; try { eo = JSON.parse(arg); } catch (e) {} if (eo) xpShow(eo); return true; }
   }
   return false;
 }
+
+/* ------------------------------------------------------------------ Webs 3.10: a video's captions, for Web AI
+   The YouTube player's own data (on the page, or the watch page fetched again, since YouTube changes videos
+   without loading a page) names the caption tracks; the best one comes back as [m:ss] lines. Without
+   captions, the title and the description. */
+function xYt() {
+  var vid = ''; try { vid = new URLSearchParams(L.search).get('v') || ''; } catch (e) {}
+  var reply = function (o) { o.a = 'x-yt'; o.title = o.title || D.title; xReply(o, 't'); };
+  var go = function (pr) {
+    var det = pr && pr.videoDetails || {}, title = det.title || D.title, desc = String(det.shortDescription || '').slice(0, 6000);
+    var tr = pr && pr.captions && pr.captions.playerCaptionsTracklistRenderer, list = tr && tr.captionTracks || [];
+    var fallback = function () { reply({ t:'', desc:desc, title:title, none:1 }); };
+    if (!list.length) return fallback();
+    var pick = list.filter(function (c) { return /^en/.test(c.languageCode) && c.kind !== 'asr'; })[0] || list.filter(function (c) { return /^en/.test(c.languageCode); })[0] || list[0];
+    fetch(pick.baseUrl + '&fmt=json3', { credentials:'include' }).then(function (r) { return r.json(); }).then(function (j) {
+      var lines = (j.events || []).filter(function (e) { return e.segs; }).map(function (e) {
+        return '[' + clock(Math.floor((e.tStartMs || 0) / 1000)) + '] ' + e.segs.map(function (x) { return x.utf8 || ''; }).join('').replace(/\s+/g, ' ').trim();
+      }).filter(function (l) { return l.length > 9; });
+      if (!lines.length) return fallback();
+      reply({ t:lines.join('\n'), title:title, lang:pick.languageCode || '' });
+    }).catch(fallback);
+  };
+  var pr = W.ytInitialPlayerResponse;
+  if (pr && pr.videoDetails && pr.videoDetails.videoId === vid) return go(pr);
+  fetch(L.href, { credentials:'include' }).then(function (r) { return r.text(); }).then(function (h) {
+    var m = /ytInitialPlayerResponse\s*=\s*(\{.+?\})\s*;\s*(?:var\s|<\/script)/.exec(h);
+    var p = null; try { p = m ? JSON.parse(m[1]) : null; } catch (e) {}
+    go(p);
+  }).catch(function () { go(null); });
+}
+
+/* ------------------------------------------------------------------ Webs 3.10: Explain, next to text you select
+   Select a few words and a small ✦ Explain button shows beside them. Clicking it hands the selection and
+   the paragraph around it to the browser window, which asks Web AI, and the answer shows in the same
+   bubble. Nothing goes anywhere unless it's clicked. Off in Settings → Web pages. */
+var xpOn = false, xpHost = null, xpRoot = null, xpSel = '', xpCtx = '';
+function xpClose() { if (xpHost) { xpHost.remove(); xpHost = xpRoot = null; } }
+function xpPlace(r) {
+  var w = Math.min(360, W.innerWidth - 16), h = xpRoot.querySelector('.w').offsetHeight || 40, vh = W.innerHeight;
+  xpHost.style.left = Math.max(8, Math.min(r.left, W.innerWidth - w - 8)) + 'px';
+  xpHost.style.top = (r.bottom + 8 + h > vh ? Math.max(8, r.top - h - 8) : r.bottom + 8) + 'px';
+}
+function xpBubble(r) {
+  xpClose();
+  var host = D.createElement('wsb-badge');
+  host.style.cssText = 'all:initial;position:fixed;z-index:2147483647;left:0;top:0';
+  var root = host.attachShadow({ mode: 'closed' });
+  root.innerHTML = '<style>.w{font:13px/1.5 "Segoe UI",system-ui,sans-serif;color:#f3eff1;max-width:360px;animation:in .18s ease-out}@keyframes in{from{opacity:0;transform:translateY(-4px)}}' +
+    '.go{all:initial;font:600 12.5px "Segoe UI",system-ui,sans-serif;color:#fff;background:linear-gradient(135deg,#7f5cff,#e8342a);border-radius:999px;padding:5px 12px;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.35)}' +
+    '.go:hover{filter:brightness(1.1)}.go[hidden],.a[hidden]{display:none}.a{background:rgba(24,21,28,.97);border:1px solid rgba(255,255,255,.14);border-radius:12px;padding:10px 13px;max-height:260px;overflow:auto;box-shadow:0 12px 34px rgba(0,0,0,.5);white-space:pre-wrap}' +
+    '.a b{display:block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#b9a8ff;margin-bottom:4px}.a.err{color:#ffb4ab}.more{all:initial;display:block;margin-top:8px;font:12px "Segoe UI",system-ui;color:#b9a8ff;cursor:pointer}</style>' +
+    '<div class="w"><button class="go" title="Explain this with Web AI">✦ Explain</button><div class="a" hidden></div></div>';
+  (D.body || D.documentElement).appendChild(host);
+  xpHost = host; xpRoot = root; xpPlace(r);
+  var go = root.querySelector('.go');
+  go.addEventListener('mousedown', function (e) { e.preventDefault(); e.stopPropagation(); });
+  go.onclick = function (e) {
+    if (!e.isTrusted) return;
+    go.hidden = true;
+    xpShow({ t:'Thinking…', more:1 });
+    toolReply({ a:'x-explain', sel:xpSel.slice(0, 1500), ctx:xpCtx.slice(0, 3000), title:String(D.title || '').slice(0, 200) });
+  };
+}
+function xpShow(o) {
+  if (!xpRoot) return;
+  var a = xpRoot.querySelector('.a'), go = xpRoot.querySelector('.go');
+  go.hidden = true; a.hidden = false; a.className = 'a' + (o.err ? ' err' : '');
+  a.textContent = ''; var b = D.createElement('b'); b.textContent = '✦ Web AI'; a.appendChild(b);
+  a.appendChild(D.createTextNode(String(o.err || o.t || '')));
+  if (!o.more && !o.err) { var m = D.createElement('button'); m.className = 'more'; m.textContent = 'Ask more in Web AI ›'; m.onclick = function (e) { if (e.isTrusted) { toolReply({ a:'x-explain-more' }); xpClose(); } }; a.appendChild(m); }
+}
+W.addEventListener('mouseup', function (e) {
+  if (!xpOn || !TOP || !e.isTrusted || e.button !== 0) return;
+  if (xpHost && e.composedPath().indexOf(xpHost) >= 0) return;
+  setTimeout(function () {
+    var s = W.getSelection(), t = s && s.rangeCount ? String(s).replace(/\s+/g, ' ').trim() : '';
+    var ae = D.activeElement;
+    if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable)) return;
+    if (!t || t.split(' ').length < 2 || t.length > 1500) return;
+    var range = s.getRangeAt(0), r = range.getBoundingClientRect();
+    if (!r.width && !r.height) return;
+    var n = range.commonAncestorContainer; if (n && n.nodeType !== 1) n = n.parentNode;
+    var blk = n && n.closest ? n.closest('p,li,td,dd,blockquote,section,article,main,div') : null;
+    xpSel = t; xpCtx = String(blk && blk.innerText || '').replace(/\s+/g, ' ').trim();
+    xpBubble(r);
+  }, 10);
+}, true);
+W.addEventListener('mousedown', function (e) { if (xpHost && e.composedPath().indexOf(xpHost) < 0) xpClose(); }, true);
+W.addEventListener('keydown', function (e) { if (xpHost && e.key === 'Escape') xpClose(); }, true);
+W.addEventListener('scroll', function () { if (xpHost && xpRoot && xpRoot.querySelector('.a').hidden) xpClose(); }, true);
 
 /* The shell drops a page's answer when it is longer than 200,000 characters,
    so long text is cut to fit (and says so). */

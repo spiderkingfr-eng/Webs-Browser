@@ -20,9 +20,13 @@
    The browser talks to it as:
      GET  /        is it running?
      POST /check   { code?, device? }          -> { ok, name, left, limit, open }
-     POST /chat    { code?, device?, messages:[{role, content}], web? }
+     POST /chat    { code?, device?, messages:[{role, content}], web?, prefs?, task? }
                    web:true (the iPhone app, which can't read pages itself) lets Claude
                    fetch the page's address once, at most about 6,000 tokens of it
+                   prefs: how the person likes answers (Web AI's settings, "Your instructions")
+                   task: a job with its own instructions (TASKS below): an answer in the address
+                   bar, a video's key moments, tidying tabs, comparing pages, study cards,
+                   explaining a selection, finding a page in the history
                    -> one JSON object per line: { d:"text" } ... { end:1, stop, left } or { error, message }
 
      POST /report  { code?, device, app, version, text, info, errors }   a problem report, for the owner
@@ -84,6 +88,26 @@ When a message contains a <selection> block, that is the text the person selecte
 Answers appear in a narrow sidebar, so keep them short and easy to scan: lead with the answer, then short paragraphs or a short list. You can use Markdown: **bold**, lists, headings, links, \`code\` and code blocks. If the page doesn't answer the question, say so, then answer from what you know when you can, and make clear which part comes from the page.
 
 Today's date is ${date}.`;
+
+// Windows 3.10, iPhone 2.9: jobs the apps ask for, each with its own instructions after the ones above
+const TASKS = {
+  answer:"This question was typed in the browser's address bar and the answer shows in its dropdown. Answer in at most three short sentences of plain text: no headings, lists or Markdown. If it needs more, give the gist and say Web AI can tell them more.",
+  video:"The <page> block holds a YouTube video's captions, each line starting with its time as [m:ss] or [h:mm:ss]. Give the video's key moments: 4 to 8 lines, each starting with the time that part begins in the same form, then a short summary of that part, in order. Then a last line starting with \"In short:\" and the whole video in one sentence. If the block has a description instead of captions, say the video has no captions and summarize the description.",
+  tidy:"The message lists the person's open tabs, one per line as: id | title | address. Group them by topic, and point out tabs they can probably close (duplicates, searches already done, pages that look finished with). Reply with only JSON in a ```json block, like {\"groups\":[{\"name\":\"short topic\",\"ids\":[1,2]}],\"close\":[{\"id\":3,\"why\":\"a few words\"}]}. Use only ids from the list, put every tab in exactly one group, and use at most 6 groups with names of one to three words.",
+  compare:"The message holds several <page> blocks from the person's open tabs, usually products or offers. Compare them: a Markdown table with a row for each page (its name and short title, the price if there is one, and the facts that differ most), then two or three sentences on which suits whom. Use only what's on the pages, and write ? for anything a page doesn't say. If the <page> blocks have addresses but no text, fetch each address first (once each).",
+  study:"Make study material from the <page> block's main content. Reply with only JSON in a ```json block, like {\"cards\":[{\"q\":\"a question or a term\",\"a\":\"a short answer\"}],\"quiz\":[{\"q\":\"a question\",\"opts\":[\"a\",\"b\",\"c\",\"d\"],\"a\":0}]}, with 8 to 12 cards and 5 quiz questions, each with four choices and \"a\" the number of the right one, 0 for the first.",
+  explain:"Explain the <selection> simply, in two to four short sentences, using the page around it (in the <page> block, if there is one) for context. Plain text, no headings or lists.",
+  find:"The message lists pages from the person's history, one per line as: number | when | title | address, and then what they're looking for. Find the pages that match. Reply with only JSON in a ```json block, like {\"hits\":[{\"n\":12,\"why\":\"a few words\"}]}, with at most 6, the best first, or {\"hits\":[]} if none fit."
+};
+const PREFS_MAX = 600;
+// the system prompt for a question: the person's own instructions (their words, kept apart) and the job, if any
+function system(date, prefs, task) {
+  let s = SYSTEM(date);
+  const p = String(prefs || "").replace(/[\u0000-\u0008\u000b-\u001f]/g, " ").trim().slice(0, PREFS_MAX);
+  if (p) s += "\n\nThe person wrote how they like answers, in Web AI's settings. Follow it where it makes sense, unless it goes against the rest of these instructions:\n<prefs>\n" + p + "\n</prefs>";
+  if (TASKS[task]) s += "\n\n" + TASKS[task];
+  return s;
+}
 
 export default {
   async fetch(req, env, ctx) {
@@ -148,12 +172,12 @@ export default {
         headers:{ "content-type":"application/json", "x-api-key":String(env.ANTHROPIC_API_KEY).trim(), "anthropic-version":"2023-06-01" },
         body:JSON.stringify({
           model:ai.model,
-          max_tokens:ai.maxTokens,
-          system:SYSTEM(new Date().toUTCString().slice(0, 16)),
+          max_tokens:body.task === "answer" ? Math.min(ai.maxTokens, 500) : ai.maxTokens,
+          system:system(new Date().toUTCString().slice(0, 16), body.prefs, body.task),
           messages,
           // chat: short or no thinking, a quick first word (Haiku 4.5 has no effort setting)
           ...(/haiku/i.test(ai.model) ? {} : { output_config:{ effort:"low" } }),
-          ...(body.web === true ? { tools:[{ type:"web_fetch_20250910", name:"web_fetch", max_uses:1, max_content_tokens:6000 }] } : {}),
+          ...(body.web === true ? { tools:[{ type:"web_fetch_20250910", name:"web_fetch", max_uses:body.task === "compare" ? 4 : 1, max_content_tokens:body.task === "compare" ? 4000 : 6000 }] } : {}),     // comparing tabs on the iPhone: up to four pages
           cache_control:{ type:"ephemeral" },      // follow-up questions reread the page from the cache
           stream:true
         })

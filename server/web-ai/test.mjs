@@ -83,6 +83,7 @@ ok(calls[0].init.headers["x-api-key"] === "sk-ant-test" && calls[0].init.headers
 ok(b.model === "claude-sonnet-5-5" && b.stream === true && b.max_tokens === 4000 && b.output_config.effort === "low" && b.cache_control.type === "ephemeral", "request settings");
 ok(!("thinking" in b) && !("temperature" in b), "no thinking or sampling settings (adaptive default)");
 ok(/Web AI/.test(b.system) && /<page>/.test(b.system) && /Today's date is/.test(b.system), "system prompt");
+const SYS0 = b.system.length;
 ok(b.messages.length === 1 && b.messages[0].role === "user" && b.messages[0].content === "Summarize this", "messages passed");
 ok(kv.get("n:" + new Date().toISOString().slice(0, 10) + ":everyone") === "1", "everyone's count");
 r = await call("POST", "/check", { code:"abcd1234efgh" });
@@ -105,6 +106,20 @@ ok(/web_fetch tool/.test(calls[0].body.system), "system prompt explains the fetc
 calls = [];
 await call("POST", "/chat", { code:"abcd1234efgh", web:"yes", messages:[{ role:"user", content:"hi" }] });
 ok(!("tools" in calls[0].body), "no tools unless web is exactly true");
+kv.clear(); kept.forEach((v, k) => kv.set(k, v));
+
+// Windows 3.10 / iPhone 2.9: the person's own instructions, and jobs with their own instructions
+kv.clear(); calls = [];
+await call("POST", "/chat", { code:"abcd1234efgh", prefs:"Answer in Spanish, short.\u0007", task:"answer", messages:[{ role:"user", content:"what is the capital of France?" }] });
+let sb = calls[0].body;
+ok(/<prefs>\nAnswer in Spanish, short\.\n<\/prefs>/.test(sb.system) && /address bar/.test(sb.system) && sb.max_tokens === 500, "your instructions and the address bar's job (a short answer)");
+calls = [];
+kv.clear();
+await call("POST", "/chat", { code:"abcd1234efgh", prefs:"x".repeat(5000), task:"nope", messages:[{ role:"user", content:"hi" }] });
+sb = calls[0].body;
+ok((sb.system.match(/x+/g) || []).some(x => x.length === 600) && !/address bar/.test(sb.system) && sb.max_tokens === 4000, "instructions cut at 600 characters; an unknown job is ignored");
+for (const t of ["video", "tidy", "compare", "study", "explain", "find"]) { calls = []; kv.clear(); await call("POST", "/chat", { code:"abcd1234efgh", task:t, messages:[{ role:"user", content:"go" }] });
+  ok(calls[0].body.system.length > SYS0 + 100, "the " + t + " job"); }
 kv.clear(); kept.forEach((v, k) => kv.set(k, v));
 
 // a cheaper model from the MODEL setting: Haiku gets no effort setting
