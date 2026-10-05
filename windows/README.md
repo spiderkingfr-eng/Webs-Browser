@@ -195,6 +195,7 @@ Each part is a script in `src/` (the window) with what both apps share in `../js
 | Getting things done | `../js/gtd.js`, `src/gtd.chrome.js` | The routine, reminders, the checkup, the digest, voice; the address kept with a non-extractable AES key in IndexedDB; `x-fill` fills a form |
 | Privacy | `../js/privacy.js`, `src/privacy.chrome.js` | `x-shop` reads a shop's signs and `x-shop-warn` shows the bar; `x-seen` lists what the page sees. Clean up: `site-clear` before the last tab closes (the host's "Cookies and data for … cleared" closes it). Containers are profiles named `Container …`: the address goes across with the folder sync command (`sync-write`) into the updater's folder, and the container's window reads it (`sync-read`) as it opens |
 | Phone and PC, Play a friend | `../js/link.js`, `src/link.*.js`, `../js/games.online.js` | A WebSocket to the server's live rooms (`rooms.js`): your linked devices' room, or a game's |
+| Voice control (3.12) | `src/voice.chrome.js` | “Hey Webs”: over a hundred commands (each a pattern and what it does), your own phrases, spoken answers. Listening is the browser's speech recognition, or Vosk (WebAssembly, from jsDelivr, with its small English model) when that doesn't work in WebView2 |
 | Owner's tools | `../js/stats.js`, `src/stats.*.js` | Counts (panels as they open, page tools on their way to the host), errors, A/B, invites and the gallery, through the ledger (`ledger.js`) |
 
 ## Making the exe by hand

@@ -1,10 +1,10 @@
 /* ---------------------------------------------------------------- Webs 3.0 settings */
 (function () {
 "use strict";
-["xUnread", "xPageKeys", "liveCounts", "xExplain", "xAiBar", "xShop"].forEach(k => { if (cfg[k] === undefined) cfg[k] = true; });
+["xUnread", "xPageKeys", "liveCounts", "xExplain", "xAiBar", "xShop", "xVoiceTalk"].forEach(k => { if (cfg[k] === undefined) cfg[k] = true; });
 bindSwitch("liveCounts", () => cfg, "liveCounts");      // Webs 3.7: js/live.js checks in only with this on
 ["xClock", "xClockDate", "xBattery", "xTabCount", "xTabNums", "xUnread", "xUndo", "xHoverX", "xBigTabs", "xIconTabs", "xRainbow", "xGlow", "xCycle",
- "xProgress", "xTotop", "xZoomAll", "xYtShorts", "xYtRecs", "xPageKeys", "xExplain", "xAiBar", "xShop"].forEach(k => bindSwitch(k, () => cfg, k));
+ "xProgress", "xTotop", "xZoomAll", "xYtShorts", "xYtRecs", "xPageKeys", "xExplain", "xAiBar", "xShop", "xVoice", "xVoiceTalk", "xVoiceOffline"].forEach(k => bindSwitch(k, () => cfg, k));
 ["xTabW", "xCorners", "xFont", "xClean"].forEach(k => { const n = $("#" + k); n.value = cfg[k] || ""; n.onchange = () => { cfg[k] = n.value; commit(); }; });
 const nm = $("#xCustomName"), url = $("#xCustomUrl");
 nm.value = cfg.xCustomName || ""; url.value = cfg.xCustomUrl || "";

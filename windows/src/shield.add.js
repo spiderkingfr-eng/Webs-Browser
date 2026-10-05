@@ -933,7 +933,7 @@ function xLaser() {
 /* The shell only passes a fixed set of shortcuts on while a page has the
    keyboard, so the new ones are caught here, from real key presses only, and
    handed to the browser the same way mouse gestures are. */
-var X_KEYS = 'ABEGRUXZ', xKeysOn = true;
+var X_KEYS = 'ABEGMRUXZ', xKeysOn = true;
 W.addEventListener('keydown', function (e) {
   if (!xKeysOn || !e.isTrusted || !TOP || e.ctrlKey || e.metaKey || !e.altKey) return;
   var k = '';
