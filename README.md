@@ -108,6 +108,13 @@ every click. Each site can have its own wallpaper and look (behind the page or f
 shows through, see-through sidebars, soft focus, a still picture), and *Settings → Appearance* can turn
 it on for every site. The iPhone app can't: iOS doesn't let a web app change other sites.
 
+## New in Windows 3.12: “Hey Webs”
+
+Voice control for the PC: turn it on (the 🎙️ button in the toolbar, or Alt+Shift+M) and say “Hey Webs”, then any of over
+a hundred commands, or your own phrases that run several of them. Answers can be spoken. It uses Windows' speech
+recognition when it works, or an offline engine (Vosk, a 40 MB download once) so nothing you say leaves the PC.
+Only the words after the wake phrase are acted on; nothing is recorded. Settings → Voice control.
+
 ## New in iPhone 2.10 and Windows 3.11: happening near you
 
 A card on the start page with the big things around you: concerts, sports, festivals and shows (from Ticketmaster),

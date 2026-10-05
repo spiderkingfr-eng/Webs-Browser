@@ -1,14 +1,14 @@
 {
-  "version": "3.11.0",
+  "version": "3.12.0",
   "date": "2026-10-05",
   "notes": [
-    "Happening near you: concerts, sports, festivals and shows near you, severe weather warnings, earthquakes and local news on the new tab page",
-    "See everything in Menu → Happening near you, for your town, your exact position or any city you choose"
+    "Hey Webs: turn on voice control (the microphone button, or Alt+Shift+M), say Hey Webs, then any of over a hundred commands",
+    "Your own voice commands, spoken answers, your own wake phrase, and an offline engine that keeps everything on your PC"
   ],
   "exe": {
-    "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.11.0.exe",
-    "sha256": "25f4318a6b5f7d28765f7e76000318c3413b6701bbc06ab2e90274bbbd77d8e7",
-    "size": 3643392
+    "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.12.0.exe",
+    "sha256": "9f6acea371de1f8caf9c77202adc240711cc8f5140df2473640554cdc7f6cc7c",
+    "size": 3696128
   },
   "updater": {
     "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebsUpdate.exe",
@@ -24,11 +24,11 @@
     "code": "jcku563mgxwn"
   },
   "previous": {
-    "version": "3.10.0",
+    "version": "3.11.0",
     "exe": {
-      "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.10.0.exe",
-      "sha256": "d73ca822f5300c77c5c1a9e12641534b7530784d80fab04057d5bb0b99093192",
-      "size": 3614720
+      "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.11.0.exe",
+      "sha256": "25f4318a6b5f7d28765f7e76000318c3413b6701bbc06ab2e90274bbbd77d8e7",
+      "size": 3643392
     }
   }
 }

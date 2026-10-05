@@ -32,7 +32,7 @@ async function load(force) {
   busy = (async () => {
     let r; try { r = await fetch(s + "/near" + q); } catch (e) { throw new Error("Can't reach the server. Check your internet connection."); }
     const j = await r.json().catch(() => null);
-    if (!j) throw new Error("Happening near you isn't available right now.");
+    if (!j || (j.ok && !(j.place && typeof j.place === "object"))) throw new Error("Happening near you isn't available right now. (The Web AI server may need updating.)");
     if (!j.ok) throw Object.assign(new Error(j.message || "Couldn't tell where you are."), { where:j.error === "where" });
     put("nearCache", { k, at:Date.now(), d:j });
     return j;

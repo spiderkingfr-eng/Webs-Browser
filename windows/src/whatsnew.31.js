@@ -1,3 +1,11 @@
+"3.12 · Hey Webs": [
+  ["Always listening, when you want it", "Turn it on and say “Hey Webs”, then what you want. Only the words after the wake phrase are used; nothing is recorded or kept, and never in private windows.", "The 🎙️ button, or Alt+Shift+M"],
+  ["Over a hundred commands", "Tabs, going places, the page, video and sound, bookmarks and notes, Web AI, quick answers, themes, games and Webs's own features: “open YouTube”, “skip 30 seconds”, “set a timer for 10 minutes”, “what's happening near me”.", "Voice control → What you can say"],
+  ["Answers out loud", "Webs says what it did, works out sums, tells the time, and passes questions to Web AI.", "Voice control"],
+  ["Your own commands", "One phrase that does several things, like “study time” opening a site and starting focus mode.", "Voice control → Your own commands"],
+  ["Your own wake phrase", "“Okay browser”, or anything you like.", "Voice control"],
+  ["Works offline", "Where Windows' speech recognition can't be used, an offline engine (a 40 MB download once) keeps everything on your PC.", "Voice control → Use the offline engine"]
+],
 "3.11 · Happening near you": [
   ["Big things around you", "Concerts, sports, festivals and shows nearby in the next three weeks, severe weather warnings, earthquakes and local news, on the new tab page.", "New tab"],
   ["See it all", "Every event, alert and headline in tabs, with links to tickets and stories.", "Menu → Happening near you"],

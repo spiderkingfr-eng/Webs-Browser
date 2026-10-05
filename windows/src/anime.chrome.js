@@ -55,6 +55,7 @@ function animePanel() {
   new MutationObserver((m, o) => { if (!p.isConnected) { pk.stop(); o.disconnect(); } }).observe($("#over"), { childList:true });
 }
 X3.animePanel = animePanel;
+X3.animeChoose = choose;       // 3.12: "change the theme to Naruto" (voice control)
 
 /* ---------------------------------------------------------------- 3.10: the schedule */
 function schedNow() {
