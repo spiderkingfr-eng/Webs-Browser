@@ -35,9 +35,16 @@ if errorlevel 1 goto failed
 :done
 echo.
 choice /c YN /m "Add (or change) a Ticketmaster key for events in Happening near you (optional, free at developer.ticketmaster.com)"
-if errorlevel 2 goto finish
+if errorlevel 2 goto voice
 echo Paste the Consumer Key from your Ticketmaster app, then press Enter.
 call npx --yes wrangler@4 secret put TICKETMASTER_KEY
+if errorlevel 1 goto failed
+:voice
+echo.
+choice /c YN /m "Add (or change) an ElevenLabs key for the assistant's voice, Adam (optional, free to start at elevenlabs.io)"
+if errorlevel 2 goto finish
+echo Paste your ElevenLabs API key (elevenlabs.io - your profile - API keys), then press Enter.
+call npx --yes wrangler@4 secret put ELEVENLABS_KEY
 if errorlevel 1 goto failed
 :finish
 echo.

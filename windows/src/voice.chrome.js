@@ -251,6 +251,9 @@ async function run(text) {
     return reply("Done: " + p.custom.say);
   }
   if (p) { const r = await exec(p); if (r !== null) return reply(r || "Done"); }
+  // the assistant (3.13, assistant.chrome.js): anything else is a conversation with Web AI, which can also do things
+  const brain = X3.voice && X3.voice.brain;
+  if (brain && brain.on()) return brain.ask(String(text || "").trim(), s);
   // a question nothing else answered: Web AI
   if (/^(what|who|whom|whose|why|how|when|where|which|is|are|can|does|do|should|could|will|would|tell me|explain)\b/.test(s) && s.split(" ").length >= 3) return reply(askAI(s));
   return reply("Sorry, I didn't catch that. Say “what can I say” for the list.", true);
@@ -281,9 +284,17 @@ exec = async function (p) {
   return null;
 };
 const bump = id => { const u = load("voiceUse", {}); u[id] = (u[id] || 0) + 1; save("voiceUse", u); if (window.Stats) Stats.use("v." + id); };
+// a command run for the assistant: no reply of its own; null when it isn't a command
+async function act(text) {
+  const p = parse(text);
+  if (!p || p.custom) return null;
+  return exec(p);
+}
 function reply(text, missed) {
   lastSaid = text;
   chip(missed ? "miss" : "done", text);
+  const sp = X3.voice && X3.voice.speaker;
+  if (sp && cfg.xVoiceTalk !== false && text) { sp.say(text); return text; }      // the assistant's voice, when it has one
   if (cfg.xVoiceTalk !== false && text && window.speechSynthesis) {
     try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text.replace(/[“”]/g, "")); u.rate = 1.05; L.talking = true; u.onend = u.onerror = () => { setTimeout(() => { L.talking = false; }, 400); }; speechSynthesis.speak(u); } catch (e) { L.talking = false; }
   }
@@ -298,9 +309,15 @@ function wakeRe() {
   return new RegExp("(?:^|\\s)" + w + "(?:\\s|$)(.*)$");
 }
 async function heard(text, final) {
-  if (!L.on || L.talking || !text) return;
+  if (!L.on || !text) return;
   const t = String(text).toLowerCase().replace(/[.,!?]+/g, " ").replace(/\s+/g, " ").trim();
   if (!t) return;
+  if (L.talking) {
+    // while it talks it only listens for its name, which stops it (and anything said after is the next request)
+    if (cfg.xVoiceNoWake || !wakeRe().test(t)) return;
+    const sp = X3.voice && X3.voice.speaker; if (sp) sp.hush(); else try { speechSynthesis.cancel(); } catch (e) {}
+    L.talking = false;
+  }
   if (cfg.xVoiceNoWake) { if (final) { chip("heard", t); await run(t); } else chip("partial", t); return; }
   const m = wakeRe().exec(t);
   if (m) {
@@ -432,8 +449,9 @@ function chip(state, text) {
   l.textContent = state === "awake" ? "Listening…" : state === "partial" || state === "heard" ? "“" + String(text).slice(0, 40) + "”" : state === "done" || state === "miss" ? String(text || "").slice(0, 50) : state === "loading" ? "Getting ready…" : state === "err" ? "⚠" : "";
   if (state === "err" && text) toast("🎙️ " + text, { label:"Voice control", fn:() => voicePanel() });
   if (state === "done" || state === "miss") { if (text) toast("🎙️ " + text); chipT = setTimeout(() => chip(L.on ? "on" : "off"), 3500); }
-  if (state === "awake") chipT = setTimeout(() => { if (Date.now() >= L.awakeUntil) chip(L.on ? "on" : "off"); }, 8200);
+  if (state === "awake") chipT = setTimeout(() => { if (Date.now() >= L.awakeUntil) chip(L.on ? "on" : "off"); }, Math.max(0, L.awakeUntil - Date.now()) + 200);
   if (overlay === "voicep") { const s = document.querySelector("#voicep .vc-live"); if (s) s.textContent = l.textContent || (L.on ? "🎙️ Listening for “" + (cfg.xVoiceWake || "Hey Webs") + "”" : "Off"); }
+  if (X3.voice && X3.voice.onChip) X3.voice.onChip(state, text);
 }
 
 /* ---------------------------------------------------------------- the panel */
@@ -448,6 +466,7 @@ function voicePanel(list) {
     '<button class="btn2 main vc-on">' + (L.on ? "Stop listening" : "Start listening") + "</button>" +
     (L.err === "choose" ? '<div class="vc-warn">Windows\' speech recognition can only listen to the default microphone here. The offline engine can use the one you picked: a 40 MB download once (Vosk), and then nothing you say leaves this PC.<button class="btn2 vc-off">Use the offline engine</button></div>' : "") +
     (L.err === "web" || L.err === "offline" ? '<div class="vc-warn">Speech recognition doesn\'t work inside Windows here. The offline engine does: a 40 MB download once (Vosk), and then nothing you say ever leaves this PC.<button class="btn2 vc-off">Use the offline engine</button></div>' : "") +
+    '<div class="vc-asst"></div>' +
     '<div class="gtk">Settings</div>' +
     '<label class="gtf"><span>Microphone</span><select class="xin vc-mic"><option value="">Windows\' default microphone</option></select></label>' +
     '<div class="vc-meter" title="How loud the microphone hears you"><i></i></div><div class="xsmall vc-micnote"></div>' +
@@ -483,6 +502,7 @@ function voicePanel(list) {
     cfg.xVoiceCustom = custom().concat([{ say:s.slice(0, 60), do:d.slice(0, 300) }]).slice(-30); saveCfg();
     b.querySelector(".vc-say").value = ""; b.querySelector(".vc-do").value = ""; paintMine();
   };
+  if (X3.voice && X3.voice.panelHook) X3.voice.panelHook(b.querySelector(".vc-asst"));
 }
 
 /* ---------------------------------------------------------------- the microphone picker, and a meter to see it's the right one */
@@ -545,7 +565,8 @@ reloadSettings = function () {
   if (!!cfg.xVoice !== L.on) { L.on = !!cfg.xVoice; if (L.on) start(); else stop(); }
   else if (L.on && changed) { stop(); L.err = ""; start(); }   // the engine or microphone was switched in Settings
 };
-X3.voice = { mics, openMic, stopMeter, parse, run, hear:heard, setOn, voicePanel, norm, calc, secs, num, COMMANDS:C, state:() => L, wakeRe };
+X3.voice = { mics, openMic, stopMeter, parse, run, act, hear:heard, setOn, voicePanel, norm, calc, secs, num, COMMANDS:C, state:() => L, wakeRe, chip,
+  awake:ms => { L.awakeUntil = Date.now() + ms; chip("awake"); }, brain:null, speaker:null, onChip:null, panelHook:null };
 if (cfg.xVoice) setTimeout(() => { L.on = true; start(); chip(L.eng ? "on" : "paused"); }, 2500); else chip("off");
 
 const st = document.createElement("style");

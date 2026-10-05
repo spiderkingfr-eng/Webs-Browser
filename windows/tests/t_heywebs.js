@@ -124,8 +124,10 @@ const until = async (p, fn, ms = 4000) => { const end = Date.now() + ms; while (
   check(await c.evaluate(() => __sent.includes("back\u00012")), "your own wake phrase");
   await c.evaluate(() => { cfg.xVoiceWake = ""; });
   // its own voice isn't heard as a command
-  await c.evaluate(() => { X3.voice.state().talking = true; __sent.length = 0; __sr.say("hey webs new tab", true); X3.voice.state().talking = false; }); await wait(60);
-  check(await c.evaluate(() => !__sent.length), "Webs talking: not heard as a command");
+  await c.evaluate(() => { X3.voice.state().talking = true; X3.voice.state().awakeUntil = Date.now() + 5000; __sent.length = 0; __sr.say("new tab", true); }); await wait(60);
+  check(await c.evaluate(() => !__sent.length), "Webs talking: its own voice isn't heard as a command");
+  await c.evaluate(() => { __sr.say("hey webs new tab", true); }); await wait(80);
+  check(await c.evaluate(() => __sent.some(m => m.startsWith("new-tab"))), "but its name stops it, and what follows is the next command");
   // hidden window: stops, back: starts
   await c.evaluate(() => { Object.defineProperty(document, "hidden", { configurable:true, get:() => true }); document.dispatchEvent(new Event("visibilitychange")); });
   check(await c.evaluate(() => !X3.voice.state().eng), "another window in front: not listening");

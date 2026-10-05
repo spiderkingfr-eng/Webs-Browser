@@ -27,6 +27,11 @@ on iPhones), `wrangler.jsonc` and `setup.cmd`.
 developer.ticketmaster.com (My Apps → the Consumer Key) and give it to `setup.cmd` when it asks (the
 `TICKETMASTER_KEY` secret). Weather warnings, earthquakes and local news need no key.
 
+**The assistant's voice (Windows 3.13):** `speak.js`. The assistant talks in "Adam", one of ElevenLabs'
+stock voices: make a free account at elevenlabs.io, copy an API key (your profile → API keys) and give it
+to `setup.cmd` when it asks (the `ELEVENLABS_KEY` secret). Each person may hear `SPEAK_DAILY` characters a
+day (20,000, about 25 minutes). Without a key the assistant still works and speaks with a Windows voice.
+
 **Updating to Windows 3.10 / iPhone 2.9:** run `setup.cmd` again and answer N to the key and
 the codes. It adds two Durable Objects (`ROOMS` and `LEDGER`, in `wrangler.jsonc`), which the
 free plan includes, so the phone-and-PC features, games with a friend, Insights, invites and the
