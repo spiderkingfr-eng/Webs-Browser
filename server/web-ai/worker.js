@@ -75,6 +75,7 @@
      POST /stats                    once a day: features used, errors, A/B test results
      GET  /gallery, /gallery/img/<id>, POST /gallery/send    wallpapers people share, once the owner approves
      POST /invite/new, /invite/claim                         invite links: an achievement for both
+     GET  /read?u=…&device=…        a page's article, for the iPhone app to keep offline (reader.js)
 
    setup.cmd sends this folder to Cloudflare (wrangler puts the files together). */
 import { ownerCfg, ownerGate, ownerAdmin, ownerCron, ownerChosen, allCodes, aiSettings, isBlocked, pushOwner, logA, addHist, dueScheduled } from "./owner.js";
@@ -82,6 +83,7 @@ import { liveApi, liveAdmin, liveCron, liveNews } from "./live.js";
 import { privacyApi } from "./privacy.js";
 import { roomApi, Room } from "./rooms.js";
 import { ledgerApi, ledgerAdmin, Ledger } from "./ledger.js";
+import { readApi } from "./reader.js";
 export { Room, Ledger };
 import { ADMIN_PAGE, DASH_JS, DASH_CSS, DASH_SW, DASH_MANIFEST, DASH_ICON, DASH_PNG } from "./dash.js";
 
@@ -141,6 +143,7 @@ export default {
         return await liveApi(path, req, env, cors);
       }
       if (req.method === "GET" && path === "/changelog") return Response.redirect(APP_URL.replace(/\/?$/, "/") + "changelog.html", 302);
+      if (req.method === "GET" && path === "/read") return await readApi(req, env, cors);
       if (req.method === "GET" && path === "/room") return await roomApi(req, env, cors);
       if ((req.method === "GET" && /^\/gallery(\/img\/[a-z0-9]{10})?$/.test(path)) || (req.method === "POST" && /^\/(stats|gallery\/send|invite\/new|invite\/claim)$/.test(path))) return await ledgerApi(path, req, env, cors);
       if (req.method === "GET" && (path === "/whoami" || path === "/domain")) return await privacyApi(path, req, env, cors, ctx);

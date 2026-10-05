@@ -9,7 +9,7 @@
 "use strict";
 const VERSION = "webs-2.8.1";
 const SHELL = ["./", "index.html", "app.css", "fx.css", "js/core.js", "js/answers.js", "js/app.js", "js/qrcode.js", "js/fx.js", "js/phantom.js", "js/widgets.js", "js/answers2.js",
-  "js/library.js", "js/tools.js", "js/extras.js", "js/whatsnew.js", "js/webai.js", "js/ai.js", "js/ai.app.js", "js/gtd.js", "js/gtd.app.js", "js/privacy.js", "js/privacy.app.js", "js/link.js", "js/link.app.js", "js/stats.js", "js/stats.app.js", "js/push.js", "js/support.settings.js", "js/support.js", "js/live.js", "js/live.app.js", "js/live.games.js", "js/anime.js", "js/anime.app.js", "js/xp.js", "js/xp.app.js", "js/buddy.js", "js/games.more.js", "js/games.online.js", "games.html", "manifest.webmanifest",
+  "js/library.js", "js/tools.js", "js/extras.js", "js/whatsnew.js", "js/webai.js", "js/ai.js", "js/ai.app.js", "js/gtd.js", "js/gtd.app.js", "js/privacy.js", "js/privacy.app.js", "js/link.js", "js/link.app.js", "js/stats.js", "js/stats.app.js", "js/offline.app.js", "js/ipad.app.js", "js/push.js", "js/support.settings.js", "js/support.js", "js/live.js", "js/live.app.js", "js/live.games.js", "js/anime.js", "js/anime.app.js", "js/xp.js", "js/xp.app.js", "js/buddy.js", "js/games.more.js", "js/games.online.js", "games.html", "manifest.webmanifest",
   "icons/favicon.svg", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png", "icons/icon-maskable-192.png", "icons/icon-maskable-512.png"];
 
 const MINE = VERSION.replace("webs-", "");

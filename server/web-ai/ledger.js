@@ -97,6 +97,12 @@ export class Ledger {
       return { ok:true };
     }
     if (op === "gallery.del") { const l = (await s.get("gallery") || []).filter(x => x.id !== b.id); await s.put("gallery", l); await s.delete("gi:" + b.id); return { ok:true }; }
+    // pages read for later (reader.js): so many a day per device
+    if (op === "read.count") {
+      const k = "read:" + day() + ":" + clean(b.dev, 40), n = (await s.get(k) || 0) + 1;
+      if (n > (+b.max || 60)) return { ok:false };
+      await s.put(k, n); return { ok:true, n };
+    }
     // invites
     if (op === "invite.new") {
       let c = await s.get("idev:" + b.dev);
@@ -122,7 +128,7 @@ export class Ledger {
     await this.s.put("trimmed", day());
     const cut2 = day(Date.now() - KEEP_DAYS * 86400000), cut1 = day(Date.now() - 2 * 86400000);
     for (const [k] of await this.s.list({ prefix:"d:" })) if (k.slice(2) < cut2) await this.s.delete(k);
-    for (const pre of ["seen:", "gsent:"]) for (const [k] of await this.s.list({ prefix:pre })) if (k.split(":")[1] < cut1) await this.s.delete(k);
+    for (const pre of ["seen:", "gsent:", "read:"]) for (const [k] of await this.s.list({ prefix:pre })) if (k.split(":")[1] < cut1) await this.s.delete(k);
   }
 }
 
