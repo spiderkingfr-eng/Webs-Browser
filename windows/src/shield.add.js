@@ -593,6 +593,9 @@ function xTool(action, arg) {
     case 'x-seek': { var sv = bestVideo(); if (sv) { sv.currentTime = Math.max(0, +arg || 0); if (sv.paused) sv.play().catch(function () {}); badge('→ ' + clock(sv.currentTime)); } return true; }
     case 'x-explain-on': xpOn = arg === '1'; if (!xpOn) xpClose(); return true;
     case 'x-explain-show': { var eo = null; try { eo = JSON.parse(arg); } catch (e) {} if (eo) xpShow(eo); return true; }
+    case 'x-shop': toolReply(xShopSigns()); return true;
+    case 'x-shop-warn': { var so = null; try { so = JSON.parse(arg); } catch (e) {} if (so) xShopWarn(so); return true; }
+    case 'x-seen': xSeen(); return true;
   }
   return false;
 }
@@ -940,3 +943,109 @@ W.addEventListener('keydown', function (e) {
   e.preventDefault(); e.stopImmediatePropagation();
   post('tool', { a: 'x-key', k: k });
 }, true);
+
+
+/* ------------------------------------------------------------------ Webs 3.10: is this shop fake?
+   x-shop reads what the page shows (prices, a cart, its discounts, the pages it links to, how it takes
+   money, pressure to buy, its contact email); the window adds how old the website is and decides
+   (js/privacy.js). x-shop-warn shows the result in a bar at the top of the page. */
+function xShopSigns() {
+  var o = { a: 'x-shop', host: L.hostname, https: L.protocol === 'https:', shop: false, deals: 0, trust: [], payOk: '', payRisky: '', urgency: '', freeMail: '' };
+  if (!TOP || !D.body) return o;
+  var text = String(D.body.innerText || '').slice(0, 200000), low = text.toLowerCase();
+  var prices = (text.match(/[$€£¥₹]\s?\d[\d.,]*|\d[\d.,]*\s?(€|eur|usd|£|zł|kr|chf)\b/gi) || []).length;
+  var cart = /add to (cart|bag|basket)|buy (it )?now|in den warenkorb|ajouter au panier|añadir al carrito|aggiungi al carrello|checkout|in winkelwagen/i;
+  var btns = D.querySelectorAll('button,a,input[type=submit],[role=button]'), hasCart = false;
+  for (var i = 0; i < btns.length && i < 3000; i++) { var bt = (btns[i].innerText || btns[i].value || btns[i].getAttribute('aria-label') || ''); if (bt.length < 40 && cart.test(bt)) { hasCart = true; break; } }
+  var ld = false;
+  D.querySelectorAll('script[type="application/ld+json"]').forEach(function (n) { if (/"@type"\s*:\s*"(Product|Offer|AggregateOffer)"/.test(n.textContent || '')) ld = true; });
+  var og = D.querySelector('meta[property="og:type"]'), ogP = og && /product/i.test(og.content || '');
+  o.shop = hasCart || ld || ogP || !!D.querySelector('meta[property="product:price:amount"]') || (prices >= 8 && /\b(cart|basket|shipping|in stock)\b/i.test(low));
+  var deals = 0, re = /(?:-|−|save\s+|up to\s+)\s?([5-9]\d)\s?%|\b([5-9]\d)\s?%\s?(?:off|rabatt|de descuento|de réduction|korting|sconto)/gi, m;
+  while ((m = re.exec(text)) && deals < 99) { if (+(m[1] || m[2]) >= 70) deals++; }
+  o.deals = deals;
+  var cats = { contact: /contact|kontakt|contacto|contatti|nous contacter/, about: /about( us)?|über uns|qui sommes|chi siamo|quiénes somos|our story/, returns: /return|refund|retour|rückgabe|widerruf|devoluci|resi\b|exchange/,
+    shipping: /shipping|delivery|versand|livraison|envío|spedizione/, privacy: /privacy|datenschutz|confidentialit|privacidad/, terms: /terms|conditions|agb|cgv|condiciones|termini/, imprint: /impressum|imprint|legal notice|mentions légales|aviso legal/ };
+  var links = D.querySelectorAll('a[href]'), found = {};
+  for (var j = 0; j < links.length && j < 4000; j++) {
+    var a = links[j], t2 = ((a.innerText || '') + ' ' + (a.getAttribute('href') || '')).toLowerCase().slice(0, 200);
+    for (var k in cats) if (!found[k] && cats[k].test(t2)) found[k] = 1;
+  }
+  o.trust = Object.keys(found);
+  var ok = low.match(/paypal|visa|mastercard|american express|amex|apple pay|google pay|klarna|shop pay|afterpay|maestro/), bad = low.match(/bank transfer|wire transfer|western union|moneygram|bitcoin|crypto(currency)?|usdt|gift card|zelle|cash app|friends and family/);
+  o.payOk = ok ? ok[0] : ''; o.payRisky = bad ? bad[0] : '';
+  var u = text.match(/only \d+ left[^.\n]{0,20}|\d+ (people|others) (are )?(viewing|looking at|bought)[^.\n]{0,25}|(sale|offer|deal) ends in[^.\n]{0,20}|hurry[^.\n]{0,30}|last chance[^.\n]{0,20}/i);
+  o.urgency = u ? u[0].trim() : '';
+  var fm = text.match(/[a-z0-9._%+-]+@(gmail|outlook|hotmail|yahoo|qq|163|126|proton|protonmail|aol|gmx|mail)\.[a-z.]{2,6}/i);
+  o.freeMail = fm ? fm[0] : '';
+  return o;
+}
+var xShopHost = null;
+function xShopWarn(o) {
+  if (!TOP) return;
+  if (xShopHost) { xShopHost.remove(); xShopHost = null; }
+  if (!o || o.level === 'ok') return;
+  var host = D.createElement('wsb-badge');
+  host.style.cssText = 'all:initial;position:fixed;z-index:2147483646;left:50%;top:10px;transform:translateX(-50%);width:min(560px,calc(100vw - 20px))';
+  var root = host.attachShadow({ mode: 'closed' });
+  var warn = o.level === 'warn';
+  root.innerHTML = '<style>' + X_CSS + '.s{font-size:13px;line-height:1.45;color:#fff;background:' + (warn ? 'linear-gradient(135deg,#b3261e,#7a1b16)' : 'linear-gradient(135deg,#a86a10,#6e470c)') +
+    ';border-radius:14px;padding:12px 14px;box-shadow:0 16px 44px rgba(0,0,0,.45);animation:in .3s cubic-bezier(.2,.9,.3,1.2)}.t{display:flex;gap:10px;align-items:flex-start}.t b{font-size:14px;display:block}' +
+    '.t i{font-style:normal;font-size:22px;line-height:1}ul{margin:8px 0 0 30px;padding:0}li{margin:2px 0}.g{opacity:.8;margin:6px 0 0 30px;font-size:12px}.btns{display:flex;gap:6px;margin:10px 0 0 30px;flex-wrap:wrap}' +
+    '.btns button{background:rgba(255,255,255,.16);color:#fff}.btns button:hover{background:rgba(255,255,255,.28)}.btns .m{background:#fff;color:#7a1b16}</style>' +
+    '<div class="s" role="alert"><div class="t"><i>' + (warn ? '⚠️' : '🧐') + '</i><div><b></b><span class="sub"></span></div></div><ul></ul><div class="g"></div><div class="btns">' +
+    '<button class="m" data-a="leave">Leave this site</button><button data-a="ai">Ask Web AI</button><button data-a="trust">I trust this shop</button><button data-a="close">Hide</button></div></div>';
+  root.querySelector('b').textContent = warn ? 'This shop might be fake' : 'Be careful with this shop';
+  root.querySelector('.sub').textContent = warn ? 'Webs found several signs of a scam shop. Check it before you pay.' : 'Some signs are worth a second look before you pay.';
+  var ul = root.querySelector('ul');
+  (o.reasons || []).slice(0, 6).forEach(function (r) { var li = D.createElement('li'); li.textContent = r; ul.appendChild(li); });
+  root.querySelector('.g').textContent = (o.good || []).length ? 'In its favour: ' + o.good.slice(0, 3).join('; ') : '';
+  root.querySelector('.btns').onclick = function (e) {
+    var b = e.target.closest('button'); if (!b || !e.isTrusted) return;
+    if (b.dataset.a !== 'close') toolReply({ a: 'x-shop-act', act: b.dataset.a });
+    host.remove(); xShopHost = null;
+  };
+  (D.body || D.documentElement).appendChild(host);
+  xShopHost = host;
+}
+
+/* ------------------------------------------------------------------ Webs 3.10: what this site sees about you
+   The answers this page's own scripts get (after fingerprint protection), for the window's panel. */
+function xSeen() {
+  var n = navigator, o = { a: 'x-seen', host: L.hostname };
+  o.ua = n.userAgent; o.lang = (n.languages || [n.language]).join(', '); o.platform = n.platform || '';
+  try { o.tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) { o.tz = ''; }
+  o.tzOff = -new Date().getTimezoneOffset();
+  o.screen = screen.width + ' × ' + screen.height; o.dpr = W.devicePixelRatio || 1;
+  o.cores = n.hardwareConcurrency || 0; o.mem = n.deviceMemory || 0; o.touch = n.maxTouchPoints || 0;
+  o.dnt = n.doNotTrack === '1'; o.gpc = !!n.globalPrivacyControl; o.battery = typeof n.getBattery === 'function';
+  o.dark = !!(W.matchMedia && W.matchMedia('(prefers-color-scheme: dark)').matches);
+  try {
+    var c = D.createElement('canvas'); c.width = 220; c.height = 40; var g = c.getContext('2d');
+    g.textBaseline = 'top'; g.font = '16px Arial'; g.fillStyle = '#f60'; g.fillRect(100, 1, 60, 20); g.fillStyle = '#069'; g.fillText('Webs 🕸️ fingerprint', 2, 15);
+    var s = c.toDataURL(), h = 2166136261; for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+    o.canvas = (h >>> 0).toString(16);
+  } catch (e) { o.canvas = ''; }
+  try { var gl = D.createElement('canvas').getContext('webgl'), ext = gl && gl.getExtension('WEBGL_debug_renderer_info'); o.gpu = gl ? String(gl.getParameter(ext ? 37446 : gl.RENDERER) || '') : ''; } catch (e) { o.gpu = ''; }
+  try {
+    var fonts = ['Arial', 'Calibri', 'Cambria', 'Consolas', 'Segoe UI', 'Tahoma', 'Verdana', 'Georgia', 'Comic Sans MS', 'Impact', 'Candara', 'Corbel', 'Franklin Gothic Medium', 'Gabriola',
+      'Lucida Console', 'Palatino Linotype', 'Book Antiqua', 'Garamond', 'Century Gothic', 'Bahnschrift', 'Ink Free', 'Javanese Text', 'Leelawadee UI', 'Malgun Gothic', 'Microsoft YaHei',
+      'MS Gothic', 'Nirmala UI', 'Sitka Text', 'Sylfaen', 'Yu Gothic'], k = 0;
+    if (D.fonts && D.fonts.check) fonts.forEach(function (f) { try { if (D.fonts.check('12px "' + f + '"')) k++; } catch (e) {} });
+    o.fonts = k;
+  } catch (e) {}
+  try { o.cookieN = D.cookie ? D.cookie.split(';').filter(function (x) { return x.trim(); }).length : 0; } catch (e) { o.cookieN = 0; }
+  try { o.storeN = W.localStorage.length + W.sessionStorage.length; } catch (e) { o.storeN = 0; }
+  var third = {}, me = L.hostname.split('.').slice(-2).join('.');
+  D.querySelectorAll('script[src],iframe[src],img[src]').forEach(function (n) {
+    try { var hh = new URL(n.src, L.href).hostname, base = hh.split('.').slice(-2).join('.'); if (hh && base !== me) third[base] = 1; } catch (e) {}
+  });
+  o.third = Object.keys(third).slice(0, 40); o.thirdN = o.third.length;
+  var perms = ['geolocation', 'notifications', 'camera', 'microphone'], got = {}, left = perms.length;
+  var done = function () { o.perms = got; toolReply(o); };
+  if (!n.permissions || !n.permissions.query) { done(); return; }
+  perms.forEach(function (p) {
+    n.permissions.query({ name: p }).then(function (r) { got[p === 'geolocation' ? 'location' : p] = r.state; }, function () {}).then(function () { if (--left === 0) done(); });
+  });
+  setTimeout(function () { if (left > 0) { left = -1; done(); } }, 1500);
+}
