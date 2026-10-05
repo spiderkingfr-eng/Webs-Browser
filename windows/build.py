@@ -48,7 +48,7 @@ def page(name, css=None, js=None, edits=()):
     write(name, s)
 
 page("side.html", ["side.add.css", "webai.side.css", "support.side.css"], ["side.add.js", "webai.side.js", "webai.voice.js", "../../js/support.settings.js", "../../js/live.js", "support.side.js"])
-page("newtab.html", "newtab.add.css", ["../../js/phantom.js", "newtab.add.js", "../../js/live.js", "live.newtab.js", "../../js/anime.js", "anime.newtab.js", "../../js/xp.js", "xp.newtab.js"])     # the Phantom calendar and "From Webs" (js/live.js) are shared with the iPhone app
+page("newtab.html", "newtab.add.css", ["../../js/phantom.js", "newtab.add.js", "../../js/live.js", "live.newtab.js", "../../js/anime.js", "anime.newtab.js", "../../js/xp.js", "../../js/buddy.js", "xp.newtab.js"])     # the Phantom calendar and "From Webs" (js/live.js) are shared with the iPhone app
 page("settings.html", None, ["settings.add.js", "settings.acct.js", "../../js/anime.js", "anime.settings.js"], edits=[
   ('    <div class="set">\n      <div class="txt"><b>Color theme</b>', rd(S, "anime.settings.html") + '    <div class="set">\n      <div class="txt"><b>Color theme</b>', "anime themes"),
   ('  <h2 id="vpn">VPN</h2>', rd(S, "settings.acct.html") + '  <h2 id="vpn">VPN</h2>', "account section"),

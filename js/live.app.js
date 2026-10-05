@@ -13,7 +13,7 @@ if (!Live.server()) fetch("updates/iphone.json?t=" + Date.now(), { cache:"no-sto
 }).catch(() => {});
 // Customize → Show on the start page → From Webs
 HIDE_KEYS.unshift(["live", "From Webs: news, polls and fun"]);
-Live.init({ platform:"iphone", version:VERSION, isPrivate:() => PRIVATE, hidden:() => hidden("live"), toast,
+Live.init({ platform:"iphone", version:VERSION, isPrivate:() => PRIVATE, hidden:() => hidden("live"), toast, anime:() => { if (typeof SETACTIONS !== "undefined" && SETACTIONS.animeThemes) SETACTIONS.animeThemes(); },
   open:u => go({ u }, { newTab:true }), openReports:() => ACTIONS.support && ACTIONS.support(),
   onWall:() => { if (!(curTab() && curTab().u)) renderHome(); } });
 const onHome = () => !(curTab() && curTab().u) && !$("#home").classList.contains("hide");

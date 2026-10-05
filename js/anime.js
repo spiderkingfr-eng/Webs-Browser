@@ -13,7 +13,17 @@
    Anime.card(el, id, opt)         the start page's card, with its own moving layer; call again to update the time
    Anime.picker(el, opt)           the tiles to choose one, each playing its wallpaper (opt: current, onPick(id))
    Anime.motion()                  0 still, 1 gentle, 2 full
-   Anime.apply(settings, id, opt)  sets (or, with no id, undoes) the look in a settings object */
+   Anime.apply(settings, id, opt)  sets (or, with no id, undoes) the look in a settings object
+   (Windows 3.10, iPhone 2.9)
+   Anime.EVENTS                    four limited-time themes, turned on for a while from the owner's dashboard
+                                   (Live's "event"); whoever picks one keeps it (wsb.animeKeep)
+   Anime.events()                  the ones to show now: on right now, or kept
+   Anime.trail(id)                 a trail behind the pointer in the theme's style; returns { stop() }
+   Anime.saver(id, opt)            a screensaver over the whole window: the wallpaper and a big clock
+   Anime.scheduled(sc) / slot(sc)  the theme a schedule wants now (time of day or day of the week)
+   Anime.schedEditor(el, sc, fn)   the schedule's editor
+   run(…, { beat })                moves with the music (a function giving 0 to 1)
+   run(…, { hidden })              a little spider hides in the wallpaper now and then: handle.hidden() says where */
 (function () {
 "use strict";
 const TAU = Math.PI * 2;
@@ -38,6 +48,18 @@ const THEMES = [
     c:["#0a0a0a", "#141012", "#1e1518", "#291c20", "#341e24", "#ffffff", "#bba4a8", "#87696e"] }
 ];
 const BY = {}; THEMES.forEach(t => { BY[t.id] = t; });
+// limited-time themes of Webs's own (not from any show), for special days
+const EVENTS = [
+  { id:"halloween", name:"Haunted Night", show:"a Webs event", e:"🎃", a:"#ff7a1a", amb:"wind", tag:"Something is out there tonight.", ev:true,
+    c:["#0d0910", "#160f1a", "#1f1524", "#291c30", "#33223a", "#fbefe6", "#bba3b0", "#86707d"] },
+  { id:"winter", name:"Snowfall Shrine", show:"a Webs event", e:"❄️", a:"#7fd4ff", amb:"wind", tag:"Quiet snow, warm lanterns.", ev:true,
+    c:["#08101c", "#0e1828", "#152236", "#1c2c44", "#22344f", "#eaf4ff", "#9db4cc", "#6c8299"] },
+  { id:"newyear", name:"Midnight Fireworks", show:"a Webs event", e:"🎆", a:"#ffd34d", amb:"cafe", tag:"Here's to a new beginning.", ev:true,
+    c:["#070a16", "#0d1222", "#141a30", "#1b233e", "#212a48", "#f3f1ff", "#a7a9c9", "#777a99"] },
+  { id:"hearts", name:"Sakura Hearts", show:"a Webs event", e:"💗", a:"#ff5c93", amb:"cafe", tag:"Be kind to someone today.", ev:true,
+    c:["#140a12", "#1d0f1a", "#271523", "#321b2d", "#3c2036", "#fff0f6", "#c9a1b6", "#957587"] }
+];
+EVENTS.forEach(t => { BY[t.id] = t; });
 
 /* ---------------------------------------------------------------- drawing helpers */
 const hash = n => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
@@ -572,6 +594,178 @@ function feather(g, x, y, r, l) {
 // a four-pointed twinkle, in the current fill color
 function spark(g, x, y, r) { g.beginPath(); g.moveTo(x, y - r); g.quadraticCurveTo(x, y, x + r * .35, y); g.quadraticCurveTo(x, y, x, y + r); g.quadraticCurveTo(x, y, x - r * .35, y); g.quadraticCurveTo(x, y, x, y - r); g.fill(); }
 
+/* ---------------------------------------------------------------- the event themes' wallpapers */
+/* Haunted Night: an orange moon, bats, jack-o'-lanterns flickering on the hills, fog, and now and then a ghost. */
+WALL.halloween = {
+  pt:5,
+  init(W, H, R) {
+    const S = { bats:Array.from({ length:9 }, () => ({ cx:R(), cy:.12 + R() * .35, a:.08 + R() * .14, sp:.05 + R() * .07, p:R() * TAU, s:6 + R() * 8 })),
+      stars:Array.from({ length:90 }, () => ({ x:R(), y:R() * .5, r:R() * 1.1 + .2, p:R() * TAU })),
+      lan:Array.from({ length:5 }, (_, i) => ({ x:.1 + i * .2 + R() * .08, s:.7 + R() * .5, p:R() * TAU })) };
+    const hc = S.hills = off(W + 60, H), hg = hc.getContext("2d");
+    hg.fillStyle = "#07040a"; hg.beginPath(); hg.moveTo(0, H);
+    for (let x = 0; x <= W + 60; x += 20) hg.lineTo(x, H * (.8 + Math.sin(x * .006 + 1) * .04 + Math.sin(x * .017) * .015));
+    hg.lineTo(W + 60, H); hg.fill();
+    hg.strokeStyle = "#07040a"; hg.lineCap = "round";
+    const br = (x, y, len, a, w, d) => { if (!d) return; const x2 = x + Math.cos(a) * len, y2 = y + Math.sin(a) * len; hg.lineWidth = w; hg.beginPath(); hg.moveTo(x, y); hg.lineTo(x2, y2); hg.stroke();
+      for (let i = 0; i < 2; i++) br(x2, y2, len * (.65 + R() * .15), a + (i ? .5 : -.5) + (R() - .5) * .4, w * .65, d - 1); };
+    [[.08, .82], [.9, .8], [.62, .84]].forEach(([fx, fy]) => br(fx * W, fy * H, H * .09, -Math.PI / 2 + (R() - .5) * .3, 7, 6));
+    return S;
+  },
+  draw(g, W, H, t, S, m) {
+    const px = m.x - .5, py = m.y - .5;
+    g.fillStyle = lin(g, 0, 0, 0, H, [[0, "#0b0614"], [.55, "#2a1030"], [1, "#4a1a1c"]]); g.fillRect(0, 0, W, H);
+    g.fillStyle = "#fff"; S.stars.forEach(s => { g.globalAlpha = .2 + .5 * Math.abs(Math.sin(t * .7 + s.p)); g.fillRect(s.x * W - px * 6, s.y * H - py * 4, s.r, s.r); }); g.globalAlpha = 1;
+    const mx = W * .68 - px * 14, my = H * .3 - py * 10, mr = Math.min(W, H) * .15;
+    blob(g, mx, my, mr * 3, "rgba(255,140,40,.28)", "rgba(255,140,40,0)");
+    g.fillStyle = rad(g, mx - mr * .3, my - mr * .3, mr * .1, mr, [[0, "#ffd08a"], [.7, "#ff9a2e"], [1, "#e0661a"]]); g.beginPath(); g.arc(mx, my, mr, 0, TAU); g.fill();
+    for (let i = 0; i < 3; i++) cloud(g, wrap(t * 12 * (i + 1) + i * 500, W + 800) - 400, my + mr * (i * .5 - .4), mr * 2.4, mr * .28, "20,8,24", .7);
+    g.fillStyle = "#050307";
+    S.bats.forEach(b => {
+      const a = t * b.sp * TAU + b.p, x = wrap(b.cx + t * .02, 1.2) * W - .1 * W + Math.sin(a) * b.a * W, y = (b.cy + Math.cos(a * 1.3) * .05) * H, f = Math.sin(t * 9 + b.p), s = b.s;
+      g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x - s, y - s * f, x - s * 1.8, y + s * .2 * f); g.quadraticCurveTo(x - s * .9, y + s * .1, x, y + s * .3);
+      g.quadraticCurveTo(x + s * .9, y + s * .1, x + s * 1.8, y + s * .2 * f); g.quadraticCurveTo(x + s, y - s * f, x, y); g.fill();
+    });
+    g.drawImage(S.hills, -30 - px * 20, 0);
+    S.lan.forEach(l => {
+      const x = l.x * W - px * 20, y = H * .86, r = 9 * l.s, k = .7 + .3 * Math.sin(t * 7 + l.p) * Math.sin(t * 3.3 + l.p);
+      blob(g, x, y, r * 4, "rgba(255,140,30," + .35 * k + ")", "rgba(255,140,30,0)");
+      g.fillStyle = "#e8741c"; g.beginPath(); g.ellipse(x, y, r * 1.2, r, 0, 0, TAU); g.fill();
+      g.fillStyle = "rgba(255,230,120," + k + ")";
+      g.beginPath(); g.moveTo(x - r * .6, y - r * .2); g.lineTo(x - r * .3, y - r * .55); g.lineTo(x - r * .1, y - r * .2); g.fill();
+      g.beginPath(); g.moveTo(x + r * .6, y - r * .2); g.lineTo(x + r * .3, y - r * .55); g.lineTo(x + r * .1, y - r * .2); g.fill();
+      g.fillRect(x - r * .5, y + r * .2, r, r * .2);
+    });
+    for (let i = 0; i < 4; i++) cloud(g, wrap(t * 18 * (i % 2 ? 1 : -1) + i * 300, W + 600) - 300, H * (.88 + i * .03), W * .35, H * .05, "120,90,130", .18);
+    const e = !m.gentle && ev(t, 14, 6, 3);
+    if (e) {
+      const x = W * (-.1 + e.p * 1.2), y = H * (.45 + Math.sin(e.p * 6) * .05), s = Math.min(W, H) * .05;
+      g.save(); g.globalAlpha = Math.sin(e.p * Math.PI) * .75; g.fillStyle = "#f4ecff"; g.beginPath(); g.arc(x, y, s, Math.PI, 0); g.lineTo(x + s, y + s * 1.3);
+      for (let i = 0; i < 4; i++) g.quadraticCurveTo(x + s - (i + .5) * s * .5, y + s * (1.05 + (i % 2) * .5) + Math.sin(t * 6 + i) * 3, x + s - (i + 1) * s * .5, y + s * 1.3);
+      g.closePath(); g.fill(); g.fillStyle = "#1a1020"; g.beginPath(); g.arc(x - s * .35, y - s * .1, s * .12, 0, TAU); g.arc(x + s * .35, y - s * .1, s * .12, 0, TAU); g.fill(); g.restore();
+    }
+  }
+};
+/* Snowfall Shrine: snow in three depths, an aurora, a red gate with snow on top and stone lanterns, and shooting stars. */
+WALL.winter = {
+  pt:7,
+  init(W, H, R) {
+    const S = { snow:[0, 1, 2].map(l => Array.from({ length:70 + l * 30 }, () => ({ x:R(), y:R(), r:(.6 + l * .7) * (.6 + R() * .8), s:.02 + l * .025 + R() * .02, p:R() * TAU }))),
+      lan:Array.from({ length:4 }, (_, i) => ({ x:.12 + i * .1, p:R() * TAU })) };
+    const mc = S.mts = off(W + 80, H), mg = mc.getContext("2d");
+    [[.62, "#16243a"], [.72, "#0f1a2b"]].forEach(([base, col], k) => {
+      mg.fillStyle = col; mg.beginPath(); mg.moveTo(0, H);
+      let x = 0; while (x <= W + 80) { const pk = base * H - (40 + R() * 120) * (k ? .6 : 1); mg.lineTo(x, base * H + 20); mg.lineTo(x + 60 + R() * 60, pk); x += 140 + R() * 120; }
+      mg.lineTo(W + 80, H); mg.fill();
+    });
+    return S;
+  },
+  draw(g, W, H, t, S, m) {
+    const px = m.x - .5;
+    g.fillStyle = lin(g, 0, 0, 0, H, [[0, "#040a16"], [.6, "#0d1d33"], [1, "#1a2c45"]]); g.fillRect(0, 0, W, H);
+    g.globalCompositeOperation = "lighter";
+    for (let i = 0; i < 3; i++) {
+      g.beginPath();
+      for (let x = 0; x <= W; x += 20) { const y = H * (.2 + i * .05) + Math.sin(x * .004 + t * .4 + i) * H * .05 + Math.sin(x * .011 - t * .3) * H * .02; if (x) g.lineTo(x, y); else g.moveTo(x, y); }
+      g.strokeStyle = ["rgba(80,255,180,.10)", "rgba(80,200,255,.08)", "rgba(170,120,255,.07)"][i]; g.lineWidth = H * .08; g.stroke();
+    }
+    g.globalCompositeOperation = "source-over";
+    g.drawImage(S.mts, -40 - px * 16, 0);
+    g.fillStyle = lin(g, 0, H * .78, 0, H, [[0, "#c9d8ea"], [1, "#8ea5c0"]]); g.beginPath(); g.moveTo(0, H);
+    for (let x = 0; x <= W + 20; x += 20) g.lineTo(x, H * .8 + Math.sin(x * .005) * H * .015);
+    g.lineTo(W, H); g.fill();
+    const tx = W * .72 - px * 24, ty = H * .8, tw = Math.min(W, H) * .22, th = tw * .9;
+    g.fillStyle = "#c7302b"; g.fillRect(tx - tw * .38, ty - th, tw * .07, th); g.fillRect(tx + tw * .31, ty - th, tw * .07, th); g.fillRect(tx - tw * .45, ty - th * .78, tw * .9, th * .07);
+    g.fillStyle = "#1b0d0d"; g.beginPath(); g.moveTo(tx - tw * .6, ty - th * .98); g.quadraticCurveTo(tx, ty - th * 1.06, tx + tw * .6, ty - th * .98); g.lineTo(tx + tw * .55, ty - th * .9); g.quadraticCurveTo(tx, ty - th * .97, tx - tw * .55, ty - th * .9); g.fill();
+    g.fillStyle = "rgba(240,248,255,.9)"; g.fillRect(tx - tw * .6, ty - th * 1.03, tw * 1.2, th * .03);
+    S.lan.forEach(l => {
+      const x = l.x * W - px * 24, y = H * .81, k = .75 + .25 * Math.sin(t * 2 + l.p);
+      blob(g, x, y - 18, 30, "rgba(255,190,110," + .4 * k + ")", "rgba(255,190,110,0)");
+      g.fillStyle = "#3a4250"; g.fillRect(x - 5, y - 14, 10, 14); g.fillRect(x - 9, y - 24, 18, 4);
+      g.fillStyle = "rgba(255,210,140," + k + ")"; g.fillRect(x - 4, y - 21, 8, 6); g.fillStyle = "#3a4250"; g.fillRect(x - 10, y - 28, 20, 4);
+    });
+    g.fillStyle = "#fff";
+    S.snow.forEach((layer, l) => layer.forEach(f => {
+      const y = wrap(f.y + t * f.s, 1.05) * H - .02 * H, x = wrap(f.x + Math.sin(t * .6 + f.p) * .01 - px * .01 * (l + 1), 1) * W;
+      g.globalAlpha = .45 + l * .2; g.beginPath(); g.arc(x, y, f.r, 0, TAU); g.fill();
+    }));
+    g.globalAlpha = 1;
+    const e = !m.gentle && ev(t, 9, .9, 2);
+    if (e) {
+      const x = W * (.2 + hash(e.n) * .5) + e.p * W * .25, y = H * (.08 + hash(e.n + 3) * .15) + e.p * H * .12;
+      g.strokeStyle = lin(g, x, y, x - 70, y - 30, [[0, "rgba(255,255,255," + (1 - e.p) + ")"], [1, "rgba(255,255,255,0)"]]); g.lineWidth = 2; g.beginPath(); g.moveTo(x, y); g.lineTo(x - 70, y - 30); g.stroke();
+    }
+  }
+};
+/* Midnight Fireworks: fireworks rising and bursting over a city, and their lights on the water. */
+WALL.newyear = {
+  pt:3.2,
+  init(W, H, R) {
+    const S = { stars:Array.from({ length:80 }, () => ({ x:R(), y:R() * .55, r:R() * 1.1 + .2, p:R() * TAU })),
+      seeds:Array.from({ length:7 }, (_, i) => ({ per:2.2 + R() * 2.4, off:R() * 5, x:.1 + R() * .8, h:.15 + R() * .3, c:["#ffd34d", "#ff5c93", "#5ce1ff", "#9d7bff", "#7dff9b", "#ff8a3d", "#ffffff"][i] })) };
+    const cc = S.city = off(W + 60, H), cg = cc.getContext("2d");
+    for (let x = 0; x < W + 60;) {
+      const w = 24 + R() * 60, h = H * (.12 + R() * .22);
+      cg.fillStyle = "#05070f"; cg.fillRect(x, H * .82 - h, w, h + 2);
+      for (let wy = H * .82 - h + 6; wy < H * .82 - 4; wy += 10) for (let wx = x + 4; wx < x + w - 5; wx += 8) if (R() < .25) { cg.fillStyle = R() < .5 ? "rgba(255,220,140,.75)" : "rgba(160,200,255,.6)"; cg.fillRect(wx, wy, 3, 5); }
+      x += w + 2;
+    }
+    return S;
+  },
+  draw(g, W, H, t, S, m) {
+    const px = m.x - .5;
+    g.fillStyle = lin(g, 0, 0, 0, H, [[0, "#03050d"], [.7, "#0d1430"], [1, "#151b3a"]]); g.fillRect(0, 0, W, H);
+    g.fillStyle = "#fff"; S.stars.forEach(s => { g.globalAlpha = .2 + .5 * Math.abs(Math.sin(t * .5 + s.p)); g.fillRect(s.x * W, s.y * H, s.r, s.r); }); g.globalAlpha = 1;
+    g.globalCompositeOperation = "lighter";
+    S.seeds.forEach((f, i) => {
+      const per = m.gentle ? f.per * 1.6 : f.per, tt = t + f.off, n = Math.floor(tt / (per * 2)), u = (tt - n * per * 2) / per;
+      const X = W * (f.x + (hash(n * 7 + i) - .5) * .2) - px * 10, top = H * (f.h + hash(n * 3 + i) * .1);
+      if (u < .35) { const k = u / .35, y = H * .82 - (H * .82 - top) * (1 - Math.pow(1 - k, 2)); blob(g, X, y, 4, "rgba(255,230,180,.9)", "rgba(255,230,180,0)"); }
+      else if (u < 1.6) {
+        const k = (u - .35) / 1.25, R0 = rng(n * 13 + i + 1), sp = Math.min(W, H) * (m.gentle ? .12 : .17);
+        g.fillStyle = f.c;
+        for (let j = 0; j < 46; j++) {
+          const a = j / 46 * TAU + R0() * .1, v = sp * (.7 + R0() * .3), r = Math.sqrt(k);
+          g.globalAlpha = Math.max(0, 1 - k); g.beginPath(); g.arc(X + Math.cos(a) * v * r, top + Math.sin(a) * v * r + k * k * H * .08, 1.8 + (1 - k) * 1.5, 0, TAU); g.fill();
+        }
+        g.globalAlpha = Math.max(0, .35 - k * .5); blob(g, X, top, sp * .6, f.c, "rgba(0,0,0,0)"); g.globalAlpha = 1;
+      }
+    });
+    g.globalCompositeOperation = "source-over";
+    g.drawImage(S.city, -30 - px * 14, 0);
+    g.fillStyle = lin(g, 0, H * .82, 0, H, [[0, "#0b1026"], [1, "#05070f"]]); g.fillRect(0, H * .82, W, H * .18);
+    g.globalCompositeOperation = "lighter"; g.fillStyle = "rgba(255,210,140,.08)";
+    for (let i = 0; i < 40; i++) g.fillRect(hash(i) * W + Math.sin(t * 2 + i) * 6, H * (.84 + hash(i + 9) * .14), 10 + hash(i + 3) * 30, 1.5);
+    g.globalCompositeOperation = "source-over";
+  }
+};
+/* Sakura Hearts: hearts floating up through a pink dusk, petals, soft lights. */
+const heartPath = (g, x, y, s, rot) => { g.save(); g.translate(x, y); g.rotate(rot || 0); g.scale(s / 16, s / 16); g.beginPath(); g.moveTo(0, 5); g.bezierCurveTo(-14, -4, -8, -16, 0, -8); g.bezierCurveTo(8, -16, 14, -4, 0, 5); g.restore(); };
+WALL.hearts = {
+  pt:4,
+  init(W, H, R) {
+    return { hs:Array.from({ length:26 }, () => ({ x:R(), y:R(), s:.02 + R() * .04, z:.5 + R(), p:R() * TAU, c:R() })),
+      pet:Array.from({ length:50 }, () => ({ x:R(), y:R(), s:.04 + R() * .05, r:R() * TAU, vr:(R() - .5) * 2, w:2 + R() * 3, p:R() * TAU })),
+      bok:Array.from({ length:18 }, () => ({ x:R(), y:R(), r:20 + R() * 60, p:R() * TAU })) };
+  },
+  draw(g, W, H, t, S, m) {
+    const px = m.x - .5;
+    g.fillStyle = lin(g, 0, 0, 0, H, [[0, "#1a0b1e"], [.5, "#4a1636"], [1, "#a33a5c"]]); g.fillRect(0, 0, W, H);
+    g.globalCompositeOperation = "lighter";
+    S.bok.forEach(b => blob(g, b.x * W + Math.sin(t * .2 + b.p) * 20 - px * 10, b.y * H + Math.cos(t * .17 + b.p) * 14, b.r, "rgba(255,120,170,.10)", "rgba(255,120,170,0)"));
+    g.globalCompositeOperation = "source-over";
+    S.hs.forEach(h => {
+      const y = (1.1 - wrap(h.y + t * h.s, 1.2)) * H, x = h.x * W + Math.sin(t * .9 + h.p) * 18 - px * 20 * h.z;
+      blob(g, x, y, 22 * h.z, "rgba(255,90,140,.18)", "rgba(255,90,140,0)");
+      g.fillStyle = h.c < .5 ? "#ff5c93" : "#ffc2d6"; heartPath(g, x, y, 14 * h.z * (1 + .08 * Math.sin(t * 3 + h.p)), Math.sin(t + h.p) * .2); g.fill();
+    });
+    S.pet.forEach(p => {
+      g.save(); g.translate(wrap(p.x + t * .02, 1) * W, wrap(p.y + t * p.s, 1.1) * H - .05 * H); g.rotate(p.r + t * p.vr); g.scale(1, .5 + .5 * Math.abs(Math.sin(t * 2 + p.p)));
+      g.fillStyle = "rgba(255,200,220,.85)"; g.beginPath(); g.ellipse(0, 0, p.w, p.w * .6, 0, 0, TAU); g.fill(); g.restore();
+    });
+  }
+};
+
 /* ---------------------------------------------------------------- running a wallpaper */
 /* Everything loops forever: things move with the clock and wrap round, and the big moments (a
    blade's swing, lightning, a black flash) come back every few seconds. Webs' own Animations: Off
@@ -591,7 +785,8 @@ function run(cv, id, opt) {
   if (!cv || !w) return { stop() {}, redraw() {}, setFps() {} };
   const lvl = opt.motion != null ? opt.motion : motion(), still = !!opt.still || lvl === 0, speed = lvl === 1 ? .5 : 1, from = opt.from != null ? opt.from : w.pt || 0;
   const g = cv.getContext("2d"), m = { x:.5, y:.5, tx:.5, ty:.5, gentle:lvl === 1 };
-  let W = 0, H = 0, S = null, raf = 0, last = 0, t0 = -1, fps = opt.fps || 30, stopped = false, seen = true, io = null;
+  let W = 0, H = 0, S = null, raf = 0, last = 0, t0 = -1, fps = opt.fps || 30, stopped = false, seen = true, io = null, clk = from, prev = -1, spot = null;
+  const th = BY[id];
   const move = e => { m.tx = e.clientX / innerWidth; m.ty = e.clientY / innerHeight; };
   if (!still && opt.pointer !== false) addEventListener("pointermove", move, { passive:true });
   const draw = now => {
@@ -603,7 +798,14 @@ function run(cv, id, opt) {
     if (opt.clear) g.clearRect(0, 0, W, H);
     m.x += (m.tx - m.x) * .06; m.y += (m.ty - m.y) * .06;
     if (t0 < 0) t0 = now;
-    try { w.draw(g, W, H, still ? from : from + (now - t0) / 1000 * speed, S, m); } catch (e) { console.error(e); stopped = true; }
+    // with the music on, a beat makes everything go faster for a moment, and glow
+    const beat = opt.beat && !still ? Math.max(0, Math.min(1, +opt.beat() || 0)) : 0;
+    m.beat = beat;
+    if (prev >= 0) clk += Math.min(.2, (now - prev) / 1000) * speed * (1 + 1.6 * beat);
+    prev = now;
+    try { w.draw(g, W, H, still ? from : clk, S, m); } catch (e) { console.error(e); stopped = true; }
+    if (beat > .03 && th) { g.save(); g.globalCompositeOperation = "lighter"; g.globalAlpha = beat * .4; g.fillStyle = rad(g, W / 2, H * .6, 0, Math.max(W, H) * .75, [[0, th.a], [1, "rgba(0,0,0,0)"]]); g.fillRect(0, 0, W, H); g.restore(); }
+    if (opt.hidden && !still) spot = hide(g, W, H, (now - t0) / 1000 + (opt.hidden === true ? 0 : +opt.hidden || 0), id, sc);     // (a number: seconds ahead, for the tests)
   };
   const go = () => { if (!raf && !stopped && !still && seen && !document.hidden) raf = requestAnimationFrame(frame); };
   function frame(now) {
@@ -619,8 +821,26 @@ function run(cv, id, opt) {
   return {
     stop() { stopped = true; cancelAnimationFrame(raf); raf = 0; if (io) io.disconnect(); removeEventListener("pointermove", move); document.removeEventListener("visibilitychange", go); },
     redraw() { W = 0; if (still) draw(0); },
-    setFps(n) { fps = n || 30; }
+    setFps(n) { fps = n || 30; },
+    hidden() { return spot; }      // where the little spider is right now (CSS pixels on the canvas), or null
   };
+}
+/* The hidden spider: for 15 seconds every 70, a little spider sits somewhere at the side of the wallpaper,
+   faint. Finding it (a click or a tap on it) is up to the page. */
+function hide(g, W, H, t, id, sc) {
+  const e = ev(t, 70, 15, 25);
+  if (!e) return null;
+  const h1 = hash(e.n * 31 + id.length), h2 = hash(e.n * 17 + 5), x = W * (h1 < .5 ? .05 + h1 * .4 : .75 + (h1 - .5) * .4), y = H * (.18 + h2 * .62), r = 7;
+  const a = Math.min(1, e.p * 8, (1 - e.p) * 8) * (.55 + .2 * Math.sin(t * 3));
+  g.save(); g.globalAlpha = a; g.translate(x, y);
+  g.strokeStyle = "rgba(255,255,255,.75)"; g.lineWidth = 1;
+  g.beginPath(); g.moveTo(0, -r * 4); g.lineTo(0, -r * .8); g.stroke();      // its thread
+  g.strokeStyle = "#e8e2ff"; g.lineWidth = 1.3;
+  for (let i = 0; i < 4; i++) { const k = (i - 1.5) * .35, w = Math.sin(t * 6 + i) * 1.2; g.beginPath(); g.moveTo(0, 0); g.quadraticCurveTo(-r * 1.1, k * r * 2 - r * .6, -r * 1.6, k * r * 2.6 + w); g.moveTo(0, 0); g.quadraticCurveTo(r * 1.1, k * r * 2 - r * .6, r * 1.6, k * r * 2.6 - w); g.stroke(); }
+  g.fillStyle = "#f2eeff"; g.beginPath(); g.ellipse(0, 0, r * .55, r * .7, 0, 0, TAU); g.fill();
+  g.fillStyle = "#e8342a"; g.beginPath(); g.arc(0, -r * .1, r * .18, 0, TAU); g.fill();
+  g.restore();
+  return { x:x * sc, y:y * sc, r:r * 2.6 * sc, n:e.n, id };
 }
 function preview(cv, id) { return run(cv, id, { still:true, pointer:false, virtual:720 }); }
 
@@ -730,6 +950,24 @@ FXC.p5 = {
   }
 };
 
+FXC.halloween = {
+  init(W, H, R) { return { b:Array.from({ length:4 }, () => ({ x:R(), y:.2 + R() * .5, s:.05 + R() * .05, p:R() * TAU })) }; },
+  draw(g, W, H, t, S) { g.fillStyle = "rgba(10,5,12,.85)"; S.b.forEach(b => { const x = wrap(b.x + t * b.s, 1.2) * W - .1 * W, y = b.y * H + Math.sin(t * 2 + b.p) * 8, f = Math.sin(t * 10 + b.p), s = 6;
+    g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x - s, y - s * f, x - s * 1.8, y); g.quadraticCurveTo(x, y + s * .4, x + s * 1.8, y); g.quadraticCurveTo(x + s, y - s * f, x, y); g.fill(); }); }
+};
+FXC.winter = {
+  init(W, H, R) { return { f:Array.from({ length:Math.round(W / 9) }, () => ({ x:R(), y:R(), s:.06 + R() * .08, r:.6 + R() * 1.6, p:R() * TAU })) }; },
+  draw(g, W, H, t, S) { g.fillStyle = "rgba(255,255,255,.85)"; S.f.forEach(f => { g.beginPath(); g.arc(wrap(f.x + Math.sin(t + f.p) * .01, 1) * W, wrap(f.y + t * f.s, 1) * H, f.r, 0, TAU); g.fill(); }); }
+};
+FXC.newyear = {
+  init(W, H, R) { return { s:Array.from({ length:14 }, () => ({ x:R(), y:R(), p:R() * TAU, v:1 + R() * 1.5, c:R() })) }; },
+  draw(g, W, H, t, S) { S.s.forEach(s => { const a = Math.max(0, Math.sin(t * s.v * 2 + s.p)); if (a > .15) { g.fillStyle = s.c < .5 ? "#ffd34d" : "#fff"; spark(g, s.x * W, s.y * H, 6 * a); } }); }
+};
+FXC.hearts = {
+  init(W, H, R) { return { h:Array.from({ length:8 }, () => ({ x:R(), y:R(), s:.06 + R() * .06, p:R() * TAU, z:.6 + R() * .6 })) }; },
+  draw(g, W, H, t, S) { g.fillStyle = "rgba(255,120,170,.8)"; S.h.forEach(h => { heartPath(g, h.x * W + Math.sin(t + h.p) * 8, (1.1 - wrap(h.y + t * h.s, 1.2)) * H, 12 * h.z); g.fill(); }); }
+};
+
 /* ---------------------------------------------------------------- the start page's card */
 const KANJI = ["日", "月", "火", "水", "木", "金", "土"];
 const pad = n => String(n).padStart(2, "0");
@@ -765,6 +1003,9 @@ const CARD = {
   p5:f => '<div class="an-burst"></div><div class="an-body"><div class="an-date"><span>' + esc(f.wd.toUpperCase()) + "</span></div><div class=\"an-time\"><span>" + f.time + "</span><small>" + f.ampm + '</small></div><div class="an-md"><span>' + esc(f.md.toUpperCase()) + "</span></div>" +
     '<div class="an-days">' + (f.toWeekend ? f.toWeekend + " DAY" + (f.toWeekend === 1 ? "" : "S") + " TO THE WEEKEND" : "IT'S THE WEEKEND!") + '</div><div class="an-tag"></div></div>'
 };
+// the event themes' card: the time over the event's colors, with its emoji
+EVENTS.forEach(th => { CARD[th.id] = f => '<div class="an-body"><div class="an-date">' + esc(f.wd) + " · " + esc(f.md) + '</div><div class="an-time">' + f.time + "<small>" + f.ampm +
+  '</small></div><div class="an-tag"></div></div><div class="an-evE">' + th.e + "</div>"; });
 // the moving layer of each card on the page (a new theme stops the old one)
 const FXRUN = typeof WeakMap === "function" ? new WeakMap() : null;
 function fxStop(el) { const r = FXRUN && FXRUN.get(el); if (r) { r.stop(); FXRUN.delete(el); } }
@@ -799,11 +1040,13 @@ function picker(el, opt) {
   let dead = false;
   el.innerHTML = '<div class="an-grid"></div><p class="an-note">Fan-made looks inspired by these shows: drawn by Webs, not official, and not connected to their creators.</p>';
   const grid = el.querySelector(".an-grid");
-  THEMES.concat(opt.none === false ? [] : [Object.assign({ id:"", name:"No anime theme", show:"Your own look", e:"✖️" }, opt.none)]).forEach(th => {
+  THEMES.concat(events(), opt.none === false ? [] : [Object.assign({ id:"", name:"No anime theme", show:"Your own look", e:"✖️" }, opt.none)]).forEach(th => {
     const b = document.createElement("button");
     b.type = "button"; b.className = "an-tile" + (th.id === (opt.current || "") ? " on" : "") + (th.id ? "" : " none"); b.dataset.id = th.id;
     b.innerHTML = (th.id ? "<canvas></canvas>" : '<div class="an-none">' + th.e + "</div>") + "<b></b><span></span>";
-    b.querySelector("b").textContent = th.name; b.querySelector("span").textContent = th.id ? "Inspired by " + th.show : th.show;
+    b.querySelector("b").textContent = th.name; b.querySelector("span").textContent = th.ev ? (th.live ? "⏳ Limited time · a Webs event" : "A Webs event you kept") : th.id ? "Inspired by " + th.show : th.show;
+    if (th.ev) b.classList.add("an-ev");
+    const fd = th.id && found(th.id); if (fd) { const k = document.createElement("i"); k.className = "an-found"; k.title = "Hidden spiders found in this wallpaper"; k.textContent = "🕷 " + fd; b.appendChild(k); }
     if (th.id) b.style.setProperty("--ac", th.a);
     b.onclick = () => { grid.querySelectorAll(".an-tile").forEach(x => x.classList.toggle("on", x === b)); if (opt.onPick) opt.onPick(th.id); };
     grid.appendChild(b);
@@ -827,6 +1070,7 @@ function apply(s, id, opt) {
   opt = opt || {};
   const th = BY[id];
   if (th) {
+    if (th.ev) { const k = kept(); if (k.indexOf(id) < 0) { k.push(id); try { localStorage.setItem("wsb.animeKeep", JSON.stringify(k)); } catch (e) {} } }
     if (!s.anime) s.animePrev = { pack:s.pack || "", customTheme:Array.isArray(s.customTheme) ? s.customTheme.slice() : null, accent:s.accent || "", liveBg:s.liveBg || "",
       theme:s.theme || "", ambient:s.ambient || "", vibe:s.vibe || "" };
     Object.assign(s, { anime:id, accent:th.a, theme:"dark", liveBg:"anime", vibe:"" });
@@ -840,6 +1084,128 @@ function apply(s, id, opt) {
     delete s.animePrev;
   }
   return s;
+}
+
+/* ---------------------------------------------------------------- event themes: on now from the dashboard, or kept */
+const kept = () => { try { const k = JSON.parse(localStorage.getItem("wsb.animeKeep") || "[]"); return Array.isArray(k) ? k : []; } catch (e) { return []; } };
+function events() {
+  let live = "";
+  try { const d = window.Live && Live.data(); if (d && d.event && BY[d.event.id] && BY[d.event.id].ev && (!d.event.until || d.event.until > Date.now())) live = d.event.id; } catch (e) {}
+  const k = kept();
+  return EVENTS.filter(t => t.id === live || k.indexOf(t.id) >= 0).map(t => Object.assign({}, t, { live:t.id === live }));
+}
+// hidden spiders found, per wallpaper (wsb.animeFound: { id: [the times it showed, found] })
+function found(id) { try { const f = JSON.parse(localStorage.getItem("wsb.animeFound") || "{}") || {}; return id ? (f[id] || []).length : f; } catch (e) { return id ? 0 : {}; } }
+function foundIt(spot) {
+  if (!spot) return false;
+  const f = found(), l = f[spot.id] = f[spot.id] || [];
+  if (l.indexOf(spot.n) >= 0) return false;
+  l.push(spot.n); f[spot.id] = l.slice(-50);
+  try { localStorage.setItem("wsb.animeFound", JSON.stringify(f)); } catch (e) {}
+  return true;
+}
+
+/* ---------------------------------------------------------------- a trail behind the pointer */
+const TRAILS = { bleach:"moth", ghoul:"drop", slayer:"petal", jjk:"spark", naruto:"leaf", aot:"feather", onepiece:"bubble", deathnote:"feather", p5:"star",
+  halloween:"ember", winter:"snow", newyear:"spark", hearts:"heart" };
+function trail(id, opt) {
+  opt = opt || {};
+  const th = BY[id], kind = TRAILS[id];
+  if (!th || !kind || (opt.motion != null ? opt.motion : motion()) === 0) return { stop() {} };
+  const cv = document.createElement("canvas"); cv.className = "an-trail"; cv.setAttribute("aria-hidden", "true");
+  (opt.parent || document.body).appendChild(cv);
+  const g = cv.getContext("2d"), P = [];
+  let raf = 0, last = 0, dead = false;
+  const fall = /snow|petal|leaf|feather|drop|moth/.test(kind);
+  const move = e => {
+    const now = performance.now(); if (now - last < 24 || P.length > 90) return; last = now;
+    for (let i = 0; i < 2; i++) P.push({ x:e.clientX + (Math.random() - .5) * 8, y:e.clientY + (Math.random() - .5) * 8, vx:(Math.random() - .5) * 1.4, vy:fall ? .3 + Math.random() * .8 : -(.3 + Math.random() * .9),
+      r:Math.random() * TAU, vr:(Math.random() - .5) * .15, s:3 + Math.random() * 4, life:1, c:Math.random() });
+    if (!raf) raf = requestAnimationFrame(frame);
+  };
+  addEventListener("pointermove", move, { passive:true });
+  function frame() {
+    raf = 0; if (dead) return;
+    const k = Math.min(2, devicePixelRatio || 1), w = innerWidth, h = innerHeight;
+    if (cv.width !== Math.round(w * k) || cv.height !== Math.round(h * k)) { cv.width = Math.round(w * k); cv.height = Math.round(h * k); }
+    g.setTransform(k, 0, 0, k, 0, 0); g.clearRect(0, 0, w, h);
+    for (let i = P.length - 1; i >= 0; i--) {
+      const p = P[i]; p.x += p.vx; p.y += p.vy; p.r += p.vr; p.life -= .018;
+      if (p.life <= 0) { P.splice(i, 1); continue; }
+      g.globalAlpha = Math.min(1, p.life * 1.4);
+      if (kind === "petal") { g.save(); g.translate(p.x, p.y); g.rotate(p.r); g.fillStyle = p.c < .5 ? "#d9b8ff" : "#fbeaff"; g.beginPath(); g.ellipse(0, 0, p.s, p.s * .55, 0, 0, TAU); g.fill(); g.restore(); }
+      else if (kind === "leaf") leaf(g, p.x, p.y, p.r, p.s * 1.6, p.c);
+      else if (kind === "feather") feather(g, p.x, p.y, p.r, p.s * 2.2);
+      else if (kind === "moth") butterfly(g, p.x, p.y, p.s * 1.3, .3 + .7 * Math.abs(Math.sin(p.life * 20)), p.c < .5 ? 1 : -1);
+      else if (kind === "drop") { g.fillStyle = "#d01a38"; g.beginPath(); g.ellipse(p.x, p.y, p.s * .5, p.s * .8, 0, 0, TAU); g.fill(); }
+      else if (kind === "bubble") { g.strokeStyle = "rgba(200,235,255,.9)"; g.lineWidth = 1.2; g.beginPath(); g.arc(p.x, p.y, p.s, 0, TAU); g.stroke(); }
+      else if (kind === "snow") { g.fillStyle = "#fff"; g.beginPath(); g.arc(p.x, p.y, p.s * .5, 0, TAU); g.fill(); }
+      else if (kind === "ember") blob(g, p.x, p.y, p.s * 1.5, "rgba(255,150,40,.9)", "rgba(255,150,40,0)");
+      else if (kind === "heart") { g.fillStyle = p.c < .5 ? "#ff5c93" : "#ffc2d6"; heartPath(g, p.x, p.y, p.s * 2.4, p.r * .3); g.fill(); }
+      else { g.fillStyle = kind === "star" ? (p.c < .5 ? "#fff" : "#e60012") : p.c < .5 ? th.a : "#fff"; spark(g, p.x, p.y, p.s * 1.4); }
+    }
+    g.globalAlpha = 1;
+    if (P.length) raf = requestAnimationFrame(frame);
+  }
+  return { stop() { dead = true; removeEventListener("pointermove", move); cancelAnimationFrame(raf); cv.remove(); } };
+}
+
+/* ---------------------------------------------------------------- the screensaver: the wallpaper, a big clock, the date */
+function saver(id, opt) {
+  opt = opt || {};
+  const th = BY[id] || BY.jjk, el = document.createElement("div");
+  el.className = "an-saver an-sv-" + th.id;
+  el.innerHTML = '<canvas aria-hidden="true"></canvas><div class="an-sv-c"><div class="an-sv-t"></div><div class="an-sv-d"></div><div class="an-sv-g"></div></div><div class="an-sv-h"></div>';
+  el.querySelector(".an-sv-h").textContent = opt.hint || "Move the mouse or press a key to come back";
+  (opt.parent || document.body).appendChild(el);
+  const r = run(el.querySelector("canvas"), th.id, { pointer:false, motion:opt.motion });
+  const c = el.querySelector(".an-sv-c");
+  const tick = () => {
+    const f = facts(opt);
+    el.querySelector(".an-sv-t").innerHTML = esc(f.time) + (f.ampm ? "<small>" + f.ampm + "</small>" : "");
+    el.querySelector(".an-sv-d").textContent = f.wd + ", " + f.md;
+    el.querySelector(".an-sv-g").textContent = "“" + th.tag + "”";
+    // the clock drifts a little each minute, so nothing stays in one place for hours
+    const m = new Date().getMinutes(); c.style.transform = "translate(" + (Math.sin(m * 1.7) * 12) + "vw," + (Math.cos(m * 1.3) * 10) + "vh)";
+  };
+  tick();
+  const iv = setInterval(tick, 10000);
+  return { el, stop() { r.stop(); clearInterval(iv); el.classList.add("out"); setTimeout(() => el.remove(), 450); } };
+}
+
+/* ---------------------------------------------------------------- a schedule: a theme for each part of the day, or each day of the week
+   sc: { mode:"day", day:{ morning, afternoon, evening, night } } or { mode:"week", week:[Sunday … Saturday] }.
+   Each is a theme's id, "none" (no anime theme) or "" (leave it as it is). */
+const PARTS = [["morning", "Morning (5 am to noon)"], ["afternoon", "Afternoon (noon to 5 pm)"], ["evening", "Evening (5 to 9 pm)"], ["night", "Night (9 pm to 5 am)"]];
+const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const partOf = h => h >= 5 && h < 12 ? "morning" : h >= 12 && h < 17 ? "afternoon" : h >= 17 && h < 21 ? "evening" : "night";
+function scheduled(sc, d) {
+  d = d || new Date();
+  if (!sc || !sc.mode) return "";
+  const v = sc.mode === "day" ? (sc.day || {})[partOf(d.getHours())] : sc.mode === "week" ? (sc.week || [])[d.getDay()] : "";
+  return v === "none" || BY[v] ? v : "";
+}
+// which slot it is now: a change of slot is when the schedule puts its theme on (a theme picked by hand stays until then)
+function slot(sc, d) {
+  d = d || new Date();
+  if (!sc || !sc.mode) return "";
+  const ds = d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate();
+  return sc.mode === "day" ? ds + ":" + partOf(d.getHours()) : ds;
+}
+function schedEditor(el, sc, onChange) {
+  sc = JSON.parse(JSON.stringify(sc || {}));
+  const all = THEMES.concat(events());
+  const opts = v => '<option value="">Leave it as it is</option><option value="none"' + (v === "none" ? " selected" : "") + ">No anime theme</option>" +
+    all.map(t => '<option value="' + t.id + '"' + (v === t.id ? " selected" : "") + ">" + esc(t.name) + "</option>").join("");
+  const paint = () => {
+    const rows = sc.mode === "day" ? PARTS.map(([k, n]) => [k, n, (sc.day || {})[k] || ""]) : sc.mode === "week" ? DAYS.map((n, i) => [i, n, (sc.week || [])[i] || ""]) : [];
+    el.innerHTML = '<div class="an-sch-m"><button type="button" data-m="">Off</button><button type="button" data-m="day">Time of day</button><button type="button" data-m="week">Day of the week</button></div>' +
+      rows.map(r => '<label class="an-sch-r"><span>' + esc(r[1]) + '</span><select data-k="' + r[0] + '">' + opts(r[2]) + "</select></label>").join("") +
+      (sc.mode ? '<p class="an-note">The theme changes by itself when the time comes. One you pick by hand stays until the next change.</p>' : "");
+    el.querySelectorAll(".an-sch-m button").forEach(b => { b.classList.toggle("on", (sc.mode || "") === b.dataset.m); b.onclick = () => { sc.mode = b.dataset.m; if (sc.mode === "day" && !sc.day) sc.day = {}; if (sc.mode === "week" && !sc.week) sc.week = []; paint(); onChange(JSON.parse(JSON.stringify(sc))); }; });
+    el.querySelectorAll("select").forEach(s => { s.onchange = () => { if (sc.mode === "day") sc.day[s.dataset.k] = s.value; else sc.week[+s.dataset.k] = s.value; onChange(JSON.parse(JSON.stringify(sc))); }; });
+  };
+  paint();
 }
 
 /* ---------------------------------------------------------------- the look (cards and picker; colors come from the page) */
@@ -923,6 +1289,30 @@ css.textContent = `
 @keyframes anBob{50%{transform:translateY(-4px) rotate(-6deg)}}@keyframes anSheen{55%,100%{transform:translateX(240%)}}
 @keyframes anJolt{0%,86%,100%{transform:skew(-8deg) rotate(1.5deg)}89%{transform:skew(-8deg) rotate(-1.5deg) translate(-3px,1px)}92%{transform:skew(-11deg) rotate(3deg) translate(2px,-1px)}95%{transform:skew(-8deg) rotate(1.5deg)}}
 :root:root[data-motion="off"] .an-card.an-card,:root:root[data-motion="off"] .an-card.an-card *,:root:root[data-motion="off"] .an-card.an-card *::after{animation:none!important}
+/* the event themes' cards */
+.an-halloween{background:radial-gradient(circle at 80% 30%,#ff8a2e55,transparent 45%),linear-gradient(135deg,#1a0b1e,#3a1530 60%,#5a2416);color:#fbefe6}
+.an-winter{background:radial-gradient(circle at 20% 0%,#6fe3c955,transparent 50%),linear-gradient(160deg,#0b1830,#1c3352 70%,#3b5675);color:#eaf4ff}
+.an-newyear{background:radial-gradient(circle at 75% 25%,#ffd34d44,transparent 40%),linear-gradient(140deg,#050816,#141a3a 70%,#24204a);color:#fff8e0}
+.an-hearts{background:radial-gradient(circle at 80% 80%,#ff5c9355,transparent 50%),linear-gradient(150deg,#2a0f22,#5a1c40 70%,#a33a5c);color:#fff0f6}
+.an-card .an-evE{position:absolute;right:20px;top:50%;transform:translateY(-50%);font-size:58px;z-index:2;filter:drop-shadow(0 4px 12px rgba(0,0,0,.4))}
+.an-card[class*="an-halloween"] .an-evE,.an-card.an-winter .an-evE,.an-card.an-newyear .an-evE,.an-card.an-hearts .an-evE{animation:anBob 3.4s ease-in-out infinite!important}
+.an-tile.an-ev{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ac) 60%,transparent)}
+.an-found{position:absolute;right:8px;top:8px;font-style:normal;font-size:11px;padding:1px 6px;border-radius:9px;background:rgba(0,0,0,.55);color:#fff}
+/* the trail and the screensaver */
+.an-trail{position:fixed;left:0;top:0;width:100vw;height:100vh;pointer-events:none;z-index:2147483000}
+.an-saver{position:fixed;inset:0;z-index:2147483600;background:#000;color:#fff;cursor:none;animation:anSvIn .8s ease both;font-family:"Segoe UI Variable Display","Segoe UI",system-ui,-apple-system,sans-serif}
+.an-saver.out{animation:anSvOut .4s ease both}@keyframes anSvIn{from{opacity:0}}@keyframes anSvOut{to{opacity:0}}
+.an-saver canvas{position:absolute;inset:0;width:100%;height:100%}
+.an-sv-c{position:absolute;left:0;right:0;top:50%;margin-top:-90px;text-align:center;text-shadow:0 4px 30px rgba(0,0,0,.6);transition:transform 3s ease}
+.an-sv-t{font-size:clamp(64px,13vw,170px);font-weight:800;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}.an-sv-t small{font-size:.22em;margin-left:10px;opacity:.8;letter-spacing:.06em}
+.an-sv-d{font-size:clamp(16px,2.2vw,26px);font-weight:600;margin-top:10px;opacity:.9}.an-sv-g{font-size:clamp(13px,1.6vw,18px);font-style:italic;opacity:.7;margin-top:8px}
+.an-sv-h{position:absolute;left:0;right:0;bottom:28px;text-align:center;font-size:13px;opacity:.45}
+/* the schedule's editor */
+.an-sch-m{display:flex;gap:4px;padding:3px;border-radius:10px;background:rgba(127,127,127,.15);margin-bottom:8px}
+.an-sch-m button{flex:1;height:28px;border:0;border-radius:8px;background:none;color:inherit;opacity:.7;font:inherit;font-size:12.5px;cursor:pointer}.an-sch-m button.on{background:var(--accent,#e8342a);color:#fff;opacity:1}
+.an-sch-r{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 0;font-size:13px}
+.an-sch-r select{max-width:60%;height:30px;border-radius:8px;border:1px solid rgba(127,127,127,.35);background:rgba(127,127,127,.12);color:inherit;font:inherit;font-size:12.5px;padding:0 6px}
+:root:root[data-motion="off"] .an-card .an-evE{animation:none!important}
 /* the picker */
 .an-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
 .an-tile{position:relative;display:flex;flex-direction:column;align-items:stretch;gap:2px;padding:0 0 9px;border:2px solid transparent;border-radius:14px;background:rgba(127,127,127,.12);color:inherit;font:inherit;text-align:left;cursor:pointer;overflow:hidden;transition:transform .2s,border-color .2s,box-shadow .2s}
@@ -935,5 +1325,6 @@ css.textContent = `
 // (not on a web page, where only the wallpaper is used: the page's own styles stay as they are)
 if (!window.animeNoCss) (document.head || document.documentElement).appendChild(css);
 
-window.Anime = { THEMES, get:id => BY[id] || null, run, preview, card, picker, apply, has:id => !!BY[id], motion, _wall:WALL, _fx:FXC, _rng:rng };
+window.Anime = { THEMES, EVENTS, events, get:id => BY[id] || null, run, preview, card, picker, apply, has:id => !!BY[id], motion, trail, saver, scheduled, slot, schedEditor,
+  found, foundIt, _wall:WALL, _fx:FXC, _rng:rng };
 })();

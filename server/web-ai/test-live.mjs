@@ -185,6 +185,33 @@ ok(r.j.rollout.win.pct === 25 && !r.j.rollout.ios && r.j.rollback.win === "3.6.0
 r = await admin("updates.info");
 ok(r.j.win.version === "3.7.0" && r.j.win.previous === "3.6.0" && r.j.ios.version === "2.7.0", "what's published, for the Updates tab");
 // removing things
+// ---- 3.10 / 2.9: an event theme, and a vote on the next theme
+r = await set({ event:{ id:"halloween", until:clock + 86400000 * 3 }, tvote:{ q:"Next theme?", opts:[{ n:"Pirate Storm", e:"🌊", d:"Waves and lightning" }, { n:"Neon City" }, { n:"" }] } });
+ok(r.j.live.event.id === "halloween" && r.j.live.tvote.opts.length === 2 && r.j.live.tvote.opts[1].e === "✨", "an event theme and a theme vote (empty ideas dropped)");
+await set({ event:{ id:"lava" } });
+ok(!(await call("GET", "/live")).j.event, "only the event themes the apps have");
+await set({ event:{ id:"winter", until:clock + 86400000 } });
+r = await call("GET", "/live");
+ok(r.j.event.id === "winter" && r.j.tvote && r.j.tvote.counts === null, "both on the start page");
+const tvId = r.j.tvote.id;
+r = await call("POST", "/live/act", { device:dev(1), kind:"tvote", id:tvId, choice:0 });
+ok(r.j.ok && !r.j.already, "a vote for a theme");
+r = await call("POST", "/live/act", { device:dev(1), kind:"tvote", id:tvId, choice:1 });
+ok(r.j.already, "one vote per device");
+await call("POST", "/live/act", { device:dev(2), kind:"tvote", id:tvId, choice:0 });
+r = await call("POST", "/live/act", { device:dev(3), kind:"tvote", id:tvId, choice:3 });
+ok(r.res.status === 409, "not an idea that isn't there");
+await admin("live.agg");
+r = await call("GET", "/live");
+ok(JSON.stringify(r.j.tvote.counts) === "[2,0]", "the counts come back to the start page: " + JSON.stringify(r.j.tvote.counts));
+r = await set({ tvote:{ id:tvId, q:"Next theme, really?", opts:[{ n:"Pirate Storm" }, { n:"Neon City" }] } });
+ok(r.j.live.tvote.id === tvId, "saving the vote again keeps its votes");
+clock += 86400000 * 2;
+r = await call("GET", "/live");
+ok(!r.j.event && r.j.tvote, "the event theme ends on its day");
+clock -= 86400000 * 2;
+await set({ event:null, tvote:null });
+
 await set({ poll:null, ann:null });
 r = await call("GET", "/live");
 ok(!r.j.poll && !r.j.ann && r.j.card, "removing one thing leaves the rest");

@@ -435,3 +435,8 @@ function route2() { const h = decodeURIComponent(location.hash.slice(1)); if (ID
 addEventListener("hashchange", route2);
 route2();
 })();
+/* 3.10: the window's screensaver waits while the sidebar is being used */
+(function () {
+  const ich = typeof BroadcastChannel === "function" ? new BroadcastChannel("wsb-idle") : null; let at = 0;
+  if (ich) ["pointermove", "keydown", "wheel", "pointerdown"].forEach(t => addEventListener(t, () => { const n = Date.now(); if (n - at > 10000) { at = n; ich.postMessage(n); } }, { passive:true }));
+})();

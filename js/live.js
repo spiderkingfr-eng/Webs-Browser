@@ -41,7 +41,7 @@ function dev() {      // the same random id Web AI uses (made here if Web AI has
 const code = () => String((get("xai", {}) || {}).code || (get("xaiConfig", {}) || {}).code || "");
 const countsOn = () => (get("settings", {}) || {}).liveCounts !== false;
 const data = () => (get("live", null) || {}).d || {};
-const seen = () => Object.assign({ ann:{}, cards:[], vote:{}, trivia:{}, react:{}, box:{}, bday:"" }, get("liveSeen", {}) || {});
+const seen = () => Object.assign({ ann:{}, cards:[], vote:{}, trivia:{}, react:{}, box:{}, bday:"", tvote:{}, ev:{} }, get("liveSeen", {}) || {});
 const setSeen = f => { const s = seen(); f(s); put("liveSeen", s); };
 async function post(path, body) {
   const s = server(); if (!s) throw new Error("Webs's server isn't set up yet.");
@@ -149,6 +149,30 @@ function render(el) {
       try { await act("vote", { id:D.poll.id, choice:i }); if (opt.toast) opt.toast("Thanks for voting!"); } catch (x) {}
     }; c.querySelector(".lv-opts").appendChild(b); });
     if (mine != null) c.appendChild(H("small", "", "Thanks for voting! Results come in the next news."));
+  }
+  // 3.10 / 2.9: an event theme for a limited time, and the vote on the next anime theme
+  if (D.event && !window.Anime && !el.dataset.evWait) { el.dataset.evWait = "1"; setTimeout(() => render(el), 400); }     // (the anime themes load after this)
+  const et = D.event && window.Anime && Anime.get(D.event.id);
+  if (et && !S.ev[D.event.id]) {
+    const c = card("lv-event", "<b></b><span>A Webs event theme for a limited time. Pick it and it's yours to keep.</span><div class=\"lv-row\"><button type=\"button\" class=\"lv-try\">Try it</button><button type=\"button\" class=\"lv-later\">Not now</button></div>");
+    c.querySelector("b").textContent = et.e + " " + et.name + " is here!";
+    c.style.setProperty("--ev", et.a);
+    c.querySelector(".lv-try").onclick = () => { if (opt.anime) opt.anime(et.id); };
+    if (!opt.anime) c.querySelector(".lv-try").remove();
+    c.querySelector(".lv-later").onclick = () => { setSeen(s => { s.ev[D.event.id] = 1; }); render(el); };
+  }
+  if (D.tvote) {
+    const mine = S.tvote[D.tvote.id], cnt = D.tvote.counts, tot = cnt ? cnt.reduce((a, b) => a + b, 0) : 0;
+    const c = card("lv-tvote", "<b></b><div class=\"lv-tiles\"></div>");
+    c.querySelector("b").textContent = "🗳 " + D.tvote.q;
+    D.tvote.opts.forEach((o, i) => {
+      const b = H("button", "lv-tile" + (mine === i ? " on" : "")); b.type = "button"; b.disabled = mine != null;
+      b.innerHTML = '<span class="lv-te"></span><strong></strong><small></small>' + (mine != null && tot ? '<i style="width:' + Math.round((cnt[i] || 0) / tot * 100) + '%"></i><em>' + Math.round((cnt[i] || 0) / tot * 100) + "%</em>" : "");
+      b.querySelector(".lv-te").textContent = o.e; b.querySelector("strong").textContent = o.n; b.querySelector("small").textContent = o.d || "";
+      b.onclick = async () => { setSeen(s => { s.tvote[D.tvote.id] = i; }); render(el); fxBurst("confetti", 24); try { await act("tvote", { id:D.tvote.id, choice:i }); if (opt.toast) opt.toast("Thanks! Your vote is in."); } catch (x) {} };
+      c.querySelector(".lv-tiles").appendChild(b);
+    });
+    if (mine != null) c.appendChild(H("small", "", tot ? "Results so far, counted every hour." : "Thanks for voting! Results come in later."));
   }
   // today's trivia
   const tv = today(D.trivia);
@@ -387,6 +411,13 @@ const css = H("style", "", `
 .lv-react{display:flex;gap:6px;margin-top:8px}.lv-react button{border:1px solid var(--line);background:var(--bg3,var(--bg));border-radius:99px;padding:3px 10px;font-size:16px;cursor:pointer;transition:transform .2s}
 .lv-react button.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 18%,transparent);transform:scale(1.12)}
 .lv-big{display:block!important;font-size:24px;font-weight:700;color:var(--fg)!important}.lv-big small{display:inline!important;font-size:14px;font-weight:600;color:var(--dim)}
+.lv-event{border-color:color-mix(in srgb,var(--ev,var(--accent)) 60%,var(--line));background:linear-gradient(135deg,color-mix(in srgb,var(--ev,var(--accent)) 22%,transparent),transparent 70%)}
+.lv-row{display:flex;gap:8px;margin-top:8px}.lv-row button{border:1px solid var(--line);background:var(--bg3,var(--bg));color:var(--fg);border-radius:10px;padding:7px 12px;font:inherit;font-size:13.5px;cursor:pointer}
+.lv-row .lv-try{background:var(--ev,var(--accent));border-color:var(--ev,var(--accent));color:#fff;font-weight:600}
+.lv-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin:8px 0 4px}
+.lv-tile{position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:flex-start;gap:2px;border:1px solid var(--line);background:var(--bg3,var(--bg));color:var(--fg);border-radius:12px;padding:10px 12px;font:inherit;cursor:pointer;text-align:left}
+.lv-tile:disabled{cursor:default}.lv-tile.on{border-color:var(--accent)}.lv-te{font-size:26px;line-height:1.1}.lv-tile strong{font-size:14px}.lv-tile small{font-size:12px;color:var(--dim)}
+.lv-tile i{position:absolute;left:0;bottom:0;height:3px;background:var(--accent)}.lv-tile em{position:absolute;right:10px;top:8px;font-style:normal;font-size:12px;font-weight:700;color:var(--dim)}
 .lv-opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:6px;margin:8px 0 4px}
 .lv-opts button{border:1px solid var(--line);background:var(--bg3,var(--bg));color:var(--fg);border-radius:10px;padding:8px 10px;font:inherit;font-size:14px;cursor:pointer;text-align:left}
 .lv-opts button:disabled{cursor:default;opacity:.75}.lv-opts button.on{border-color:var(--accent);opacity:1}.lv-opts button.right{border-color:#2fbf71;background:rgba(47,191,113,.16);opacity:1}.lv-opts button.wrong{border-color:#ff6a5e;background:rgba(255,106,94,.14);opacity:1}

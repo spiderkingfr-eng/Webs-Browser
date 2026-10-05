@@ -289,7 +289,7 @@ REFRESH.overview = async function () {
     checkAch();
   } catch (e) { toast(e.message); }
   try {
-    var l = await call({ op:"live.get" }); S.live = l.live; S.agg = l.agg; S.fx = l.fx; S.reacts = l.reacts; S.week = l.week;
+    var l = await call({ op:"live.get" }); S.live = l.live; S.agg = l.agg; S.fx = l.fx; S.reacts = l.reacts; S.events = l.events; S.week = l.week;
     if (!S.agg.at || Date.now() - S.agg.at > 3 * 3600000) S.agg = (await call({ op:"live.agg" })).agg;      // not counted lately: count now
     paintAgg(); checkAch();
   } catch (e) {}
@@ -461,7 +461,7 @@ async function saveLive(part) { var r = await call({ op:"live.set", live:part })
 function resultsBars(box, list) { var w = E("div", "res bars"); box.appendChild(w); bars(w, list); return w; }
 function untilField(label, ts) { return inp(label || "Until (optional)", tsDate(ts), { type:"date" }); }
 PANES.live = async function (p) {
-  if (!S.live || !S.live.rev) { try { var l = await call({ op:"live.get" }); S.live = l.live; S.agg = l.agg; S.fx = l.fx; S.reacts = l.reacts; S.week = l.week; } catch (e) { toast(e.message); } }
+  if (!S.live || !S.live.rev) { try { var l = await call({ op:"live.get" }); S.live = l.live; S.agg = l.agg; S.fx = l.fx; S.reacts = l.reacts; S.events = l.events; S.week = l.week; } catch (e) { toast(e.message); } }
   p.innerHTML = "";
   p.appendChild(E("p", "d", "Everything here shows on the start page of Webs on every iPhone and PC (within a few minutes). Each part has its own Save."));
   var L = S.live, A = S.agg || {};
@@ -493,6 +493,22 @@ PANES.live = async function (p) {
     built.live = false; show("live");
   }), L.poll ? btn("End the poll", async function (b) { await act(b, function () { return saveLive({ poll:null }); }, "Ended."); built.live = false; show("live"); }, "danger") : null));
   if (L.poll && A.poll && A.poll.id === L.poll.id) { var tot = A.poll.counts.reduce(function (a, b) { return a + b; }, 0); po.appendChild(E("p", "res", tot + " votes so far (counted every hour; press Count again on Overview for now)")); resultsBars(po, L.poll.opts.map(function (o, i) { return [o, A.poll.counts[i] || 0]; })); }
+  // 3.10 / 2.9: a limited-time event theme for the anime themes, and a vote on the next theme
+  var EVN = { halloween:"🎃 Haunted Night", winter:"❄️ Snowfall Shrine", newyear:"🎆 Midnight Fireworks", hearts:"💗 Sakura Hearts" };
+  var et = fold(p, "🎃 Event theme", "A limited-time anime theme in everyone's picker (Windows 3.10, iPhone 2.9). Whoever picks it keeps it after it ends.", !!L.event);
+  var es = sel("Theme", L.event ? L.event.id : "halloween", (S.events || Object.keys(EVN)).map(function (k) { return [k, EVN[k] || k]; })), eu = untilField("Ends (optional)", L.event && L.event.until);
+  add(et, es, eu, rowOf(btn(L.event ? "Save" : "Start the event", async function (b) { await act(b, function () { return saveLive({ event:{ id:es.input.value, until:dateTs(eu.input.value, true) } }); }, "The event theme is on."); built.live = false; show("live"); }),
+    L.event ? btn("End it", async function (b) { await act(b, function () { return saveLive({ event:null }); }, "Ended."); built.live = false; show("live"); }, "danger") : null));
+  var tv = fold(p, "🗳 Vote on the next theme", "Up to four ideas for the next anime theme, as tiles on everyone's start page. One vote per device.", !!L.tvote);
+  var tq = inp("Question", L.tvote ? L.tvote.q : "Which theme should Webs add next?", { maxlength:120 });
+  var tos = [0, 1, 2, 3].map(function (i) { var o = L.tvote && L.tvote.opts[i] || {}; return [inp("Idea " + (i + 1) + (i > 1 ? " (optional)" : ""), o.n, { maxlength:40, placeholder:["Ninja Village at Night", "Pirate Storm", "Neon City", "Spirit Forest"][i] }), inp("Emoji", o.e, { maxlength:8, placeholder:"🥷" }), inp("A few words", o.d, { maxlength:120 })]; });
+  var tg = E("div", "grid2"); tos.forEach(function (r) { var c = E("div"); add(c, r[0], r[1], r[2]); tg.appendChild(c); });
+  var tu = untilField("Ends (optional)", L.tvote && L.tvote.until);
+  add(tv, tq, tg, tu, rowOf(btn(L.tvote ? "Save (keeps the votes)" : "Start the vote", async function (b) {
+    await act(b, function () { return saveLive({ tvote:{ id:L.tvote ? L.tvote.id : "", q:tq.input.value, opts:tos.map(function (r) { return { n:r[0].input.value, e:r[1].input.value, d:r[2].input.value }; }), until:dateTs(tu.input.value, true) } }); }, "The vote is on.");
+    built.live = false; show("live");
+  }), L.tvote ? btn("End the vote", async function (b) { await act(b, function () { return saveLive({ tvote:null }); }, "Ended."); built.live = false; show("live"); }, "danger") : null));
+  if (L.tvote && A.tvote && A.tvote.id === L.tvote.id) resultsBars(tv, L.tvote.opts.map(function (o, i) { return [o.e + " " + o.n, A.tvote.counts[i] || 0]; }));
   // the countdown and the owner's pick
   var g2 = E("div", "grid2"); p.appendChild(g2);
   var cd = fold(g2, "⏳ Countdown", "Days until something, on everyone's start page.", !!L.countdown);
