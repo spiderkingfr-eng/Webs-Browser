@@ -7,7 +7,7 @@ const slug = s => String(s || "").toLowerCase().replace(/[’']/g, "").replace(/
 function eps(html, cls) {
   const m = new RegExp('<div[^>]*class="(?:[^"]*\\s)?' + cls + '(?:\\s[^"]*)?"[^>]*>[\\s\\S]*?<span[^>]*class="Episodes"[^>]*>([\\s\\S]*?)</span>', "i").exec(html);
   if (!m) return "";
-  return m[1].replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").replace(/\\s+/g, " ").replace(/\\s*,\\s*/g, ", ").trim().slice(0, 2000);
+  return m[1].replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").replace(/\s*,\s*/g, ", ").trim().slice(0, 2000);
 }
 export async function fillerApi(req, env, cors, ctx, h) {
   const s = slug(new URL(req.url).searchParams.get("s"));

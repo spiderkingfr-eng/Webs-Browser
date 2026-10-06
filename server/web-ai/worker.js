@@ -17,6 +17,8 @@
      TOTAL_DAILY_LIMIT   text     questions for everyone together per day (150)
      TICKETMASTER_KEY    secret   (optional) for events in Happening near you: free at developer.ticketmaster.com
      ELEVENLABS_KEY      secret   (optional) the assistant's voice, "Adam" (speak.js): elevenlabs.io → API keys
+     TWITCH_CLIENT_ID    secret   (optional) with TWITCH_CLIENT_SECRET: streamers you follow, live now and their schedules
+     TWITCH_CLIENT_SECRET secret  (streams.js): a free app at dev.twitch.tv/console
      SPEAK_DAILY         text     characters the voice may say per person per day (20000)
      MODEL               text     claude-sonnet-5-5 (or claude-haiku-4-5, about half the price)
 
@@ -24,6 +26,7 @@
      GET  /        is it running?
      POST /check   { code?, device? }          -> { ok, name, left, limit, open }
      GET  /filler?s=<show>   which episodes of a long anime are filler (filler.js)
+     GET  /streams?u=a,b     Twitch streamers: who's live, and their schedules (streams.js)
      POST /speak   { code?, device?, text, voice? }   -> audio/mpeg in the assistant's voice (speak.js)
      POST /chat    { code?, device?, messages:[{role, content}], web?, prefs?, task? }
                    web:true (the iPhone app, which can't read pages itself) lets Claude
@@ -93,6 +96,7 @@ import { readApi } from "./reader.js";
 import { nearApi } from "./near.js";
 import { speakApi, speakReady } from "./speak.js";
 import { fillerApi } from "./filler.js";
+import { streamsApi } from "./streams.js";
 export { Room, Ledger };
 import { ADMIN_PAGE, DASH_JS, DASH_CSS, DASH_SW, DASH_MANIFEST, DASH_ICON, DASH_PNG } from "./dash.js";
 
@@ -158,7 +162,7 @@ export default {
     try {
       if (req.method === "GET" && path === "/") {      // says what's missing, never any value
         const missing = setupProblem(env);
-        return json({ ok:true, name:"Web AI", ready:!missing, open:isOpen(env), model:model(env), features:["report", "link", "admin", "push", "support", "live", "owner", "privacy", ...(env.ROOMS ? ["rooms"] : []), ...(env.LEDGER ? ["ledger"] : []), "near", ...(String(env.TICKETMASTER_KEY || "").trim() ? ["events"] : []), "assistant", ...(speakReady(env) ? ["voice"] : [])], ...(missing ? { missing:"Still to do: " + missing } : {}) }, 200, cors);
+        return json({ ok:true, name:"Web AI", ready:!missing, open:isOpen(env), model:model(env), features:["report", "link", "admin", "push", "support", "live", "owner", "privacy", ...(env.ROOMS ? ["rooms"] : []), ...(env.LEDGER ? ["ledger"] : []), "near", ...(String(env.TICKETMASTER_KEY || "").trim() ? ["events"] : []), "assistant", ...(speakReady(env) ? ["voice"] : []), ...(String(env.TWITCH_CLIENT_ID || "").trim() && String(env.TWITCH_CLIENT_SECRET || "").trim() ? ["streams"] : [])], ...(missing ? { missing:"Still to do: " + missing } : {}) }, 200, cors);
       }
       if ((req.method === "GET" && /^\/live(\/img\/[a-z0-9]{10})?$/.test(path)) || (req.method === "POST" && /^\/live\/(ping|act|replies)$/.test(path))) {
         if (!env.LIMITS || typeof env.LIMITS.get !== "function") return json({ error:"setup", message:"The storage (LIMITS) isn't set up." }, 503, cors);
@@ -168,6 +172,7 @@ export default {
       if (req.method === "GET" && (path === "/near" || path === "/near/geo")) return await nearApi(path, req, env, cors, ctx);
       if (req.method === "GET" && path === "/read") return await readApi(req, env, cors);
       if (req.method === "GET" && path === "/filler") return await fillerApi(req, env, cors, ctx, { json });
+      if (req.method === "GET" && path === "/streams") return await streamsApi(req, env, cors, ctx, { json });
       if (req.method === "POST" && path === "/speak") { if (!env.LIMITS || typeof env.LIMITS.get !== "function") return json({ error:"setup", message:"The storage (LIMITS) isn't set up." }, 503, cors); return await speakApi(req, env, cors, ctx, { json, person, ownerCfg, isBlocked }); }
       if (req.method === "GET" && path === "/room") return await roomApi(req, env, cors);
       if ((req.method === "GET" && /^\/gallery(\/img\/[a-z0-9]{10})?$/.test(path)) || (req.method === "POST" && /^\/(stats|gallery\/send|invite\/new|invite\/claim)$/.test(path))) return await ledgerApi(path, req, env, cors);

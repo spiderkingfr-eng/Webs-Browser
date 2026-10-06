@@ -15,7 +15,7 @@ const LEDGER = { idFromName:n => n, get:() => ({ fetch:(u, init) => ledger.fetch
 const env = { ANTHROPIC_API_KEY:"sk-ant-test", OPEN:"true", WEB_AI_CODES:"Me=ownercode123", LIMITS, LEDGER, TICKETMASTER_KEY:"tm" };
 const asked = [];
 const PAGE = '<html><h1>Naruto Shippuden Filler List</h1><div class="manga_canon"><span class="Label">Manga Canon Episodes:</span><span class="Episodes"><a href="/x">1-32</a>, <a href="/x">34-53</a></span></div>' +
-  '<div class="mixed_canon/filler"><span class="Label">Mixed:</span><span class="Episodes"><a>33</a>, <a>55</a></span></div><div class="filler"><span class="Label">Filler Episodes:</span><span class="Episodes"><a>57-71</a>, <a>90-112</a></span></div></html>';
+  '<div class="mixed_canon/filler"><span class="Label">Mixed:</span><span class="Episodes"><a>33</a>, <a>55</a></span></div><div class="filler"><span class="Label">Filler Episodes:</span><span class="Episodes"><a>57-71</a> ,\n    <a>90-112</a></span></div></html>';
 globalThis.fetch = async (u, init) => {
   u = String(u); asked.push(u);
   if (u === "https://www.animefillerlist.com/shows/naruto-shippuden") return new Response(PAGE, { status:200 });

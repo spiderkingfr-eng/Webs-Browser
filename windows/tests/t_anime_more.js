@@ -244,6 +244,8 @@ async function al(r) {
   await n.evaluate(() => X3N.animeMore.stk.edit(true));
   await n.evaluate(() => { document.querySelectorAll(".stk-pal button")[0].click(); document.querySelectorAll(".stk-pal button")[5].click(); });
   check(await n.evaluate(() => document.querySelectorAll(".stk-layer .stk").length === 2 && JSON.parse(localStorage.getItem("wsb.stickers")).length === 2), "#059 stickers, kept");
+  // (the first one somewhere clear of the tray, for the drag)
+  await n.evaluate(() => { const l = JSON.parse(localStorage.getItem("wsb.stickers")); l[0].x = 30; l[0].y = 30; localStorage.setItem("wsb.stickers", JSON.stringify(l)); X3N.animeMore.stk.paint(); });
   const s0 = await n.evaluate(() => { const s = document.querySelector(".stk-layer .stk"), r = s.getBoundingClientRect(); return { x:r.left + r.width / 2, y:r.top + r.height / 2, l:JSON.parse(localStorage.getItem("wsb.stickers"))[0].x }; });
   await n.mouse.move(s0.x, s0.y); await n.mouse.down(); await n.mouse.move(s0.x + 120, s0.y + 40, { steps:5 }); await n.mouse.up();
   check(await n.evaluate((l) => Math.abs(JSON.parse(localStorage.getItem("wsb.stickers"))[0].x - l) > 3, s0.l), "#059 drag one anywhere");

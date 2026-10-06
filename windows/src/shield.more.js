@@ -9,7 +9,20 @@
    x-manga  { mode?, rtl? } reading mode for manga: just the pages, big, on black: one at a time ("page"), two side by side
                         like the book ("two"), right to left too, or one long strip ("strip"); the arrow keys turn, Esc leaves. Replies { n } or { none }
    x-romaji "on"|"off"|{ ans } the reading of Japanese under the pointer, in a little bubble: kana here; words with kanji
-                        are asked of the window ({ a:"x-romaji-ask", t, q }), which answers with { ans:{ q, ro, en } } */
+                        are asked of the window ({ a:"x-romaji-ask", t, q }), which answers with { ans:{ q, ro, en } }
+   (watching, #076-#100)
+   x-watch  { skip, auto, vol, bright, subs, glow, cinema, shorts, twitch }  what this page's videos do, again after each load:
+                        skip: "Skip intro" over a video during a chapter called Intro/Opening (auto: by itself); vol: the
+                        site's volume, and changes you make are told to the window ({ a:"x-watch-ev", ev:"vol", v });
+                        bright 1-1.6; subs { size, bold, bg }; glow: the video's colors around it; cinema: everything
+                        else dimmed; shorts: YouTube's Shorts hidden; twitch: a "chat over the video" button on Twitch
+   x-chapters           the main video's chapters: { l:[{ t, end, title }], now }
+   x-seekto  seconds    the main video to that point (and plays it)
+   x-vtime              { t, d, title, u }: where the main video is
+   x-caps               the subtitles the video has loaded (WebVTT text tracks): { text } as "[m:ss] line" lines, or { none }
+   x-binge   n          "That's n episodes in a row": keep watching, or take a break (pauses)
+   x-fade    seconds    every video and sound fades out over that time, then pauses (the sleep timer)
+   x-loopat  { a, b }   the main video loops between those two times; "off" stops it */
 var X_MORE = {};
 function xDeepFocus() { var e = D.activeElement; while (e && e.shadowRoot && e.shadowRoot.activeElement) e = e.shadowRoot.activeElement; return e; }
 function xEditable(e) {
@@ -261,4 +274,209 @@ X_MORE['x-romaji'] = function (arg) {
   D.addEventListener('mousemove', mv, true);
   xRo = api;
   toolReply({ a: 'x-romaji', on: 1 });
+};
+
+
+/* ---------------------------------------------------------------- watching (#076-#100) */
+function xClock(s) { s = Math.max(0, Math.round(+s || 0)); var h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return (h ? h + ':' + (m < 10 ? '0' : '') + m : m) + ':' + (x < 10 ? '0' : '') + x; }
+function xChapters(v) {
+  var out = [], d = v && isFinite(v.duration) ? v.duration : 0;
+  var toS = function (t) { var p = String(t).trim().split(':').map(Number); if (p.some(isNaN)) return -1; return p.reduce(function (a, b) { return a * 60 + b; }, 0); };
+  // a site's own chapter track (WebVTT, kind "chapters")
+  try { [].forEach.call(v.textTracks || [], function (tr) { if (tr.kind !== 'chapters') return; if (tr.mode === 'disabled') tr.mode = 'hidden'; [].forEach.call(tr.cues || [], function (c) { out.push({ t: c.startTime, end: c.endTime, title: String(c.text || '').trim().slice(0, 100) }); }); }); } catch (e) {}
+  // YouTube's chapter list (under the video)
+  if (!out.length) {
+    var seen = {};
+    [].forEach.call(D.querySelectorAll('ytd-macro-markers-list-item-renderer'), function (r) {
+      var h = r.querySelector('h4'), tm = r.querySelector('#time'), t = tm ? toS(tm.textContent) : -1;
+      if (!h || t < 0 || seen[t]) return; seen[t] = 1; out.push({ t: t, title: h.textContent.trim().slice(0, 100) });
+    });
+    out.sort(function (a, b) { return a.t - b.t; });
+    out.forEach(function (c, i) { c.end = out[i + 1] ? out[i + 1].t : d || c.t + 60; });
+  }
+  return out.filter(function (c) { return c.title && c.end > c.t; }).slice(0, 200);
+}
+var INTRO = /^(?:\d+[.:)]?\s*)?(?:intro(?:duction)?|opening(?: (?:song|theme|credits))?|op|theme song|cold open|title sequence|générique|vorspann)\b/i;
+var xW = { cfg: {}, sheet: null, tick: 0, ours: 0, btn: null, skipped: {}, glow: null, hole: null, tw: null };
+function xWatchCss() {
+  var c = xW.cfg, css = '';
+  if (c.bright > 1) css += 'video{filter:brightness(' + Math.min(1.6, c.bright) + ') contrast(' + (1 + (c.bright - 1) * 0.25).toFixed(2) + ')!important}';
+  if (c.subs) {
+    var z = Math.max(0.8, Math.min(2.5, +c.subs.size || 1)), bg = c.subs.bg ? 'rgba(0,0,0,.85)' : 'rgba(0,0,0,.5)', b = c.subs.bold ? 700 : 400;
+    css += 'video::cue{font-size:' + Math.round(z * 100) + '%!important;font-weight:' + b + '!important;background:' + bg + '!important;color:#fff!important}' +
+      '.ytp-caption-window-container{transform:scale(' + z + ');transform-origin:50% 92%}.ytp-caption-segment{font-weight:' + b + '!important;background:' + bg + '!important}' +
+      '.player-timedtext-text-container{transform:scale(' + z + ');transform-origin:50% 100%}.player-timedtext-text-container span{font-weight:' + b + '!important;background:' + bg + '!important}';
+  }
+  if (c.shorts && /(^|\.)youtube\.com$/.test(HOST)) css += 'ytd-reel-shelf-renderer,ytd-rich-shelf-renderer[is-shorts],ytd-rich-section-renderer:has(ytd-rich-shelf-renderer[is-shorts]),grid-shelf-view-model:has(a[href^="/shorts/"]),ytd-guide-entry-renderer:has(a[title="Shorts"]),ytd-mini-guide-entry-renderer[aria-label="Shorts"],ytd-video-renderer:has(a[href^="/shorts/"]),ytd-grid-video-renderer:has(a[href^="/shorts/"]),yt-chip-cloud-chip-renderer:has([title="Shorts"]){display:none!important}';
+  if (c.twitch && /(^|\.)twitch\.tv$/.test(HOST)) css += 'html[data-wsb-tw] .video-player__container,html[data-wsb-tw] .persistent-player{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;z-index:2147483000!important;max-height:none!important}' +
+    'html[data-wsb-tw] .channel-root__right-column,html[data-wsb-tw] .right-column{position:fixed!important;right:0!important;top:0!important;bottom:0!important;width:340px!important;z-index:2147483001!important;opacity:.82;background:rgba(14,14,16,.55)!important;transform:none!important;display:block!important}' +
+    'html[data-wsb-tw] .channel-root__right-column *,html[data-wsb-tw] .right-column *{background-color:transparent!important}';
+  if (!xW.sheet) { xW.sheet = D.createElement('style'); xW.sheet.setAttribute('data-wsb', 'watch'); }
+  xW.sheet.textContent = css;
+  if (css && !xW.sheet.isConnected) (D.head || D.documentElement).appendChild(xW.sheet);
+}
+function xSkipBtn(v, ch) {
+  if (!xW.btn) {
+    xW.btn = D.createElement('div'); xW.btn.setAttribute('data-wsb', 'skip');
+    var sh = xW.btn.attachShadow ? xW.btn.attachShadow({ mode: 'open' }) : xW.btn;
+    sh.innerHTML = '<style>button{all:initial;font:600 14px system-ui,sans-serif;color:#fff;background:rgba(20,20,24,.85);border:1px solid rgba(255,255,255,.4);border-radius:8px;padding:9px 16px;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.4)}button:hover{background:#e8342a;border-color:#e8342a}</style><button type="button">Skip intro ›</button>';
+    sh.querySelector('button').addEventListener('click', function (e) { e.stopPropagation(); var c = xW.btn._ch, vv = xW.btn._v; if (c && vv) { vv.currentTime = c.end; xW.skipped[c.t] = 1; } xW.btn.remove(); });
+    xW.btn.style.cssText = 'position:fixed;z-index:2147483646;display:block';
+  }
+  var r = v.getBoundingClientRect();
+  xW.btn._ch = ch; xW.btn._v = v;
+  xW.btn.style.left = Math.max(8, r.right - 150) + 'px'; xW.btn.style.top = Math.max(8, r.bottom - 90) + 'px';
+  if (!xW.btn.isConnected) D.documentElement.appendChild(xW.btn);
+}
+function xWatchTick() {
+  var c = xW.cfg, v = bestVideo();
+  // skip intro, from the chapters
+  if (c.skip && v && !v.paused && isFinite(v.duration)) {
+    var ch = xChapters(v), now = v.currentTime, cur = null;
+    for (var i = 0; i < ch.length; i++) if (now >= ch[i].t && now < ch[i].end - 1) { cur = ch[i]; break; }
+    if (cur && INTRO.test(cur.title) && cur.end - cur.t <= 300 && !xW.skipped[cur.t]) {
+      if (c.auto) { v.currentTime = cur.end; xW.skipped[cur.t] = 1; badge('Skipped the intro'); }
+      else xSkipBtn(v, cur);
+    } else if (xW.btn && xW.btn.isConnected) xW.btn.remove();
+  } else if (xW.btn && xW.btn.isConnected) xW.btn.remove();
+  // the glow and the dimmed page follow the video
+  xGlow(c.glow && v && !v.paused ? v : null);
+  xCinema(c.cinema && v && v.getBoundingClientRect().width > 200 ? v : null);
+}
+function xGlow(v) {
+  if (!v) { if (xW.glow) { xW.glow.cv.remove(); xW.glow = null; } return; }
+  if (!xW.glow) {
+    var cv = D.createElement('canvas'); cv.setAttribute('data-wsb', 'glow'); cv.setAttribute('aria-hidden', 'true');
+    cv.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:2147483000;opacity:.6';
+    D.documentElement.appendChild(cv); xW.glow = { cv: cv, g: cv.getContext('2d') };
+  }
+  var cv2 = xW.glow.cv, g = xW.glow.g, r = v.getBoundingClientRect(), W2 = innerWidth, H2 = innerHeight;
+  if (cv2.width !== Math.round(W2 / 4)) { cv2.width = Math.round(W2 / 4); cv2.height = Math.round(H2 / 4); }
+  var k = 0.25, pad = 60;
+  g.clearRect(0, 0, cv2.width, cv2.height);
+  try {
+    g.save(); g.filter = 'blur(14px) saturate(1.4)';
+    g.drawImage(v, (r.left - pad) * k, (r.top - pad) * k, (r.width + pad * 2) * k, (r.height + pad * 2) * k);
+    g.restore();
+    g.clearRect(r.left * k, r.top * k, r.width * k, r.height * k);          // the video itself stays as it is
+  } catch (e) {}
+}
+function xCinema(v) {
+  if (!v) { if (xW.hole) { xW.hole.remove(); xW.hole = null; } return; }
+  if (!xW.hole) { xW.hole = D.createElement('div'); xW.hole.setAttribute('data-wsb', 'cinema'); xW.hole.setAttribute('aria-hidden', 'true'); D.documentElement.appendChild(xW.hole); }
+  var r = v.getBoundingClientRect();
+  xW.hole.style.cssText = 'position:fixed;pointer-events:none;z-index:2147482999;border-radius:6px;transition:all .3s;left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width + 'px;height:' + r.height + 'px;box-shadow:0 0 0 200vmax rgba(0,0,0,.86)';
+}
+function xTwitchBtn(on) {
+  var b = D.querySelector('[data-wsb="twchat"]');
+  if (!on) { if (b) b.remove(); D.documentElement.removeAttribute('data-wsb-tw'); return; }
+  if (b) return;
+  b = D.createElement('button'); b.type = 'button'; b.setAttribute('data-wsb', 'twchat'); b.textContent = '⛶ Full screen with chat';
+  b.style.cssText = 'all:initial;position:fixed;right:350px;bottom:16px;z-index:2147483002;font:600 13px system-ui,sans-serif;color:#fff;background:#9146ff;border-radius:8px;padding:8px 12px;cursor:pointer;opacity:.85';
+  b.addEventListener('click', function () {
+    var on2 = !D.documentElement.hasAttribute('data-wsb-tw');
+    if (on2) { D.documentElement.setAttribute('data-wsb-tw', ''); b.textContent = '✕ Leave full screen'; try { D.documentElement.requestFullscreen().catch(function () {}); } catch (e) {} }
+    else { D.documentElement.removeAttribute('data-wsb-tw'); b.textContent = '⛶ Full screen with chat'; if (D.fullscreenElement) D.exitFullscreen().catch(function () {}); }
+  });
+  D.addEventListener('fullscreenchange', function () { if (!D.fullscreenElement && D.documentElement.hasAttribute('data-wsb-tw')) { D.documentElement.removeAttribute('data-wsb-tw'); b.textContent = '⛶ Full screen with chat'; } });
+  D.documentElement.appendChild(b);
+}
+var xVolHooked = false;
+X_MORE['x-watch'] = function (arg) {
+  var o = {}; try { o = JSON.parse(arg) || {}; } catch (e) {}
+  xW.cfg = o;
+  xWatchCss();
+  xTwitchBtn(!!o.twitch && /(^|\.)twitch\.tv$/.test(HOST) && TOP);
+  // the site's volume: put on each video as it plays; your own changes are remembered by the window
+  if (o.vol != null && o.vol >= 0) allVideos(D).concat([].slice.call(D.querySelectorAll('audio'))).forEach(function (m) { xW.ours = Date.now(); try { m.volume = Math.min(1, +o.vol); } catch (e) {} });
+  if (!xVolHooked) {
+    xVolHooked = true;
+    D.addEventListener('play', function (e) { var m = e.target; if (xW.cfg.vol != null && xW.cfg.vol >= 0 && m instanceof HTMLMediaElement && !m._wsbVol) { m._wsbVol = 1; xW.ours = Date.now(); try { m.volume = Math.min(1, +xW.cfg.vol); } catch (x) {} } }, true);
+    var vt = 0;
+    D.addEventListener('volumechange', function (e) {
+      var m = e.target; if (!(m instanceof HTMLMediaElement) || Date.now() - xW.ours < 400 || m.muted) return;
+      clearTimeout(vt); vt = setTimeout(function () { toolReply({ a: 'x-watch-ev', ev: 'vol', v: Math.round(m.volume * 100) / 100 }); }, 600);
+    }, true);
+  }
+  // listen only on this site (the picture hidden), and long audio (podcasts) offered back where you were
+  if (o.ao) allVideos(D).forEach(function (v) { if (!v.hasAttribute(AO)) { v.setAttribute(AO, ''); aoSheet(); } });
+  if (!xW.hooked2) {
+    xW.hooked2 = true;
+    D.addEventListener('play', function (e) { if (xW.cfg.ao && e.target instanceof HTMLVideoElement && !e.target.hasAttribute(AO)) { e.target.setAttribute(AO, ''); aoSheet(); } }, true);
+    var lastA = 0, offered = false;
+    D.addEventListener('timeupdate', function (e) {
+      var a = e.target; if (!(a instanceof HTMLAudioElement) || !isFinite(a.duration) || a.duration < 300 || Date.now() - lastA < 10000) return;
+      lastA = Date.now(); toolReply({ a: 'x-watch-ev', ev: 'apos', t: Math.round(a.currentTime), d: Math.round(a.duration) });
+    }, true);
+    D.addEventListener('playing', function (e) {
+      var a = e.target, at = +xW.cfg.apos || 0;
+      if (offered || !at || !(a instanceof HTMLAudioElement) || a.currentTime > 20 || !isFinite(a.duration) || at > a.duration - 30) return;
+      offered = true; badge('You stopped at ' + clock(at), { label: 'Resume', fn: function () { a.currentTime = at; } }, 12000);
+    }, true);
+  }
+  clearInterval(xW.tick);
+  if (o.skip || o.glow || o.cinema) xW.tick = setInterval(xWatchTick, o.glow ? 120 : 500);
+  else { xGlow(null); xCinema(null); if (xW.btn) xW.btn.remove(); }
+};
+X_MORE['x-chapters'] = function () {
+  var v = bestVideo();
+  toolReply({ a: 'x-chapters', l: v ? xChapters(v) : [], now: v ? v.currentTime : 0, has: v ? 1 : 0 });
+};
+X_MORE['x-seekto'] = function (arg) {
+  var v = bestVideo(), t = Math.max(0, +arg || 0);
+  if (!v) { toolReply({ a: 'x-seekto', ok: 0 }); return; }
+  var go = function () { try { v.currentTime = Math.min(t, isFinite(v.duration) ? v.duration - 1 : t); v.play().catch(function () {}); } catch (e) {} badge('→ ' + xClock(t)); };
+  if (v.readyState >= 1) go(); else v.addEventListener('loadedmetadata', go, { once: true });
+  toolReply({ a: 'x-seekto', ok: 1 });
+};
+X_MORE['x-vtime'] = function () {
+  var v = bestVideo();
+  toolReply({ a: 'x-vtime', has: v ? 1 : 0, t: v ? Math.round(v.currentTime) : 0, d: v && isFinite(v.duration) ? Math.round(v.duration) : 0, title: D.title, u: L.href });
+};
+X_MORE['x-caps'] = function () {
+  var v = bestVideo(), lines = [];
+  try {
+    [].forEach.call((v && v.textTracks) || [], function (tr) {
+      if (lines.length || (tr.kind !== 'subtitles' && tr.kind !== 'captions')) return;
+      var was = tr.mode; if (was === 'disabled') tr.mode = 'hidden';
+      [].forEach.call(tr.cues || [], function (c) { var x = String(c.text || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim(); if (x) lines.push('[' + xClock(c.startTime) + '] ' + x); });
+      if (was === 'disabled' && !lines.length) tr.mode = was;
+    });
+  } catch (e) {}
+  toolReply(lines.length ? { a: 'x-caps', text: lines.join('\n').slice(0, 400000), title: D.title } : { a: 'x-caps', none: 1 });
+};
+X_MORE['x-binge'] = function (arg) {
+  var n = +arg || 3, old = D.querySelector('[data-wsb="binge"]'); if (old) old.remove();
+  var host = D.createElement('div'); host.setAttribute('data-wsb', 'binge');
+  host.style.cssText = 'all:initial;position:fixed;inset:0;z-index:2147483646;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55)';
+  var sh = host.attachShadow ? host.attachShadow({ mode: 'open' }) : host;
+  sh.innerHTML = '<style>.c{font:15px/1.45 system-ui,sans-serif;color:#fff;background:#1b1820;border-radius:16px;padding:22px 24px;max-width:340px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5)}b{display:block;font-size:20px;margin-bottom:6px}' +
+    '.r{display:flex;gap:8px;justify-content:center;margin-top:16px}button{font:600 14px system-ui,sans-serif;border:0;border-radius:10px;padding:9px 14px;cursor:pointer}.k{background:#ffffff1f;color:#fff}.t{background:#e8342a;color:#fff}</style>' +
+    '<div class="c"><b>🍿 That\'s ' + n + ' episodes in a row</b>Your eyes might like a break: stretch, have some water, look at something far away.<div class="r"><button class="k" type="button">Keep watching</button><button class="t" type="button">Take a break</button></div></div>';
+  var vs = allVideos(D);
+  sh.querySelector('.k').onclick = function () { host.remove(); toolReply({ a: 'x-binge', keep: 1 }); };
+  sh.querySelector('.t').onclick = function () { vs.forEach(function (v) { try { v.pause(); } catch (e) {} }); host.remove(); toolReply({ a: 'x-binge', rest: 1 }); };
+  D.documentElement.appendChild(host);
+};
+X_MORE['x-fade'] = function (arg) {
+  var secs = Math.max(2, Math.min(300, +arg || 60)), media = allVideos(D).concat([].slice.call(D.querySelectorAll('audio'))).filter(function (m) { return !m.paused; });
+  var start = media.map(function (m) { return m.volume; }), t0 = Date.now();
+  var iv = setInterval(function () {
+    var k = Math.max(0, 1 - (Date.now() - t0) / (secs * 1000));
+    media.forEach(function (m, i) { xW.ours = Date.now(); try { m.volume = start[i] * k * k; } catch (e) {} });
+    if (k <= 0) { clearInterval(iv); media.forEach(function (m, i) { try { m.pause(); m.volume = start[i]; } catch (e) {} }); }
+  }, 250);
+  toolReply({ a: 'x-fade', n: media.length });
+};
+
+var xLoop = null;
+X_MORE['x-loopat'] = function (arg) {
+  var v = bestVideo(), o = null; try { o = JSON.parse(arg); } catch (e) {}
+  if (xLoop) { xLoop.v.removeEventListener('timeupdate', xLoop.f); xLoop = null; }
+  if (!v || !o || !(o.b > o.a)) { if (arg === 'off') badge('Loop off'); toolReply({ a: 'x-loopat', ok: 0 }); return; }
+  var f = function () { if (v.currentTime >= o.b || v.currentTime < o.a - 1) v.currentTime = o.a; };
+  v.addEventListener('timeupdate', f); xLoop = { v: v, f: f };
+  v.currentTime = o.a; v.play().catch(function () {});
+  badge('Looping ' + xClock(o.a) + '–' + xClock(o.b));
+  toolReply({ a: 'x-loopat', ok: 1 });
 };
