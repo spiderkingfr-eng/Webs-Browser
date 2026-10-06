@@ -3,6 +3,10 @@
 "use strict";
 
 const WHATS_NEW = [
+  ["New in 2.11: privacy and search", "shieldok", [
+    "An ad and tracker blocker (Settings → Privacy): it drops known ad, analytics and tracker domains in Webs's own pages and link previews, and counts how many. Sites you open still load in Safari, where its own blockers apply",
+    "Search inside Webs (Settings → Search): typing a search shows quick results on a page inside the app, from your device (DuckDuckGo and Wikipedia), instead of opening a search engine; tapping a result opens that site normally"
+  ]],
   ["New in 2.11: Web AI tools", "sparkle", [
     "25 tools in Menu → More from Web AI: rewrite, reply to a message, change the tone, a cover letter, a spreadsheet formula, explain code, summarize reviews or comments, a recipe, the fine print in plain words, simpler words, a quiz, lecture notes from a video's transcript, fact check with sources, describe a picture you choose, compare two things, names, gift ideas, a trip, meals and a workout",
     "Answers can be copied or saved; the picture tool takes a photo or a link",
