@@ -30,7 +30,7 @@ const until = async (p, fn, ms = 4000) => { const end = Date.now() + ms; while (
     ["show all my tabs", "overview"], ["tab overview", "overview"], ["open a new window", "newwindow"], ["new private window", "private"], ["incognito", "private"], ["split screen", "splitview"],
     ["go back", "back"], ["go forward", "forward"], ["reload the page", "reload"], ["refresh", "reload"], ["hard refresh", "hardreload"], ["stop loading", "stoploading"], ["go home", "home"],
     ["search YouTube for lofi beats", "youtube"], ["play never gonna give you up on youtube", "youtube"], ["show me pictures of puppies", "images"], ["directions to the airport", "maps"], ["Wikipedia black holes", "wiki"],
-    ["show me the news", "news"], ["what's the weather like tomorrow", "weather"], ["search amazon for headphones", "shopping"], ["search for pizza near me", "search"], ["google cheap flights", "search"],
+    ["show me the news", "news"], ["what's the weather like tomorrow", "wx"], ["search amazon for headphones", "shopping"], ["search for pizza near me", "search"], ["google cheap flights", "search"],
     ["scroll down", "down"], ["page up", "up"], ["go to the top", "top"], ["scroll to the bottom", "bottom"], ["zoom in", "zoomin"], ["make it smaller", "zoomout"], ["reset zoom", "zoomreset"],
     ["find recipes on this page", "find"], ["find on page", "findbar"], ["read this page out loud", "read"], ["stop reading", "stopread"], ["be quiet", "stopread"], ["reader mode", "reader"], ["translate this page", "translate"],
     ["print this page", "print"], ["take a screenshot", "screenshot"], ["snip", "screenshotarea"], ["copy the link", "copylink"], ["full screen", "fullscreen"], ["is this site safe", "sitepanel"], ["make this page dark", "darkpage"],

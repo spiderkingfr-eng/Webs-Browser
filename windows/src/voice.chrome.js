@@ -139,8 +139,11 @@ add("speed", "Video and sound", "speed two", R("(set )?(the )?speed( to)? ([\\w.
 add("normalspeed", "Video and sound", "normal speed", R("normal speed|regular speed"), () => send("media", media().id, "speed", "1"));
 add("pip", "Video and sound", "picture in picture", R("picture in picture|pop (out|up) (the )?video|mini player"), () => send("media", media().id, "pip", ""));
 add("theater", "Video and sound", "theater mode", R("theat(er|re) mode|cinema mode"), () => send("media", web().id, "theater", ""));
-add("louder", "Video and sound", "louder", R("louder|volume up|turn it up"), () => send("media", media().id, "tabvol", "+20"));
-add("quieter", "Video and sound", "quieter", R("quieter|softer|volume down|turn it down"), () => send("media", media().id, "tabvol", "-20"));
+// the page's volume is 0 to 1: each step is a fifth, remembered per tab
+const vols = {};
+const stepVol = d => { const t = media(), v = Math.round(Math.max(0.1, Math.min(1, (vols[t.id] == null ? 1 : vols[t.id]) + d)) * 100) / 100; vols[t.id] = v; send("media", t.id, "tabvol", String(v)); return "Volume " + Math.round(v * 100) + " percent"; };
+add("louder", "Video and sound", "louder", R("louder|volume up|turn it up"), () => stepVol(0.2));
+add("quieter", "Video and sound", "quieter", R("quieter|softer|volume down|turn it down"), () => stepVol(-0.2));
 add("ambient", "Video and sound", "play rain sounds", R("play (some )?(" + Object.keys(AMBW).join("|") + ")( sounds| noise| ambience)?|(" + Object.keys(AMBW).join("|") + ") (sounds|noise|ambience)"), m => { const k = AMBW[(m[2] || m[4] || "").trim()]; if (!k) return null; cfg.ambient = k; MU.ambStarted = true; saveCfg(); ambUpdate(); return "Playing " + AMB_KINDS[k]; });
 add("stopambient", "Video and sound", "stop the sounds", R("stop (the )?(ambient )?(sounds|noise|ambience|rain)"), () => { cfg.ambient = ""; saveCfg(); ambUpdate(); return "Sounds off"; });
 add("sleeptimer", "Video and sound", "sleep timer", R("sleep timer|stop (the music|everything) (later|in a while)"), () => { sleepTimerPanel(); });
@@ -243,14 +246,17 @@ function parse(text) {
 }
 let lastSaid = "";
 async function run(text) {
-  const p = parse(text), s = norm(text);
+  const s = norm(text);
   if (!s) return "";
+  // a mode that takes over what you say for a while (dictation, cooking, translating…; assistant.more.js)
+  if (X3.voice && X3.voice.intercept) { const r = await X3.voice.intercept(String(text || "").trim(), s); if (r != null) return r ? reply(r) : ""; }
+  const p = parse(text);
   if (p && p.custom) {
     const steps = p.custom.do.split(/\s*(?:,|;|\bthen\b|\band then\b)\s*/).filter(Boolean).slice(0, 8);
     for (const st of steps) { const q = parse(st); if (q && !q.custom) await exec(q); }
     return reply("Done: " + p.custom.say);
   }
-  if (p) { const r = await exec(p); if (r !== null) return reply(r || "Done"); }
+  if (p) { const r = await exec(p); if (r !== null) return r === SILENT ? "" : reply(r || "Done"); }
   // the assistant (3.13, assistant.chrome.js): anything else is a conversation with Web AI, which can also do things
   const brain = X3.voice && X3.voice.brain;
   if (brain && brain.on()) return brain.ask(String(text || "").trim(), s);
@@ -284,15 +290,19 @@ exec = async function (p) {
   return null;
 };
 const bump = id => { const u = load("voiceUse", {}); u[id] = (u[id] || 0) + 1; save("voiceUse", u); if (window.Stats) Stats.use("v." + id); };
+// a command that has already answered in its own way (spoken, or a panel) returns SILENT: no "Done" on top
+const SILENT = "\u0001";
 // a command run for the assistant: no reply of its own; null when it isn't a command
 async function act(text) {
   const p = parse(text);
   if (!p || p.custom) return null;
-  return exec(p);
+  const r = await exec(p);
+  return r === SILENT ? "" : r;
 }
 function reply(text, missed) {
   lastSaid = text;
   chip(missed ? "miss" : "done", text);
+  if (quietNow()) return text;
   const sp = X3.voice && X3.voice.speaker;
   if (sp && cfg.xVoiceTalk !== false && text) { sp.say(text); return text; }      // the assistant's voice, when it has one
   if (cfg.xVoiceTalk !== false && text && window.speechSynthesis) {
@@ -304,6 +314,13 @@ function reply(text, missed) {
 /* ---------------------------------------------------------------- listening */
 const L = { on:false, engine:"", eng:null, awakeUntil:0, talking:false, err:"", heardAt:0 };
 const wake = () => String(cfg.xVoiceWake || "hey webs").toLowerCase().replace(/[.,!?;:"’]+/g, " ").replace(/\s+/g, " ").trim() || "hey webs";
+// the main wake phrase, then any a saved assistant has (X3.voice.moreWakes); L.who says which one was heard
+const wakes = () => [wake()].concat(X3.voice && X3.voice.moreWakes ? X3.voice.moreWakes() : []).map(w => String(w || "").toLowerCase().replace(/[.,!?;:"’]+/g, " ").replace(/\s+/g, " ").trim()).filter(Boolean);
+function reFor(w0) {
+  const w = w0.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/webs/g, "(?:webs|webb?s|web's|webz|web|wips|webbs)").replace(/^hey /, "(?:hey|hay|a|hi|okay|ok) ");
+  return new RegExp("(?:^|\\s)" + w + "(?:\\s|$)(.*)$");
+}
+function matchWake(t) { const l = wakes(); for (let i = 0; i < l.length; i++) { const m = reFor(l[i]).exec(t); if (m) return { rest:m[1], who:i, w:l[i] }; } return null; }
 function wakeRe() {
   const w = wake().replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/webs/g, "(?:webs|webb?s|web's|webz|web|wips|webbs)").replace(/^hey /, "(?:hey|hay|a|hi|okay|ok) ");
   return new RegExp("(?:^|\\s)" + w + "(?:\\s|$)(.*)$");
@@ -314,14 +331,15 @@ async function heard(text, final) {
   if (!t) return;
   if (L.talking) {
     // while it talks it only listens for its name, which stops it (and anything said after is the next request)
-    if (cfg.xVoiceNoWake || !wakeRe().test(t)) return;
+    if (cfg.xVoiceNoWake || !matchWake(t)) return;
     const sp = X3.voice && X3.voice.speaker; if (sp) sp.hush(); else try { speechSynthesis.cancel(); } catch (e) {}
     L.talking = false;
   }
   if (cfg.xVoiceNoWake) { if (final) { chip("heard", t); await run(t); } else chip("partial", t); return; }
-  const m = wakeRe().exec(t);
+  const m = matchWake(t);
   if (m) {
-    const rest = m[1].trim();
+    L.who = m.who;
+    const rest = m.rest.trim();
     if (!rest) { if (final || Date.now() > L.awakeUntil) { L.awakeUntil = Date.now() + 8000; chip("awake"); ding(); } return; }
     if (final) { L.awakeUntil = 0; chip("heard", rest); await run(rest); } else chip("partial", rest);
     return;
@@ -330,8 +348,17 @@ async function heard(text, final) {
     if (final) { L.awakeUntil = 0; chip("heard", t); await run(t); } else chip("partial", t);
   }
 }
-function ding() {
-  try { const c = new AudioContext(), o = c.createOscillator(), g = c.createGain(); o.frequency.value = 880; g.gain.value = 0.05; o.connect(g); g.connect(c.destination); o.start(); o.frequency.setValueAtTime(1320, c.currentTime + 0.08); o.stop(c.currentTime + 0.16); setTimeout(() => c.close(), 400); } catch (e) {}
+// the sound it makes when it hears its name (settings.xAsChime): notes as [frequency, start, length] in seconds
+const CHIMES = { ding:[[880, 0, .08], [1320, .08, .08]], soft:[[660, 0, .14], [880, .1, .2]], bubble:[[520, 0, .05], [780, .05, .05], [1040, .1, .07]],
+  scifi:[[1200, 0, .05], [1600, .06, .05], [2000, .12, .09]], low:[[330, 0, .12], [440, .1, .16]] };
+function ding(kind) {
+  const k = kind || cfg.xAsChime || "ding";
+  if (k === "none" || !CHIMES[k]) return;
+  try {
+    const c = new AudioContext(), g = c.createGain(); g.gain.value = k === "soft" || k === "low" ? 0.07 : 0.05; g.connect(c.destination);
+    CHIMES[k].forEach(([f, at, len]) => { const o = c.createOscillator(); o.type = k === "scifi" ? "triangle" : "sine"; o.frequency.value = f; o.connect(g); o.start(c.currentTime + at); o.stop(c.currentTime + at + len); });
+    setTimeout(() => c.close(), 800);
+  } catch (e) {}
 }
 /* ---- which microphone (3.13): Windows' default, or one you pick (settings.xVoiceMic, its device id; xVoiceMicName to
    show it when it's unplugged). The browser's recognition can take a chosen mic where WebView2 lets it (start(track));
@@ -421,8 +448,28 @@ const engKey = () => (cfg.xVoiceOffline ? "offline" : "web") + "|" + (cfg.xVoice
 // a Web AI voice call in the sidebar has the microphone (webai.voice.js sets wsb.xaiCall, refreshed every 20 s)
 const inCall = () => { try { const t = +localStorage.getItem("wsb.xaiCall") || 0; return Date.now() - t < 60000; } catch (e) { return false; } };
 addEventListener("storage", e => { if (e.key !== "wsb.xaiCall" || !L.on) return; if (inCall()) { stop(); chip("paused", ""); } else start(); });
+// quiet hours (settings.xVoiceQuiet: { on, from:"22:00", to:"07:00" }): no listening, no talking
+function quietNow(d) {
+  const q = cfg.xVoiceQuiet; if (!q || !q.on) return false;
+  const m = s => { const x = /^(\d{1,2}):(\d{2})$/.exec(String(s || "")); return x ? +x[1] * 60 + +x[2] : -1; }, a = m(q.from), b = m(q.to); if (a < 0 || b < 0 || a === b) return false;
+  d = d || new Date(); const n = d.getHours() * 60 + d.getMinutes();
+  return a < b ? n >= a && n < b : n >= a || n < b;
+}
+// push to talk (settings.xVoicePTT): the microphone is only on after Alt+Shift+K or holding the 🎙️ button, until the conversation ends
+function talkNow() {
+  if (quietNow()) { toast("🎙️ Quiet hours: voice control is resting"); return; }
+  if (!L.on) { L.on = true; cfg.xVoice = true; saveCfg(); }
+  L.ptt = Date.now() + 9000; L.awakeUntil = Date.now() + 8000; start(); chip("awake"); ding(); pttCheck();
+}
+let pttT = 0;
+function pttCheck() {
+  clearTimeout(pttT);
+  if (!cfg.xVoicePTT) return;
+  pttT = setTimeout(() => { if (Date.now() < Math.max(L.ptt || 0, L.awakeUntil) || L.talking || (X3.voice && X3.voice.speaker && X3.voice.speaker.busy())) pttCheck(); else { stop(); chip("ptt"); } }, 1000);
+}
+setInterval(() => { if (!L.on) return; if (quietNow()) { if (L.eng || L.loading) { stop(); chip("quiet"); } } else if (!L.eng && !L.loading && !cfg.xVoicePTT) start(); }, 60000);
 function start() {
-  if (L.eng || L.loading || !L.on || inCall()) return;
+  if (L.eng || L.loading || !L.on || inCall() || quietNow() || (cfg.xVoicePTT && !(Date.now() < Math.max(L.ptt || 0, L.awakeUntil)))) return;
   L.with = engKey();
   if (cfg.xVoiceFront !== false && document.hidden) return;
   if (cfg.xVoiceOffline || !(window.SpeechRecognition || window.webkitSpeechRecognition)) { if (cfg.xVoiceOffline) startOffline(); else fail("web"); return; }
@@ -431,7 +478,7 @@ function start() {
 function stop() { loadN++; L.loading = false; if (L.eng) { try { L.eng.stop(); } catch (e) {} L.eng = null; } chip(L.on ? "paused" : "off"); }
 function setOn(on) {
   L.on = !!on; cfg.xVoice = L.on; saveCfg();
-  if (L.on) { L.err = ""; start(); toast("🎙️ Listening for “" + (cfg.xVoiceWake || "Hey Webs") + "”" + (cfg.xVoiceNoWake ? "" : ". Say it, then a command."), { label:"Commands", fn:() => voicePanel(true) }); }
+  if (L.on) { L.err = ""; start(); if (cfg.xVoicePTT && !L.eng) chip("ptt"); toast("🎙️ Listening for “" + (cfg.xVoiceWake || "Hey Webs") + "”" + (cfg.xVoiceNoWake ? "" : ". Say it, then a command."), { label:"Commands", fn:() => voicePanel(true) }); }
   else { stop(); toast("🎙️ Voice control off"); }
   if (overlay === "voicep") voicePanel();
 }
@@ -449,7 +496,7 @@ function chip(state, text) {
   btn.classList.toggle("on", L.on); btn.dataset.s = state || "";
   const l = btn.querySelector(".vcl");
   clearTimeout(chipT);
-  l.textContent = state === "awake" ? "Listening…" : state === "partial" || state === "heard" ? "“" + String(text).slice(0, 40) + "”" : state === "done" || state === "miss" ? String(text || "").slice(0, 50) : state === "loading" ? "Getting ready…" : state === "err" ? "⚠" : "";
+  l.textContent = state === "awake" ? "Listening…" : state === "partial" || state === "heard" ? "“" + String(text).slice(0, 40) + "”" : state === "done" || state === "miss" ? String(text || "").slice(0, 50) : state === "loading" ? "Getting ready…" : state === "err" ? "⚠" : state === "quiet" ? "Quiet hours" : state === "ptt" ? "Alt+Shift+K to talk" : "";
   if (state === "err" && text) toast("🎙️ " + text, { label:"Voice control", fn:() => voicePanel() });
   if (state === "done" || state === "miss") { if (text) toast("🎙️ " + text); chipT = setTimeout(() => chip(L.on ? "on" : "off"), 3500); }
   if (state === "awake") chipT = setTimeout(() => { if (Date.now() >= L.awakeUntil) chip(L.on ? "on" : "off"); }, Math.max(0, L.awakeUntil - Date.now()) + 200);
@@ -553,9 +600,9 @@ async function micPicker(b) {
 
 /* ---------------------------------------------------------------- hooks */
 const shortcutV = shortcut;
-shortcut = function (k, ctrl, shift, alt) { if (alt && shift && !ctrl && k === 77) { setOn(!L.on); return; } return shortcutV(k, ctrl, shift, alt); };      // Alt+Shift+M
+shortcut = function (k, ctrl, shift, alt) { if (alt && shift && !ctrl && k === 77) { setOn(!L.on); return; } if (alt && shift && !ctrl && k === 75) { talkNow(); return; } return shortcutV(k, ctrl, shift, alt); };      // Alt+Shift+M, Alt+Shift+K
 const onToolResultV = onToolResult;
-onToolResult = function (id, json) { let r = null; try { r = JSON.parse(json); } catch (e) {} if (r && r.a === "x-key" && r.k === "M") { if (id === active) setOn(!L.on); return; } onToolResultV(id, json); };
+onToolResult = function (id, json) { let r = null; try { r = JSON.parse(json); } catch (e) {} if (r && r.a === "x-key" && r.k === "M") { if (id === active) setOn(!L.on); return; } if (r && r.a === "x-key" && r.k === "K") { if (id === active) talkNow(); return; } onToolResultV(id, json); };
 const menuRowsV = X3.menuRows;
 X3.menuRows = function (m) { if (menuRowsV) menuRowsV(m); m.appendChild(row("speech", "Voice control (“Hey Webs”)…" + (L.on ? " ●" : ""), "Alt+Shift+M", () => voicePanel())); };
 const commandsV = commands;
@@ -569,7 +616,7 @@ reloadSettings = function () {
   else if (L.on && changed) { stop(); L.err = ""; start(); }   // the engine or microphone was switched in Settings
 };
 X3.voice = { mics, openMic, stopMeter, parse, run, act, hear:heard, setOn, voicePanel, norm, calc, secs, num, COMMANDS:C, state:() => L, wakeRe, chip,
-  awake:ms => { L.awakeUntil = Date.now() + ms; chip("awake"); }, brain:null, speaker:null, onChip:null, panelHook:null };
+  awake:ms => { L.awakeUntil = Date.now() + ms; if (cfg.xVoicePTT) { start(); pttCheck(); } chip("awake"); }, talkNow, quietNow, ding, CHIMES, matchWake, wakes, SILENT, brain:null, speaker:null, onChip:null, panelHook:null };
 if (cfg.xVoice) setTimeout(() => { L.on = true; start(); chip(L.eng ? "on" : "paused"); }, 2500); else chip("off");
 
 const st = document.createElement("style");

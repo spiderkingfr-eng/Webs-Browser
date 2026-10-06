@@ -15,6 +15,19 @@ const STYLES = { witty:"calm, quick and a little dry, like a butler AI with a se
   friendly:"warm and upbeat, like a good friend", detailed:"thorough: explain properly when it helps" };
 const NO_DO = ["fill", "help", "repeat", "thanks", "stoplisten", "private"];     // never done for the assistant on its own
 
+/* ---------------------------------------------------------------- who answers (3.14): the main settings, or a saved assistant
+   (settings.xAsPeople: [{ name, wake, call, style, voice, voiceId }]) heard by its own wake phrase or chosen with "switch to …" */
+const people = () => (Array.isArray(cfg.xAsPeople) ? cfg.xAsPeople : []).filter(p => p && p.name).slice(0, 8);
+function persona() {
+  const l = people(), i = VL.who > 0 ? VL.who - 1 : (cfg.xAsActive >= 0 ? cfg.xAsActive : -1), p = l[i];
+  return p ? { name:p.name, call:p.call || "", style:p.style || "witty", voice:p.voice || "adam", voiceId:p.voiceId || "", wake:p.wake || "" }
+    : { name:String(cfg.xAsName || "Webs"), call:cfg.xAsCall || "", style:cfg.xAsStyle || "witty", voice:cfg.xAsVoice || "adam", voiceId:cfg.xAsVoiceId || "" };
+}
+V.moreWakes = () => people().map(p => p.wake).filter(Boolean);
+// whisper (settings.xAsWhisper: "night" from 10 pm to 7 am, "on", or off): softer and a little slower
+const whisperNow = () => cfg.xAsWhisper === "on" || (cfg.xAsWhisper === "night" && (new Date().getHours() >= 22 || new Date().getHours() < 7));
+const rateNow = () => Math.min(1.3, Math.max(0.8, +cfg.xAsRate || 1)) * (whisperNow() ? 0.92 : 1);
+
 /* ---------------------------------------------------------------- the voice */
 let serverVoice = null;            // null: not asked yet; true/false: the server has (or hasn't) a voice key
 let adamDown = "";                 // why Adam isn't talking this session (no key, today's allowance…)
@@ -23,19 +36,20 @@ async function checkVoice() {
   try { const j = await (await fetch(AI.server() + "/")).json(); serverVoice = !!(j && Array.isArray(j.features) && j.features.includes("voice")); } catch (e) { serverVoice = null; }
   return serverVoice;
 }
-const useAdam = () => cfg.xAssistant !== false && (cfg.xAsVoice || "adam") === "adam" && serverVoice !== false && !adamDown && AI.ready();
+const useAdam = () => cfg.xAssistant !== false && persona().voice === "adam" && serverVoice !== false && !adamDown && AI.ready();
 const winVoices = () => { try { return speechSynthesis.getVoices(); } catch (e) { return []; } };
 function winVoice() {
-  const vs = winVoices(), want = String(cfg.xAsVoice || "").replace(/^win:/, "");
+  const vs = winVoices(), want = String(persona().voice || "").replace(/^win:/, "");
   return vs.find(v => v.name === want) || vs.find(v => /en-GB/i.test(v.lang) && /natural|online/i.test(v.name) && /male|ryan|thomas|george/i.test(v.name))
     || vs.find(v => /en-GB/i.test(v.lang) && /ryan|george|thomas|male/i.test(v.name)) || vs.find(v => /^en/i.test(v.lang) && /natural|online/i.test(v.name)) || vs.find(v => /^en/i.test(v.lang)) || vs[0] || null;
 }
 // the "suit" effect: a little brighter, a short metallic echo, evened out
-let actx = null, fxIn = null, dryIn = null;
+let actx = null, fxIn = null, dryIn = null, master = null;
 function audioOut() {
   if (actx) return;
   actx = new AudioContext();
-  const comp = actx.createDynamicsCompressor(); comp.threshold.value = -20; comp.ratio.value = 3; comp.connect(actx.destination);
+  master = actx.createGain(); master.connect(actx.destination);
+  const comp = actx.createDynamicsCompressor(); comp.threshold.value = -20; comp.ratio.value = 3; comp.connect(master);
   dryIn = actx.createGain(); dryIn.connect(comp);
   fxIn = actx.createGain();
   const hp = actx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 160;
@@ -48,14 +62,21 @@ function audioOut() {
 /* the speaker: sentences in a queue, each fetched as soon as it's known and played in order */
 const Q = [];
 let playing = null, gen = 0, idleFns = [], talkT = 0;
-function setTalking(on) { clearTimeout(talkT); if (on) { VL.talking = true; if (hud.el.dataset.s !== "error") hud.state("talking"); } else talkT = setTimeout(() => { VL.talking = false; }, 350); }
+// other tabs' sound goes down while it talks (settings.xAsDuck), and back up after
+const ducked = new Set();
+function duck(on) {
+  if (on && cfg.xAsDuck === false) return;
+  if (on) tabs.forEach(t => { if (t.audio && !t.muted && !ducked.has(t.id) && isWeb(t.url)) { ducked.add(t.id); send("page-tool", t.id, "x-duck", "0.25"); } });
+  else { ducked.forEach(id => { if (T(id)) send("page-tool", id, "x-duck", "off"); }); ducked.clear(); }
+}
+function setTalking(on) { clearTimeout(talkT); if (on) { VL.talking = true; duck(true); if (hud.el.dataset.s !== "error") hud.state("talking"); } else talkT = setTimeout(() => { VL.talking = false; duck(false); }, 350); }
 // nothing may wait forever: a stuck sentence would leave it "talking", and Hey Webs ignores everything but its name meanwhile
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 function fetchAdam(text) {
   const ctl = new AbortController(); let late = false;
   const to = setTimeout(() => { late = true; ctl.abort(); }, 12000);
   const p = fetch(AI.server() + "/speak", { method:"POST", headers:{ "content-type":"application/json" }, signal:ctl.signal,
-    body:JSON.stringify({ code:AI.code(), device:AI.dev(), text, voice:/^[A-Za-z0-9]{12,40}$/.test(cfg.xAsVoiceId || "") ? cfg.xAsVoiceId : undefined }) })
+    body:JSON.stringify({ code:AI.code(), device:AI.dev(), text, voice:/^[A-Za-z0-9]{12,40}$/.test(persona().voiceId || "") ? persona().voiceId : undefined }) })
     .then(async r => {
       if (!r.ok) { let j = null; try { j = await r.json(); } catch (e) {} throw Object.assign(new Error(j && j.message || (r.status === 404 ? "Your Web AI server doesn't have the voice yet: run the new setup.cmd." : "The voice didn't answer (" + r.status + ").")), { kind:j && j.error || (r.status === 404 ? "novoice" : "voice") }); }
       return r.arrayBuffer();
@@ -75,10 +96,10 @@ async function canPlay() {
   await Promise.race([actx.resume().catch(() => {}), sleep(800)]);
   return actx.state === "running";
 }
-function say(text) {
+function say(text, lang) {
   text = String(text || "").replace(/[“”]/g, "").replace(/\s+/g, " ").trim();
-  if (!text || cfg.xVoiceTalk === false) return;
-  const item = { text, g:gen };
+  if (!text || cfg.xVoiceTalk === false || (V.quietNow && V.quietNow())) return;
+  const item = { text, g:gen, lang };
   if (useAdam()) item.adam = fetchAdam(text);
   Q.push(item);
   if (!playing) next();
@@ -90,7 +111,7 @@ function next() {
   let fin = false, guard = 0;
   const done = () => { if (fin) return; fin = true; clearTimeout(guard); if (g === gen && playing === item) next(); };
   const watch = ms => { clearTimeout(guard); guard = setTimeout(done, ms); };     // in case the end is never reported
-  const windows = () => { item.adam = null; winSay(item.text, done); watch(2500 + item.text.length * 110 / Math.min(1.3, Math.max(0.8, +cfg.xAsRate || 1))); };
+  const windows = () => { item.adam = null; winSay(item.text, done, item.lang); watch(2500 + item.text.length * 110 / rateNow()); };
   if (item.adam) {
     watch(15000);
     item.adam.p.then(async buf => {
@@ -98,7 +119,8 @@ function next() {
       if (!(await canPlay())) throw Object.assign(new Error(BLOCKED), { kind:"blocked" });
       const b = await actx.decodeAudioData(buf);
       if (g !== gen || fin) return;
-      const rate = Math.min(1.3, Math.max(0.8, +cfg.xAsRate || 1));
+      const rate = rateNow();
+      master.gain.value = whisperNow() ? 0.45 : 1;
       const src = actx.createBufferSource(); src.buffer = b; src.playbackRate.value = rate;
       src.connect(cfg.xAsFx !== false ? fxIn : dryIn); src.onended = done; item.src = src; src.start();
       watch(b.duration / rate * 1000 + 1500);
@@ -116,11 +138,14 @@ function next() {
     });
   } else windows();
 }
-function winSay(text, done) {
+function winSay(text, done, lang) {
   try {
-    const u = new SpeechSynthesisUtterance(text), v = winVoice();
+    const u = new SpeechSynthesisUtterance(text);
+    // another language (the translator): a Windows voice for it, if there is one
+    const v = lang ? winVoices().find(x => x.lang.toLowerCase().startsWith(lang.toLowerCase())) || winVoice() : winVoice();
     if (v) { u.voice = v; u.lang = v.lang; }
-    u.rate = Math.min(1.3, Math.max(0.8, +cfg.xAsRate || 1)) * 1.03;
+    if (lang) u.lang = lang;
+    u.rate = rateNow() * 1.03; u.volume = whisperNow() ? 0.45 : 1;
     u.onend = u.onerror = done;
     speechSynthesis.speak(u);
   } catch (e) { setTimeout(done, 0); }
@@ -136,11 +161,11 @@ function hush() {
 const whenQuiet = fn => { if (!playing && !Q.length) fn(); else idleFns.push(fn); };
 // stopping it (its name said while it talks, or ✕): the answer being written stops too
 function stopAll() { hush(); turn++; if (ctl) { ctl.abort(); ctl = null; } }
-V.speaker = { say:t => { hush(); say(t); }, hush:stopAll, busy:() => !!playing || Q.length > 0 };
+V.speaker = { say:(t, lang) => { hush(); say(t, lang); }, add:say, hush:stopAll, busy:() => !!playing || Q.length > 0, whenQuiet:fn => whenQuiet(fn) };
 
 /* ---------------------------------------------------------------- the conversation */
 let convo = [], lastAt = 0, ctl = null, turn = 0;
-const name = () => String(cfg.xAsName || "Webs").slice(0, 30);
+const name = () => String(persona().name || "Webs").slice(0, 30);
 function commandList() {
   const g = {}; V.COMMANDS.forEach(c => { if (NO_DO.indexOf(c.id) < 0) (g[c.g] = g[c.g] || []).push(c.ex); });
   return Object.keys(g).map(k => k + ": " + g[k].join(" · ")).join("\n");
@@ -151,18 +176,32 @@ function now() {
     "\nThis tab: " + (t ? (t.title || "untitled") + " (" + (isWeb(t.url) ? t.url.slice(0, 200) : "a Webs page") + ")" : "none") +
     (others.length ? "\nOther tabs: " + others.map(x => (x.title || hostOf(x.url) || "tab").slice(0, 60)).join(" | ") : "");
 }
-function setup() {
-  return "name: " + name() + "\ncall them: " + (String(cfg.xAsCall || "").trim().slice(0, 30) || "nothing in particular, no title") + "\nstyle: " + (STYLES[cfg.xAsStyle] || STYLES.witty);
+// seasonal moods (settings.xAsSeason), by the date
+function season(d) {
+  d = d || new Date(); const m = d.getMonth() + 1, day = d.getDate();
+  if (m === 4 && day === 1) return "it's April Fools' Day: allowed one harmless joke";
+  if (m === 10) return "it's October: a little spooky, the odd Halloween joke";
+  if (m === 12) return "it's December: cosy and festive";
+  if (m === 2 && day === 14) return "it's Valentine's Day: warm";
+  if (m === 7 || m === 8) return "it's summer: sunny and relaxed";
+  if (m === 1 && day <= 3) return "it's New Year: upbeat about the year ahead";
+  return "";
 }
-async function ask(text) {
+function setup() {
+  const p = persona(), mood = cfg.xAsSeason ? season() : "";
+  return "name: " + name() + "\ncall them: " + (String(p.call || "").trim().slice(0, 30) || "nothing in particular, no title") + "\nstyle: " + (STYLES[p.style] || STYLES.witty) + (mood ? "\nmood: " + mood : "") + (whisperNow() ? "\nit's late: speak softly, keep it short" : "");
+}
+// opt: { task: extra instructions for this one question, done(fullText): when the answer is complete, show: what the card shows as said }
+async function ask(text, opt) {
+  opt = opt || {};
   hush(); if (ctl) ctl.abort();
   const my = ++turn; ctl = new AbortController();
   if (Date.now() - lastAt > 5 * 60000) convo = [];
   lastAt = Date.now();
-  hud.open(); hud.you(text); hud.state("thinking"); hud.text(""); hud.clearActs();
+  hud.open(); hud.you(opt.show || text); hud.state("thinking"); hud.text(""); hud.clearActs();
   V.chip("heard", text);
   checkVoice();
-  const msg = "<assistant>\n" + setup() + "\n</assistant>\n<now>\n" + now() + "\n</now>\n<commands>\n" + commandList() + "\n</commands>\n\nThey said: " + text;
+  const msg = "<assistant>\n" + setup() + "\n</assistant>\n<now>\n" + now() + "\n</now>\n<commands>\n" + commandList() + "\n</commands>\n" + (opt.task ? "<task>\n" + String(opt.task).slice(0, 24000) + "\n</task>\n" : "") + "\nThey said: " + text;
   const messages = convo.slice(-12).concat([{ role:"user", content:msg }]);
   let seen = 0, spoken = "", buf = "", acts = Promise.resolve();
   // whole sentences are said as soon as they're written; [[do: …]] runs when its "]]" arrives
@@ -200,16 +239,24 @@ async function ask(text) {
   await acts;
   if (my !== turn) return "";
   convo.push({ role:"user", content:"They said: " + text }, { role:"assistant", content:full.trim() || "…" });
+  logIt(opt.show || text, spoken, hud.actTexts());
+  if (opt.done) try { opt.done(full, spoken); } catch (e) {}
   if (convo.length > 16) convo = convo.slice(-16);
   hud.text(spoken || (hud.actCount() ? "" : "…"));
   if (!spoken && !hud.actCount()) say("Done.");
   whenQuiet(() => {
     if (my !== turn) return;
     // a follow-up needs no wake phrase for a few seconds (longer when it asked something)
-    if (cfg.xAsFollow !== false && VL.on && !cfg.xVoiceNoWake) { V.awake(/\?\s*$/.test(spoken) ? 10000 : 7000); hud.state("follow"); } else hud.state("idle");
+    if (cfg.xAsFollow !== false && VL.on && !cfg.xVoiceNoWake) { V.awake(opt.follow || (/\?\s*$/.test(spoken) ? 10000 : 7000)); hud.state("follow"); } else hud.state("idle");
     hud.later();
   });
   return spoken;
+}
+// the conversation log (settings: kept on this PC only, the last 300)
+function logIt(you, said, acts) {
+  if (PRIVATE || cfg.xAsLog === false) return;
+  const l = load("asLog", []); l.push({ ts:Date.now(), you:String(you || "").slice(0, 500), said:String(said || "").slice(0, 2000), acts:(acts || []).slice(0, 8), who:name() });
+  save("asLog", l.slice(-300));
 }
 async function doIt(cmd, my) {
   if (my !== turn) return;
@@ -219,7 +266,7 @@ async function doIt(cmd, my) {
   try { r = await V.act(cmd); } catch (e) { r = null; }
   hud.act((r === null ? "✗ " : "✓ ") + (r || cmd));
 }
-V.brain = { on:() => cfg.xAssistant !== false && AI.ready(), ask, convo:() => convo, reset:() => { convo = []; } };
+V.brain = { on:() => cfg.xAssistant !== false && AI.ready(), ask, convo:() => convo, reset:() => { convo = []; }, persona, people, season, whisperNow, logIt, name, STYLES, winVoices, checkVoice };
 
 /* ---------------------------------------------------------------- what's on screen: a small card while you talk */
 const hud = (function () {
@@ -249,7 +296,8 @@ const hud = (function () {
     you(t) { c.querySelector(".asst-you").textContent = t ? "“" + t + "”" : ""; },
     text(t) { c.querySelector(".asst-text").textContent = t; },
     state(s) { api.side(); c.dataset.s = s; c.querySelector(".asst-st").textContent = (ST[s] || "").replace("{w}", cfg.xVoiceWake || "Hey Webs"); if (s !== "idle" && s !== "follow") clearTimeout(hideT); },
-    act(t) { acts++; const d = el("div", "asst-act"); d.textContent = t; c.querySelector(".asst-acts").appendChild(d); },
+    act(t, fn) { acts++; const d = el(fn ? "button" : "div", "asst-act" + (fn ? " go" : "")); d.textContent = t; if (fn) { d.type = "button"; d.onclick = fn; } c.querySelector(".asst-acts").appendChild(d); },
+    actTexts:() => [...c.querySelectorAll(".asst-act")].map(x => x.textContent),
     clearActs() { acts = 0; c.querySelector(".asst-acts").innerHTML = ""; },
     actCount:() => acts,
     later() { clearTimeout(hideT); hideT = setTimeout(() => { if (!playing && !Q.length && Date.now() >= VL.awakeUntil && document.activeElement !== c.querySelector("form input")) api.close(); else api.later(); }, 12000); },
@@ -347,7 +395,7 @@ st.textContent = `
 @keyframes asstSpin{to{transform:rotate(1turn)}}@keyframes asstPulse{from{transform:scale(.82)}to{transform:scale(1)}}@keyframes asstRing{from{transform:scale(.9);opacity:.5}to{transform:scale(1.25);opacity:0}}
 .asst-body{flex:1;min-width:0}.asst-top{display:flex;align-items:center;gap:8px}.asst-top b{font-size:14px}.asst-st{flex:1;font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.asst-x{width:26px;height:26px}
 .asst-you{font-size:12.5px;color:var(--dim);margin-top:4px;overflow-wrap:anywhere}.asst-text{font-size:14px;line-height:1.45;margin-top:6px;max-height:180px;overflow:auto;overflow-wrap:anywhere}.asst-text:empty{display:none}
-.asst-acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.asst-act{font-size:12px;padding:3px 9px;border-radius:999px;background:var(--bg3)}
+.asst-acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.asst-act{font-size:12px;padding:3px 9px;border-radius:999px;background:var(--bg3);border:0;color:var(--fg);font-family:inherit}.asst-act.go{cursor:pointer;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 45%,transparent)}.asst-act.go:hover{background:color-mix(in srgb,var(--accent) 18%,var(--bg3))}
 .asst-type{margin-top:8px}.asst-type input{width:100%;box-sizing:border-box}
 .as-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:end}.as-rate{width:100%}.as-adv{margin:6px 0 10px;font-size:13px}.as-adv summary{cursor:pointer;color:var(--dim)}.vc-asst .gtf select{width:100%}`;
 document.head.appendChild(st);

@@ -229,7 +229,7 @@ function morePanel() {
     .filter(Boolean).forEach(([e, n, fn]) => { const r = el("div", "mi"); r.innerHTML = '<span class="aie">' + e + "</span><span></span>"; r.lastChild.textContent = n; r.onclick = () => { closeOver(); fn(); }; m.appendChild(r); });
   const n = openOver("aimore", m); n.style.right = "8px";
 }
-X3.ai = { keyMoments, tidyTabs, compareTabs, studyPage, findAgain, morePanel, readTab, explain };
+X3.ai = { keyMoments, tidyTabs, compareTabs, studyPage, findAgain, morePanel, readTab, explain, pageTool };
 const menuRows10 = X3.menuRows;
 X3.menuRows = function (m) {
   if (menuRows10) menuRows10(m);
