@@ -85,7 +85,7 @@ const until = async (p, fn, ms = 4000) => { const end = Date.now() + ms; while (
   x = await run("set a timer for 10 minutes");
   check(await c.evaluate(() => load("timers", []).some(t => t.secs === 600)) && /10 minutes/.test(x.r), "“set a timer for 10 minutes”");
   x = await run("take a note buy milk");
-  check(await c.evaluate(() => load("notes", [])[0].t === "buy milk"), "“take a note buy milk”");
+  check(await c.evaluate(() => { const n = load("notes", []).slice(-1)[0]; return n.text === "buy milk" && n.title === "buy milk" && n.site === ""; }), "“take a note buy milk”: a proper note");
   x = await run("add call mom to my to do list");
   check(await c.evaluate(() => load("todo", [])[0].t === "call mom"), "“add call mom to my to-do list”");
   x = await run("change the theme to naruto");
@@ -232,6 +232,19 @@ const until = async (p, fn, ms = 4000) => { const end = Date.now() + ms; while (
   check(await until(c, () => /Blue Yeti USB Microphone \(not plugged in\)/.test(document.querySelector("#voicep .vc-mic").textContent)), "the picker shows it's not plugged in");
   await c.evaluate(() => { const s = document.querySelector("#voicep .vc-mic"); s.value = ""; s.dispatchEvent(new Event("change")); closeOver(); X3.voice.setOn(false); });
   check(await c.evaluate(() => cfg.xVoiceMic === "" && /Windows' default/.test(document.getElementById("toast").textContent) || cfg.xVoiceMic === ""), "back to Windows' default");
+
+  /* ---------------------------------------------------------------- a Web AI voice call in the sidebar gets the microphone */
+  await c.evaluate(() => { X3.voice.setOn(true); });
+  check(await until(c, () => !!X3.voice.state().eng), "listening");
+  const sd = await ctx.newPage(); watch(sd, errors, "side");
+  await sd.goto("https://browser.example/side.html#xai"); await wait(500);
+  check(await sd.evaluate(() => { const l = get("notes", []); return l.length > 0 && l.every(n => typeof n.text === "string" && typeof n.title === "string") && [...document.querySelectorAll("#nList b")].some(b => /buy milk/i.test(b.textContent)); }), "notes taken by voice show in the sidebar's Notes");
+  await sd.evaluate(() => window.XAI && XAI.call && XAI.call.start());
+  check(await until(c, () => !X3.voice.state().eng && X3.voice.state().on), "a voice call in the Web AI sidebar: Hey Webs pauses so the call can hear you");
+  await sd.evaluate(() => XAI.call.hangUp());
+  check(await until(c, () => !!X3.voice.state().eng), "hanging up: Hey Webs listens again");
+  await sd.close();
+  await c.evaluate(() => X3.voice.setOn(false));
 
   /* ---------------------------------------------------------------- Settings */
   const st = await ctx.newPage(); watch(st, errors, "settings");

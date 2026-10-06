@@ -49,16 +49,31 @@ function audioOut() {
 const Q = [];
 let playing = null, gen = 0, idleFns = [], talkT = 0;
 function setTalking(on) { clearTimeout(talkT); if (on) { VL.talking = true; if (hud.el.dataset.s !== "error") hud.state("talking"); } else talkT = setTimeout(() => { VL.talking = false; }, 350); }
+// nothing may wait forever: a stuck sentence would leave it "talking", and Hey Webs ignores everything but its name meanwhile
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 function fetchAdam(text) {
-  const ctl = new AbortController();
+  const ctl = new AbortController(); let late = false;
+  const to = setTimeout(() => { late = true; ctl.abort(); }, 12000);
   const p = fetch(AI.server() + "/speak", { method:"POST", headers:{ "content-type":"application/json" }, signal:ctl.signal,
     body:JSON.stringify({ code:AI.code(), device:AI.dev(), text, voice:/^[A-Za-z0-9]{12,40}$/.test(cfg.xAsVoiceId || "") ? cfg.xAsVoiceId : undefined }) })
     .then(async r => {
-      if (!r.ok) { let j = null; try { j = await r.json(); } catch (e) {} throw Object.assign(new Error(j && j.message || "The voice didn't answer (" + r.status + ")."), { kind:j && j.error || "voice" }); }
+      if (!r.ok) { let j = null; try { j = await r.json(); } catch (e) {} throw Object.assign(new Error(j && j.message || (r.status === 404 ? "Your Web AI server doesn't have the voice yet: run the new setup.cmd." : "The voice didn't answer (" + r.status + ").")), { kind:j && j.error || (r.status === 404 ? "novoice" : "voice") }); }
       return r.arrayBuffer();
-    });
+    })
+    .catch(e => { if (late) throw Object.assign(new Error("Adam took too long to answer."), { kind:"slow" }); throw e; })
+    .finally(() => clearTimeout(to));
   p.catch(() => {});
-  return { p, abort:() => ctl.abort() };
+  return { p, abort:() => { clearTimeout(to); ctl.abort(); } };
+}
+// the browser lets sound play only after you've clicked or typed in Webs once; until then a Windows voice talks
+const unlock = () => { try { audioOut(); if (actx.state !== "running") actx.resume().catch(() => {}); } catch (e) {} if (adamDown === BLOCKED) adamDown = ""; };
+addEventListener("pointerdown", unlock, true); addEventListener("keydown", unlock, true);
+const BLOCKED = "Adam can talk once you've clicked anywhere in Webs.";
+async function canPlay() {
+  audioOut();
+  if (actx.state === "running") return true;
+  await Promise.race([actx.resume().catch(() => {}), sleep(800)]);
+  return actx.state === "running";
 }
 function say(text) {
   text = String(text || "").replace(/[“”]/g, "").replace(/\s+/g, " ").trim();
@@ -72,24 +87,34 @@ function next() {
   const g = gen, item = Q.shift();
   if (!item) { playing = null; setTalking(false); const f = idleFns; idleFns = []; f.forEach(fn => { try { fn(); } catch (e) {} }); return; }
   playing = item; setTalking(true);
-  const done = () => { if (g === gen && playing === item) next(); };
+  let fin = false, guard = 0;
+  const done = () => { if (fin) return; fin = true; clearTimeout(guard); if (g === gen && playing === item) next(); };
+  const watch = ms => { clearTimeout(guard); guard = setTimeout(done, ms); };     // in case the end is never reported
+  const windows = () => { item.adam = null; winSay(item.text, done); watch(2500 + item.text.length * 110 / Math.min(1.3, Math.max(0.8, +cfg.xAsRate || 1))); };
   if (item.adam) {
+    watch(15000);
     item.adam.p.then(async buf => {
-      if (g !== gen) return;
-      audioOut(); if (actx.state === "suspended") await actx.resume().catch(() => {});
+      if (g !== gen || fin) return;
+      if (!(await canPlay())) throw Object.assign(new Error(BLOCKED), { kind:"blocked" });
       const b = await actx.decodeAudioData(buf);
-      if (g !== gen) return;
-      const src = actx.createBufferSource(); src.buffer = b; src.playbackRate.value = Math.min(1.3, Math.max(0.8, +cfg.xAsRate || 1));
+      if (g !== gen || fin) return;
+      const rate = Math.min(1.3, Math.max(0.8, +cfg.xAsRate || 1));
+      const src = actx.createBufferSource(); src.buffer = b; src.playbackRate.value = rate;
       src.connect(cfg.xAsFx !== false ? fxIn : dryIn); src.onended = done; item.src = src; src.start();
+      watch(b.duration / rate * 1000 + 1500);
     }).catch(e => {
-      if (g !== gen) return;
+      if (g !== gen || fin) return;
       // no Adam this time: a Windows voice for this and what follows, and say why once
-      if (e && e.name === "AbortError") return;
-      if (!adamDown) { adamDown = e && e.message || "The voice isn't available."; if (e && e.kind === "novoice") serverVoice = false; toast("🔊 " + adamDown + " Using a Windows voice for now."); }
+      const why = e && e.kind === "blocked" ? BLOCKED : e && e.message || "The voice isn't available.";
+      if (adamDown !== why) {
+        adamDown = why;
+        if (e && e.kind === "novoice") serverVoice = false;
+        toast("🔊 " + why + (e && e.kind === "blocked" ? " A Windows voice talks until then." : " Using a Windows voice for now."));
+      }
       Q.forEach(x => { if (x.adam) { x.adam.abort(); x.adam = null; } });
-      item.adam = null; winSay(item.text, done);
+      windows();
     });
-  } else winSay(item.text, done);
+  } else windows();
 }
 function winSay(text, done) {
   try {

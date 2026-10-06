@@ -239,7 +239,15 @@ function show(p) {
 document.querySelectorAll("nav button").forEach(b => b.onclick = () => { show(b.dataset.p); history.replaceState(null, "", "#" + b.dataset.p); });
 
 /* ---------------------------------------------------------------- notes */
-let notes = get("notes", []);
+// notes saved by Hey Webs 3.12 were { id, t, ts }: made whole again, so one of them can't break the list
+const fixNotes = l => (Array.isArray(l) ? l : []).filter(n => n && typeof n === "object").map(n => {
+  if (typeof n.text !== "string") n.text = typeof n.t === "string" ? n.t : String(n.text || "");
+  if (typeof n.title !== "string") n.title = n.t && typeof n.t === "string" ? n.t.split("\n")[0].slice(0, 60) : "";
+  if (!n.id) n.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  if (!n.ts) n.ts = Date.now();
+  delete n.t; return n;
+});
+let notes = fixNotes(get("notes", []));
 let cur = null, saveT = 0;
 function listNotes() {
   const q = $("nq").value.trim().toLowerCase();
@@ -765,7 +773,7 @@ function route() {
 addEventListener("hashchange", route);
 addEventListener("storage", e => {
   if (e.key === "wsb.settings") theme();
-  if (e.key === "wsb.notes" && !cur) { notes = get("notes", []); listNotes(); }
+  if (e.key === "wsb.notes" && !cur) { notes = fixNotes(get("notes", [])); listNotes(); }
   if (e.key === "wsb.reading" || e.key === "wsb.offline" || e.key === "wsb.highlights") { listReading(); paintAdd(); }
   if (e.key === "wsb.current") paintAdd();
   if (e.key === "wsb.todo") listTodo();
