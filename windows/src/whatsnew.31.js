@@ -1,4 +1,5 @@
 "3.13 · Your assistant": [
+  ["Voice fixes (3.13.2)", "The assistant's voice can't get stuck any more: if Adam is slow, sound isn't allowed yet or a Windows voice never finishes, it carries on with a Windows voice and Hey Webs keeps listening. A Web AI voice call in the sidebar now gets the microphone (Hey Webs pauses until you hang up), and notes taken by voice no longer break the sidebar's Notes.", "Voice control, Web AI"],
   ["Fixed (3.13.1)", "The assistant's card now shows at the bottom right of the window instead of getting stuck behind the toolbar at the top.", "The card"],
   ["Talk to Webs, and it talks back", "Say “Hey Webs” and then anything: what isn't a voice command becomes a conversation with Web AI, which answers out loud, a sentence at a time while it thinks.", "Voice control"],
   ["It does things for you", "“Put on some lo-fi and give me twenty minutes of focus”: it opens pages, sets timers, switches tabs and more, using the voice commands, and asks before anything that can't be undone.", "Voice control"],

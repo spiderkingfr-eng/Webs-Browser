@@ -28,9 +28,11 @@ function say(text, done) {
   speaking = true; paint();
   const next = () => {
     if (!speaking || i >= chunks.length) { speaking = false; paint(); if (done) done(); return; }
-    const u = new SpeechSynthesisUtterance(chunks[i++].trim());
+    const text = chunks[i++].trim(), u = new SpeechSynthesisUtterance(text);
     u.lang = navigator.language || "en-US"; const v = voice(); if (v) u.voice = v; u.rate = 1.03;
-    u.onend = next; u.onerror = next;
+    // some voices never report the end: move on anyway, so the call doesn't stop listening for good
+    let fin = false; const go = () => { if (fin) return; fin = true; clearTimeout(t); next(); }, t = setTimeout(go, 2500 + text.length * 110);
+    u.onend = go; u.onerror = go;
     synth.speak(u);
   };
   next();
@@ -71,8 +73,11 @@ function listen() {
 function stopListening() { if (rec) { const r = rec; rec = null; r.onend = r.onresult = r.onerror = null; try { r.abort(); } catch (e) {} } }
 
 /* the call */
-function startCall() { call = true; quiet = 0; stopTalking(); listen(); paint(); }
-function hangUp() { call = false; stopListening(); stopTalking(); paint(); }
+// Hey Webs (the window's voice control) pauses during a call, so the two don't fight over the microphone
+let beat = 0;
+const flag = on => { try { if (on) localStorage.setItem("wsb.xaiCall", String(Date.now())); else localStorage.removeItem("wsb.xaiCall"); } catch (e) {} };
+function startCall() { call = true; quiet = 0; flag(true); clearInterval(beat); beat = setInterval(() => flag(true), 20000); stopTalking(); setTimeout(() => { if (call) listen(); }, 350); paint(); }
+function hangUp() { const was = call; call = false; clearInterval(beat); if (was) flag(false); stopListening(); stopTalking(); paint(); }
 X.hooks.push(a => {
   if (!call) return;
   const text = a.err || a.text || a.note || "";

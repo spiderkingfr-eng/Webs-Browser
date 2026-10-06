@@ -152,7 +152,7 @@ add("bookmarks", "Saving and lists", "show my bookmarks", R("(show|open) (my )?b
 add("history", "Saving and lists", "show my history", R("(show|open) (my )?history|history"), () => { open1("history.html"); });
 add("downloads", "Saving and lists", "show downloads", R("(show|open) (my )?downloads|downloads"), () => { open1("downloads.html"); });
 add("reading", "Saving and lists", "show my reading list", R("(show|open) (my )?reading list|reading list"), () => { openSide("reading"); });
-add("note", "Saving and lists", "take a note buy milk", R("(take|make|write) a note( that| saying)? (.+)|note( that)? (.+)"), m => { const text = (m[3] || m[5]).trim(); const l = load("notes", []); l.unshift({ id:Date.now().toString(36), t:text, ts:Date.now() }); save("notes", l); return "Noted"; });
+add("note", "Saving and lists", "take a note buy milk", R("(take|make|write) a note( that| saying)? (.+)|note( that)? (.+)"), m => { const text = (m[3] || m[5]).trim(); const l = load("notes", []); l.push({ id:Date.now().toString(36) + Math.random().toString(36).slice(2, 6), title:text.split("\n")[0].slice(0, 60), text, ts:Date.now(), site:"" }); save("notes", l); return "Noted"; });
 add("notes", "Saving and lists", "open my notes", R("(show|open) (my )?notes|notes"), () => { openSide("notes"); });
 add("todo", "Saving and lists", "add call mom to my to do list", R("add (.+) to (my )?(to ?do|to do|task)( list)?|(new )?(to ?do|task) (.+)"), m => { const text = (m[1] || m[7]).trim(); const l = load("todo", []); l.unshift({ id:Date.now().toString(36), t:text, done:false, ts:Date.now() }); save("todo", l); return "Added to your to-do list"; });
 add("remindsite", "Saving and lists", "remind me about this site", R("remind me (about this site|next time|when i'?m back here)"), () => { web(); X3.gtd.remindPanel(); });
@@ -418,8 +418,11 @@ async function startOffline() {
   finally { if (n === loadN) L.loading = false; }
 }
 const engKey = () => (cfg.xVoiceOffline ? "offline" : "web") + "|" + (cfg.xVoiceMic || "");
+// a Web AI voice call in the sidebar has the microphone (webai.voice.js sets wsb.xaiCall, refreshed every 20 s)
+const inCall = () => { try { const t = +localStorage.getItem("wsb.xaiCall") || 0; return Date.now() - t < 60000; } catch (e) { return false; } };
+addEventListener("storage", e => { if (e.key !== "wsb.xaiCall" || !L.on) return; if (inCall()) { stop(); chip("paused", ""); } else start(); });
 function start() {
-  if (L.eng || L.loading || !L.on) return;
+  if (L.eng || L.loading || !L.on || inCall()) return;
   L.with = engKey();
   if (cfg.xVoiceFront !== false && document.hidden) return;
   if (cfg.xVoiceOffline || !(window.SpeechRecognition || window.webkitSpeechRecognition)) { if (cfg.xVoiceOffline) startOffline(); else fail("web"); return; }

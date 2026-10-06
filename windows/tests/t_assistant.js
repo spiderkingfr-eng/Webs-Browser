@@ -19,11 +19,13 @@ function wav(ms) {
   const ctx = await browser.newContext({ viewport:{ width:1280, height:820 } });
   await setup(ctx);
   const chats = [], speaks = [];
+  let speakHang = false;
   let answer = "Paris, of course.", speakStatus = 200, chatStatus = 200, voiceFeature = true;
   await ctx.route("https://w.test/**", async r => {
     const u = new URL(r.request().url()), H = { "access-control-allow-origin":"*" };
     if (u.pathname === "/") return r.fulfill({ status:200, headers:H, contentType:"application/json", body:JSON.stringify({ ok:true, features:voiceFeature ? ["assistant", "voice"] : ["assistant"] }) });
     if (u.pathname === "/speak") {
+      if (speakHang) return;     // never answers
       speaks.push(JSON.parse(r.request().postData()));
       if (speakStatus !== 200) return r.fulfill({ status:speakStatus, headers:H, contentType:"application/json", body:JSON.stringify({ error:speakStatus === 503 ? "novoice" : "limit", message:speakStatus === 503 ? "The Web AI server has no voice key yet." : "The voice has talked enough for today." }) });
       return r.fulfill({ status:200, headers:H, contentType:"audio/mpeg", body:wav(120) });
@@ -178,6 +180,36 @@ function wav(ms) {
   check(chats.length === c0 && await c.evaluate(() => /what is the tallest mountain/.test(JSON.parse(localStorage.getItem("wsb.xaiBarQ") || "{}").q || "")), "assistant off: questions go to the Web AI sidebar as before");
   check(await c.evaluate(() => !X3.voice.brain.on()), "and it isn't on");
   await c.evaluate(() => { cfg.xAssistant = true; });
+
+  /* ---------------------------------------------------------------- it never gets stuck talking */
+  await c.evaluate(() => { cfg.xAssistant = true; cfg.xAsVoice = "win:Microsoft David"; X3.voice.state().awakeUntil = 0; window.__mute = true;
+    const sp = speechSynthesis.speak; speechSynthesis.speak = u => { window.__spoken.push(u.text); if (!window.__mute) setTimeout(() => u.onend && u.onend(), 5); }; });
+  answer = "This voice never says it has finished.";
+  await sayIt("hey webs are you stuck");
+  check(await until(c, () => X3.voice.state().talking), "a Windows voice that never reports the end");
+  check(await until(c, () => !X3.voice.state().talking && !X3.voice.speaker.busy(), 9000), "still finishes, so Hey Webs listens again");
+  await c.evaluate(() => { window.__mute = false; cfg.xAsVoice = "adam"; });
+  // the browser not letting sound play yet: a Windows voice, until you click
+  await c.evaluate(() => { window.__res = AudioContext.prototype.resume; AudioContext.prototype.resume = () => new Promise(() => {});
+    Object.defineProperty(AudioContext.prototype, "state", { configurable:true, get() { return window.__allow ? "running" : "suspended"; } }); __spoken.length = 0; X3.voice.state().awakeUntil = 0; });
+  answer = "Sound is blocked until you click.";
+  await sayIt("hey webs can you talk");
+  check(await until(c, () => __spoken.includes("Sound is blocked until you click."), 6000), "sound not allowed yet: a Windows voice says it instead of going quiet");
+  check(await c.evaluate(() => /clicked anywhere in Webs/.test(document.getElementById("toast").textContent)), "and it says why");
+  await quiet();
+  await c.evaluate(() => { window.__allow = true; document.body.dispatchEvent(new PointerEvent("pointerdown", { bubbles:true })); __spoken.length = 0; X3.voice.state().awakeUntil = 0; });
+  const s2 = speaks.length; answer = "Adam again.";
+  await sayIt("hey webs and now");
+  check(await untilN(() => speaks.length > s2 && speaks[speaks.length - 1].text === "Adam again.") && await until(c, () => !__spoken.includes("Adam again.")), "after a click, Adam talks again");
+  await quiet();
+  await c.evaluate(() => { delete AudioContext.prototype.state; AudioContext.prototype.resume = window.__res; });
+  // the voice server hanging
+  speakHang = true; answer = "The voice server is hanging.";
+  await c.evaluate(() => { __spoken.length = 0; X3.voice.state().awakeUntil = 0; });
+  await sayIt("hey webs why is the voice so slow today");
+  check(await until(c, () => __spoken.includes("The voice server is hanging."), 16000), "Adam's server hanging: after a few seconds a Windows voice says it");
+  check(await until(c, () => /too long/.test(document.getElementById("toast").textContent)), "and says Adam took too long");
+  await quiet(); speakHang = false;
 
   /* ---------------------------------------------------------------- as in the real window: the toolbar's view is only as tall as the toolbar */
   await c.setViewportSize({ width:1280, height:90 }); await wait(100);
