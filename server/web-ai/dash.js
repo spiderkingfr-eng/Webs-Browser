@@ -567,7 +567,7 @@ PANES.live = async function (p) {
       g.pending.forEach(function (x) {
         var c = E("div", "gal"), im = E("img"); im.src = x.img; im.alt = "";
         var ti = inp("Name", x.title, { maxlength:60 });
-        add(c, im, E("p", "d small", "by " + x.by + " · " + (x.app === "iphone" ? "📱" : "💻") + " · " + ago(x.ts)), ti,
+        add(c, im, E("p", "d small", (x.kind === "fanart" ? "🎨 Fan art · " : "") + "by " + x.by + " · " + (x.app === "iphone" ? "📱" : "💻") + " · " + ago(x.ts) + (x.link ? " · " + x.link : "")), ti,
           rowOf(btn("Approve", async function (b) { await act(b, function () { return call({ op:"gallery.ok", id:x.id, title:ti.input.value }); }, "In everyone's gallery."); paintGallery(); }),
             btn("Turn down", async function (b) { await act(b, function () { return call({ op:"gallery.no", id:x.id }); }, "Turned down."); paintGallery(); }, "danger")));
         galL.appendChild(c);

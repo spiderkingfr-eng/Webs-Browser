@@ -1,8 +1,11 @@
 {
-  "version": "2.10.1",
-  "date": "2026-10-05",
+  "version": "2.11.0",
+  "date": "2026-10-06",
   "notes": [
-    "Happening near you no longer stops working when the Web AI server hasn't been updated yet"
+    "Ad and tracker blocker, and search inside the app (Settings → Privacy and Search)",
+    "25 Web AI tools in More from Web AI, with your own prompts",
+    "The Anime hub: seasonal chart, countdowns, games, voice actors, filler guide, a theme from your photo, Mochi outfits, stickers, radio, conventions and fan art",
+    "Watching: watch later, video moments, Twitch streamers live, a Shorts limit and your week"
   ],
   "webai": {
     "server": "https://web-ai.spiderkingfr.workers.dev",

@@ -33,7 +33,7 @@ async function ask(task, content, opt) {
   let r;
   try {
     r = await fetch(server() + "/chat", { method:"POST", headers:{ "content-type":"application/json" }, signal:opt.signal,
-      body:JSON.stringify({ code:codeToSend(), device:dev(), task, prefs:prefs(), web:!!opt.web, messages:opt.messages || [{ role:"user", content:String(content || "") }] }) });
+      body:JSON.stringify({ code:codeToSend(), device:dev(), task, prefs:prefs(), web:!!opt.web, search:!!opt.search, image:opt.image || undefined, messages:opt.messages || [{ role:"user", content:String(content || "") }] }) });
   } catch (e) { if (e && e.name === "AbortError") throw e; throw new Error("Can't reach Web AI. Check your internet connection."); }
   if (!r.ok || !r.body) {
     let j = null; try { j = await r.json(); } catch (e) {}
@@ -133,7 +133,9 @@ function study(el, data) {
           (picked >= 0 ? '<button type="button" class="ai-next">' + (qi + 1 < quiz.length ? "Next question ›" : "See how you did") + "</button>" : "") + "</div>";
       }
     } else h += '<p class="ai-none">Nothing to study here.</p>';
+    if (cards.length && window.AI && AI.saveFile) h += '<button type="button" class="ai-savecards">⤓ Save the cards as a file (for Anki or Quizlet)</button>';
     el.innerHTML = h;
+    const sv = el.querySelector(".ai-savecards"); if (sv) sv.onclick = () => AI.saveFile("Flashcards.txt", cardsText(cards));
     el.querySelectorAll(".ai-seg button").forEach(b => { b.onclick = () => { mode = b.dataset.m; paint(); }; });
     const card = el.querySelector(".ai-card"); if (card) card.onclick = () => { flip = !flip; card.classList.toggle("flip", flip); };
     el.querySelectorAll("[data-n]").forEach(b => { b.onclick = () => { ci = (ci + +b.dataset.n + cards.length) % cards.length; flip = false; paint(); }; });
@@ -176,5 +178,14 @@ css.textContent = `
 .ai-done{display:flex;flex-direction:column;align-items:center;gap:6px;padding:16px}.ai-done b{font-size:28px}.ai-none{opacity:.7}
 `;
 (document.head || document.documentElement).appendChild(css);
-window.AI = { ask, json, md, inline, isQuestion, quick, quickGet, plain, study, historyLines, prefs, setPrefs, ready:() => !!server(), server, dev, code:codeToSend };
+// how many questions are left today (3.14): kept after every answer, and asked for now and then
+const left = () => { const n = st().left; return typeof n === "number" ? n : null; };
+async function check() {
+  if (!server()) return null;
+  try { const r = await fetch(server() + "/check", { method:"POST", headers:{ "content-type":"application/json" }, body:JSON.stringify({ code:codeToSend(), device:dev() }) }); const j = await r.json(); if (typeof j.left === "number") { put("xai", Object.assign(st(), { left:j.left, limit:j.limit })); return j; } } catch (e) {}
+  return null;
+}
+// study cards as a file other apps import (Anki, Quizlet: one card per line, front and back split by a tab)
+const cardsText = cards => (cards || []).map(c => [c.q, c.a].map(x => String(x || "").replace(/[\t\r\n]+/g, " ").trim()).join("\t")).join("\n");
+window.AI = { ask, json, md, inline, isQuestion, quick, quickGet, plain, study, historyLines, prefs, setPrefs, ready:() => !!server(), server, dev, code:codeToSend, left, check, cardsText, saveFile:null };
 })();

@@ -42,9 +42,20 @@ if errorlevel 1 goto failed
 :voice
 echo.
 choice /c YN /m "Add (or change) an ElevenLabs key for the assistant's voice, Adam (optional, free to start at elevenlabs.io)"
-if errorlevel 2 goto finish
+if errorlevel 2 goto twitch
 echo Paste your ElevenLabs API key (elevenlabs.io - your profile - API keys), then press Enter.
 call npx --yes wrangler@4 secret put ELEVENLABS_KEY
+if errorlevel 1 goto failed
+:twitch
+echo.
+choice /c YN /m "Add (or change) a Twitch app for the streamers you follow (optional, free at dev.twitch.tv/console)"
+if errorlevel 2 goto finish
+echo At dev.twitch.tv/console: Register Your Application, any name, OAuth Redirect URL http://localhost, category Other.
+echo Paste its Client ID, then press Enter.
+call npx --yes wrangler@4 secret put TWITCH_CLIENT_ID
+if errorlevel 1 goto failed
+echo Now press New Secret there, and paste the Client Secret, then press Enter.
+call npx --yes wrangler@4 secret put TWITCH_CLIENT_SECRET
 if errorlevel 1 goto failed
 :finish
 echo.

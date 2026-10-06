@@ -17,12 +17,16 @@
      TOTAL_DAILY_LIMIT   text     questions for everyone together per day (150)
      TICKETMASTER_KEY    secret   (optional) for events in Happening near you: free at developer.ticketmaster.com
      ELEVENLABS_KEY      secret   (optional) the assistant's voice, "Adam" (speak.js): elevenlabs.io → API keys
+     TWITCH_CLIENT_ID    secret   (optional) with TWITCH_CLIENT_SECRET: streamers you follow, live now and their schedules
+     TWITCH_CLIENT_SECRET secret  (streams.js): a free app at dev.twitch.tv/console
      SPEAK_DAILY         text     characters the voice may say per person per day (20000)
      MODEL               text     claude-sonnet-5-5 (or claude-haiku-4-5, about half the price)
 
    The browser talks to it as:
      GET  /        is it running?
      POST /check   { code?, device? }          -> { ok, name, left, limit, open }
+     GET  /filler?s=<show>   which episodes of a long anime are filler (filler.js)
+     GET  /streams?u=a,b     Twitch streamers: who's live, and their schedules (streams.js)
      POST /speak   { code?, device?, text, voice? }   -> audio/mpeg in the assistant's voice (speak.js)
      POST /chat    { code?, device?, messages:[{role, content}], web?, prefs?, task? }
                    web:true (the iPhone app, which can't read pages itself) lets Claude
@@ -91,6 +95,8 @@ import { ledgerApi, ledgerAdmin, Ledger } from "./ledger.js";
 import { readApi } from "./reader.js";
 import { nearApi } from "./near.js";
 import { speakApi, speakReady } from "./speak.js";
+import { fillerApi } from "./filler.js";
+import { streamsApi } from "./streams.js";
 export { Room, Ledger };
 import { ADMIN_PAGE, DASH_JS, DASH_CSS, DASH_SW, DASH_MANIFEST, DASH_ICON, DASH_PNG } from "./dash.js";
 
@@ -124,9 +130,21 @@ const TASKS = {
   study:"Make study material from the <page> block's main content. Reply with only JSON in a ```json block, like {\"cards\":[{\"q\":\"a question or a term\",\"a\":\"a short answer\"}],\"quiz\":[{\"q\":\"a question\",\"opts\":[\"a\",\"b\",\"c\",\"d\"],\"a\":0}]}, with 8 to 12 cards and 5 quiz questions, each with four choices and \"a\" the number of the right one, 0 for the first.",
   explain:"Explain the <selection> simply, in two to four short sentences, using the page around it (in the <page> block, if there is one) for context. Plain text, no headings or lists.",
   jarvis:"You are the person's spoken assistant inside Webs Browser on their Windows PC, like JARVIS for Tony Stark: calm, quick, capable, a little dry wit, never fawning. Everything you write is read aloud, so: plain sentences only (no Markdown, lists, headings, emoji, code or web addresses), and short (one to three sentences) unless they ask for detail or a story. The <assistant> block in their message says your name, what to call them and the style they chose; the <now> block says the time, the page they're on and their open tabs. To do things in the browser, put each action on its own line as [[do: command]] with a command written like the examples in the <commands> block (for example [[do: open youtube]] or [[do: set a timer for 5 minutes]]), up to 5 actions, in order, and say briefly what you're doing. Only use commands like those listed; for anything else, say what you can do instead. Before anything that loses work or can't be undone (closing several tabs, clearing things) ask first and act only when they say yes. Don't invent facts about the page you can't see: suggest reading it with a command, or answer from general knowledge and say so.",
+  factcheck:"Check the claim in the message. Search the web for good sources. Reply in Markdown: first a line with the verdict in bold (True, Mostly true, Mixed, Mostly false, False, or Can't tell) and how sure you are; then two to four short sentences explaining why; then a list of the sources you used as Markdown links.",
+  compare2:"Compare the things named in the message. Search the web for current facts and prices. Reply in Markdown: a table with a column for each and a row for each fact that matters (price, key specs or features, ratings), then two or three sentences on which suits whom, then the sources as Markdown links.",
   find:"The message lists pages from the person's history, one per line as: number | when | title | address, and then what they're looking for. Find the pages that match. Reply with only JSON in a ```json block, like {\"hits\":[{\"n\":12,\"why\":\"a few words\"}]}, with at most 6, the best first, or {\"hits\":[]} if none fit."
 };
 const PREFS_MAX = 600;
+// the jobs that may search the web (each search is billed: at most 3 per question)
+const SEARCH_TASKS = ["factcheck", "compare2"];
+// a picture for Claude: { url:"https://…" } or { data:"data:image/png;base64,…" }
+function imageBlock(im) {
+  if (!im || typeof im !== "object") return null;
+  if (typeof im.url === "string" && /^https:\/\/[^\s"<>]{4,2000}$/.test(im.url)) return { type:"image", source:{ type:"url", url:im.url } };
+  const m = typeof im.data === "string" && /^data:image\/(png|jpeg|webp|gif);base64,([A-Za-z0-9+/=]+)$/.exec(im.data);
+  if (m && m[2].length <= 2000000) return { type:"image", source:{ type:"base64", media_type:"image/" + m[1], data:m[2] } };
+  return null;
+}
 // the system prompt for a question: the person's own instructions (their words, kept apart) and the job, if any
 function system(date, prefs, task) {
   let s = SYSTEM(date);
@@ -144,7 +162,7 @@ export default {
     try {
       if (req.method === "GET" && path === "/") {      // says what's missing, never any value
         const missing = setupProblem(env);
-        return json({ ok:true, name:"Web AI", ready:!missing, open:isOpen(env), model:model(env), features:["report", "link", "admin", "push", "support", "live", "owner", "privacy", ...(env.ROOMS ? ["rooms"] : []), ...(env.LEDGER ? ["ledger"] : []), "near", ...(String(env.TICKETMASTER_KEY || "").trim() ? ["events"] : []), "assistant", ...(speakReady(env) ? ["voice"] : [])], ...(missing ? { missing:"Still to do: " + missing } : {}) }, 200, cors);
+        return json({ ok:true, name:"Web AI", ready:!missing, open:isOpen(env), model:model(env), features:["report", "link", "admin", "push", "support", "live", "owner", "privacy", ...(env.ROOMS ? ["rooms"] : []), ...(env.LEDGER ? ["ledger"] : []), "near", ...(String(env.TICKETMASTER_KEY || "").trim() ? ["events"] : []), "assistant", ...(speakReady(env) ? ["voice"] : []), ...(String(env.TWITCH_CLIENT_ID || "").trim() && String(env.TWITCH_CLIENT_SECRET || "").trim() ? ["streams"] : [])], ...(missing ? { missing:"Still to do: " + missing } : {}) }, 200, cors);
       }
       if ((req.method === "GET" && /^\/live(\/img\/[a-z0-9]{10})?$/.test(path)) || (req.method === "POST" && /^\/live\/(ping|act|replies)$/.test(path))) {
         if (!env.LIMITS || typeof env.LIMITS.get !== "function") return json({ error:"setup", message:"The storage (LIMITS) isn't set up." }, 503, cors);
@@ -153,6 +171,8 @@ export default {
       if (req.method === "GET" && path === "/changelog") return Response.redirect(APP_URL.replace(/\/?$/, "/") + "changelog.html", 302);
       if (req.method === "GET" && (path === "/near" || path === "/near/geo")) return await nearApi(path, req, env, cors, ctx);
       if (req.method === "GET" && path === "/read") return await readApi(req, env, cors);
+      if (req.method === "GET" && path === "/filler") return await fillerApi(req, env, cors, ctx, { json });
+      if (req.method === "GET" && path === "/streams") return await streamsApi(req, env, cors, ctx, { json });
       if (req.method === "POST" && path === "/speak") { if (!env.LIMITS || typeof env.LIMITS.get !== "function") return json({ error:"setup", message:"The storage (LIMITS) isn't set up." }, 503, cors); return await speakApi(req, env, cors, ctx, { json, person, ownerCfg, isBlocked }); }
       if (req.method === "GET" && path === "/room") return await roomApi(req, env, cors);
       if ((req.method === "GET" && /^\/gallery(\/img\/[a-z0-9]{10})?$/.test(path)) || (req.method === "POST" && /^\/(stats|gallery\/send|invite\/new|invite\/claim)$/.test(path))) return await ledgerApi(path, req, env, cors);
@@ -200,6 +220,15 @@ export default {
       if (all >= total) return json({ error:"busy", message:"Web AI has answered everyone's questions for today. It's back tomorrow (midnight UTC)." }, 429, cors);
       const messages = tidy(body.messages);
       if (typeof messages === "string") return json({ error:"bad", message:messages }, 400, cors);
+      // a picture to look at (3.14, "Describe this picture"): its address, or the picture itself, with the last question
+      if (body.image != null) {
+        const img = imageBlock(body.image);
+        if (!img) return json({ error:"bad", message:"That picture can't be sent to Web AI (only PNG, JPEG, WebP or GIF, up to 1.5 MB)." }, 400, cors);
+        const last = messages[messages.length - 1]; last.content = [img, { type:"text", text:last.content }];
+      }
+      const tools = [];
+      if (body.web === true) tools.push({ type:"web_fetch_20250910", name:"web_fetch", max_uses:body.task === "compare" ? 4 : 1, max_content_tokens:body.task === "compare" ? 4000 : 6000 });     // comparing tabs on the iPhone: up to four pages
+      if (body.search === true && SEARCH_TASKS.includes(body.task)) tools.push({ type:"web_search_20250305", name:"web_search", max_uses:3 });     // fact checks and comparisons look things up
 
       const up = await fetch(API, {
         method:"POST",
@@ -211,7 +240,7 @@ export default {
           messages,
           // chat: short or no thinking, a quick first word (Haiku 4.5 has no effort setting)
           ...(/haiku/i.test(ai.model) ? {} : { output_config:{ effort:"low" } }),
-          ...(body.web === true ? { tools:[{ type:"web_fetch_20250910", name:"web_fetch", max_uses:body.task === "compare" ? 4 : 1, max_content_tokens:body.task === "compare" ? 4000 : 6000 }] } : {}),     // comparing tabs on the iPhone: up to four pages
+          ...(tools.length ? { tools } : {}),     // comparing tabs on the iPhone: up to four pages
           cache_control:{ type:"ephemeral" },      // follow-up questions reread the page from the cache
           stream:true
         })

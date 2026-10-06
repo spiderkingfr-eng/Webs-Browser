@@ -597,6 +597,7 @@ function xTool(action, arg) {
     case 'x-shop-warn': { var so = null; try { so = JSON.parse(arg); } catch (e) {} if (so) xShopWarn(so); return true; }
     case 'x-seen': xSeen(); return true;
   }
+  if (typeof X_MORE === 'object' && X_MORE[action]) { X_MORE[action](arg); return true; }
   return false;
 }
 
@@ -934,7 +935,7 @@ function xLaser() {
 /* The shell only passes a fixed set of shortcuts on while a page has the
    keyboard, so the new ones are caught here, from real key presses only, and
    handed to the browser the same way mouse gestures are. */
-var X_KEYS = 'ABEGMRUXZ', xKeysOn = true;
+var X_KEYS = 'ABEGKMRUXZ', xKeysOn = true;
 W.addEventListener('keydown', function (e) {
   if (!xKeysOn || !e.isTrusted || !TOP || e.ctrlKey || e.metaKey || !e.altKey) return;
   var k = '';
