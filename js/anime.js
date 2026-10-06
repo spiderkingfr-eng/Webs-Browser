@@ -23,7 +23,10 @@
    Anime.scheduled(sc) / slot(sc)  the theme a schedule wants now (time of day or day of the week)
    Anime.schedEditor(el, sc, fn)   the schedule's editor
    run(…, { beat })                moves with the music (a function giving 0 to 1)
-   run(…, { hidden })              a little spider hides in the wallpaper now and then: handle.hidden() says where */
+   run(…, { hidden })              a little spider hides in the wallpaper now and then: handle.hidden() says where
+   (Windows 3.14, iPhone 2.11)
+   Anime.mine()                    your own theme, "mine", made from a picture (wsb.animeMine): read again after a change
+   picker(…, { make, mine })       make(): a tile to make your own; mine:false leaves yours out */
 (function () {
 "use strict";
 const TAU = Math.PI * 2;
@@ -1031,6 +1034,34 @@ function card(el, id, opt) {
   el.setAttribute("aria-label", th.name + " card: " + f.time + " " + f.ampm + ", " + f.wd + ", " + f.md);
 }
 
+/* ---------------------------------------------------------------- 3.14 (#058): your own theme, from a picture
+   js/anime.more.js makes it (AnimeMore.makeTheme) and keeps it in wsb.animeMine { name, a, c, img }; its wallpaper is
+   your picture, slowly drifting and zooming (the "Ken Burns" look). Anime.mine() reads it again after a change. */
+let MINE_IMG = null;
+function mine() {
+  let m = null; try { m = JSON.parse(localStorage.getItem("wsb.animeMine") || "null"); } catch (e) {}
+  const i = THEMES.findIndex(t => t.id === "mine"); if (i >= 0) THEMES.splice(i, 1);
+  delete BY.mine; MINE_IMG = null;
+  if (!m || typeof m.img !== "string" || !/^data:image\//.test(m.img) || !Array.isArray(m.c) || m.c.length !== 8 || !m.c.concat(m.a).every(x => /^#[0-9a-f]{6}$/i.test(x))) return null;
+  const th = { id:"mine", name:String(m.name || "My theme").slice(0, 30), show:"your picture", e:"🖼️", a:m.a, amb:"cafe", tag:"Made by you.", c:m.c.slice(), mine:true };
+  THEMES.push(th); BY.mine = th;
+  if (typeof Image === "function") { MINE_IMG = new Image(); MINE_IMG.src = m.img; }
+  return th;
+}
+WALL.mine = {
+  pt:0, init:() => ({}),
+  draw(g, W, H, t, S, m) {
+    g.fillStyle = BY.mine ? BY.mine.c[0] : "#111"; g.fillRect(0, 0, W, H);
+    const im = MINE_IMG; if (!im || !im.complete || !im.naturalWidth) return;
+    const k = Math.max(W / im.naturalWidth, H / im.naturalHeight) * (1.1 + .06 * Math.sin(t / 15)), w = im.naturalWidth * k, h = im.naturalHeight * k;
+    const px = m ? (m.x - .5) * -14 : 0, py = m ? (m.y - .5) * -14 : 0;
+    g.drawImage(im, (W - w) / 2 + Math.sin(t / 23) * (w - W) * .4 + px, (H - h) / 2 + Math.cos(t / 19) * (h - H) * .4 + py, w, h);
+    g.fillStyle = "rgba(0,0,0,.16)"; g.fillRect(0, 0, W, H);       // so the words over it stay easy to read
+  }
+};
+CARD.mine = f => '<div class="an-body"><div class="an-date">' + esc(f.wd) + " · " + esc(f.md) + '</div><div class="an-time">' + f.time + "<small>" + f.ampm + '</small></div><div class="an-tag"></div></div>';
+mine();
+
 /* ---------------------------------------------------------------- choosing one */
 // every tile plays its wallpaper (a little slower than the real one, and only while it's on screen)
 // opt.none: the last tile, for no theme ({ name, show, e }); false leaves it out
@@ -1040,17 +1071,20 @@ function picker(el, opt) {
   let dead = false;
   el.innerHTML = '<div class="an-grid"></div><p class="an-note">Fan-made looks inspired by these shows: drawn by Webs, not official, and not connected to their creators.</p>';
   const grid = el.querySelector(".an-grid");
-  THEMES.concat(events(), opt.none === false ? [] : [Object.assign({ id:"", name:"No anime theme", show:"Your own look", e:"✖️" }, opt.none)]).forEach(th => {
+  THEMES.filter(t => !(t.mine && opt.mine === false)).concat(events(), opt.make ? [{ id:"+make", name:BY.mine ? "Make another from a picture" : "Make one from your picture", show:"Colors and a moving wallpaper from a picture you choose", e:"🖼️", make:true }] : [],
+    opt.none === false ? [] : [Object.assign({ id:"", name:"No anime theme", show:"Your own look", e:"✖️" }, opt.none)]).forEach(th => {
     const b = document.createElement("button");
-    b.type = "button"; b.className = "an-tile" + (th.id === (opt.current || "") ? " on" : "") + (th.id ? "" : " none"); b.dataset.id = th.id;
-    b.innerHTML = (th.id ? "<canvas></canvas>" : '<div class="an-none">' + th.e + "</div>") + "<b></b><span></span>";
-    b.querySelector("b").textContent = th.name; b.querySelector("span").textContent = th.ev ? (th.live ? "⏳ Limited time · a Webs event" : "A Webs event you kept") : th.id ? "Inspired by " + th.show : th.show;
+    const plain = !th.id || th.make;
+    b.type = "button"; b.className = "an-tile" + (th.id === (opt.current || "") ? " on" : "") + (plain ? " none" : ""); b.dataset.id = th.id;
+    b.innerHTML = (plain ? '<div class="an-none">' + th.e + "</div>" : "<canvas></canvas>") + "<b></b><span></span>";
+    b.querySelector("b").textContent = th.name; b.querySelector("span").textContent = th.ev ? (th.live ? "⏳ Limited time · a Webs event" : "A Webs event you kept") : th.mine ? "Made from your picture" : th.id && !th.make ? "Inspired by " + th.show : th.show;
+    if (th.make) { b.onclick = () => opt.make(); grid.appendChild(b); return; }
     if (th.ev) b.classList.add("an-ev");
     const fd = th.id && found(th.id); if (fd) { const k = document.createElement("i"); k.className = "an-found"; k.title = "Hidden spiders found in this wallpaper"; k.textContent = "🕷 " + fd; b.appendChild(k); }
-    if (th.id) b.style.setProperty("--ac", th.a);
+    if (!plain) b.style.setProperty("--ac", th.a);
     b.onclick = () => { grid.querySelectorAll(".an-tile").forEach(x => x.classList.toggle("on", x === b)); if (opt.onPick) opt.onPick(th.id); };
     grid.appendChild(b);
-    if (th.id) {
+    if (!plain) {
       const cv = b.querySelector("canvas");
       requestAnimationFrame(() => {
         if (dead) return;
@@ -1107,7 +1141,7 @@ function foundIt(spot) {
 
 /* ---------------------------------------------------------------- a trail behind the pointer */
 const TRAILS = { bleach:"moth", ghoul:"drop", slayer:"petal", jjk:"spark", naruto:"leaf", aot:"feather", onepiece:"bubble", deathnote:"feather", p5:"star",
-  halloween:"ember", winter:"snow", newyear:"spark", hearts:"heart" };
+  halloween:"ember", winter:"snow", newyear:"spark", hearts:"heart", mine:"spark" };
 function trail(id, opt) {
   opt = opt || {};
   const th = BY[id], kind = TRAILS[id];
@@ -1296,6 +1330,7 @@ css.textContent = `
 .an-hearts{background:radial-gradient(circle at 80% 80%,#ff5c9355,transparent 50%),linear-gradient(150deg,#2a0f22,#5a1c40 70%,#a33a5c);color:#fff0f6}
 .an-card .an-evE{position:absolute;right:20px;top:50%;transform:translateY(-50%);font-size:58px;z-index:2;filter:drop-shadow(0 4px 12px rgba(0,0,0,.4))}
 .an-card[class*="an-halloween"] .an-evE,.an-card.an-winter .an-evE,.an-card.an-newyear .an-evE,.an-card.an-hearts .an-evE{animation:anBob 3.4s ease-in-out infinite!important}
+.an-mine{background:#111;color:#fff}.an-mine .an-body{text-shadow:0 2px 12px rgba(0,0,0,.6)}
 .an-tile.an-ev{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ac) 60%,transparent)}
 .an-found{position:absolute;right:8px;top:8px;font-style:normal;font-size:11px;padding:1px 6px;border-radius:9px;background:rgba(0,0,0,.55);color:#fff}
 /* the trail and the screensaver */
@@ -1326,5 +1361,5 @@ css.textContent = `
 if (!window.animeNoCss) (document.head || document.documentElement).appendChild(css);
 
 window.Anime = { THEMES, EVENTS, events, get:id => BY[id] || null, run, preview, card, picker, apply, has:id => !!BY[id], motion, trail, saver, scheduled, slot, schedEditor,
-  found, foundIt, _wall:WALL, _fx:FXC, _rng:rng };
+  found, foundIt, mine, _wall:WALL, _fx:FXC, _rng:rng };
 })();

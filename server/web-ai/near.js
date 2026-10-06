@@ -50,6 +50,26 @@ export async function events(key, lat, lon) {
   return out;
 }
 
+// 3.14: anime, comic and cosplay conventions in the next four months, within 300 km (two searches, merged)
+const CON = /anime|manga|otaku|cosplay|comic ?con|comic-con|comicon|fan ?expo|japan ?(expo|fest)|kawaii|anime ?expo|\bcon\b|convention/i;
+export async function cons(key, lat, lon) {
+  if (!key) return null;
+  const now = new Date(), end = new Date(Date.now() + 120 * 86400000), iso = d => d.toISOString().slice(0, 19) + "Z";
+  const q = kw => get("https://app.ticketmaster.com/discovery/v2/events.json?apikey=" + encodeURIComponent(key) + "&latlong=" + lat + "," + lon +
+    "&radius=300&unit=km&size=30&sort=date,asc&keyword=" + encodeURIComponent(kw) + "&startDateTime=" + iso(now) + "&endDateTime=" + iso(end));
+  const all = await Promise.all([q("anime"), q("comic con"), q("cosplay")]);
+  const seen = new Set(), out = [];
+  for (const j of all) for (const e of (j && j._embedded && Array.isArray(j._embedded.events) ? j._embedded.events : [])) {
+    const name = clean(e.name, 120); if (!name || seen.has(name.toLowerCase()) || !CON.test(name)) continue;
+    seen.add(name.toLowerCase());
+    const v = e._embedded && e._embedded.venues && e._embedded.venues[0] || {}, vl = v.location ? [+v.location.latitude, +v.location.longitude] : null;
+    const img = (Array.isArray(e.images) ? e.images : []).filter(i => i && /^https:/.test(i.url || "")).sort((a, b) => Math.abs((a.width || 0) - 640) - Math.abs((b.width || 0) - 640))[0];
+    out.push({ name, url:/^https:\/\//.test(e.url || "") ? e.url : "", date:(e.dates && e.dates.start && e.dates.start.localDate) || "", venue:clean(v.name, 80), city:clean(v.city && v.city.name, 60),
+      km:vl && isFinite(vl[0]) ? Math.round(km(lat, lon, vl[0], vl[1])) : null, img:img ? img.url : "" });
+  }
+  return out.sort((a, b) => a.date < b.date ? -1 : 1).slice(0, 12);
+}
+
 const WMO_STORM = [95, 96, 99];
 export async function alerts(lat, lon, cc) {
   const out = [];
@@ -126,8 +146,8 @@ export async function nearApi(path, req, env, cors, ctx) {
   if (cache) { const hit = await cache.match(key); if (hit) out = await hit.json(); }
   if (!out) {
     const tk = String(env.TICKETMASTER_KEY || "").trim();
-    const [ev, al, qk, nw] = await Promise.all([events(tk, lat, lon), alerts(lat, lon, cc), quakes(lat, lon), news(name, cc)]);
-    out = { events:ev || [], alerts:al, quakes:qk, news:nw, ...(ev === null ? { missing:["events"] } : {}) };
+    const [ev, al, qk, nw, cn] = await Promise.all([events(tk, lat, lon), alerts(lat, lon, cc), quakes(lat, lon), news(name, cc), cons(tk, lat, lon)]);
+    out = { events:ev || [], alerts:al, quakes:qk, news:nw, cons:cn || [], ...(ev === null ? { missing:["events"] } : {}) };
     if (cache) ctx.waitUntil(cache.put(key, new Response(JSON.stringify(out), { headers:{ "content-type":"application/json", "cache-control":"public, max-age=3600" } })));
   }
   const live = await liveCfg(env);

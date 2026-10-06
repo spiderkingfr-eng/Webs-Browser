@@ -6,7 +6,8 @@
                   and clicked in an A/B test (an announcement with two versions)
      GET  /gallery                 the wallpapers people shared that the owner approved: [{ id, title, by, url }]
      GET  /gallery/img/<id>        one of them
-     POST /gallery/send { device, title, by, img }   a wallpaper to share (a JPEG data: URL, 600 KB at most),
+     POST /gallery/send { device, title, by, img, kind?, link? }   a wallpaper to share (a JPEG data: URL, 600 KB at most;
+                                   kind "fanart": drawn by whoever sends it, link: their art page),
                   waiting for the owner; 3 a day per device
      POST /invite/new    { device }          -> { code, n }   this device's invite code, and how many joined with it
      POST /invite/claim  { device, code }    -> { ok }        a new device opened an invite: both get an achievement
@@ -76,7 +77,8 @@ export class Ledger {
       if (pend.size >= 50) return { error:"busy", message:"Lots of wallpapers are waiting to be looked at. Try again in a few days." };
       const id = rnd(10), seq = (await s.get("gseq") || 0) + 1;
       await s.put("gseq", seq);
-      await s.put("gp:" + id, { id, seq, title:clean(b.title, 60) || "Untitled", by:clean(b.by, 40) || "Someone", img:b.img, ts:now, app:b.platform === "iphone" ? "iphone" : "windows" });
+      await s.put("gp:" + id, { id, seq, title:clean(b.title, 60) || "Untitled", by:clean(b.by, 40) || "Someone", img:b.img, ts:now, app:b.platform === "iphone" ? "iphone" : "windows",
+        ...(b.kind === "fanart" ? { kind:"fanart", link:/^https:\/\/[^\s"<>]{4,300}$/.test(String(b.link || "")) ? String(b.link) : "" } : {}) });     // 3.14: fan art, drawn by whoever sent it
       await s.put(dk, n + 1);
       return { ok:true, id };
     }
@@ -91,7 +93,7 @@ export class Ledger {
       await s.delete("gp:" + b.id);
       if (op === "gallery.ok") {
         await s.put("gi:" + g.id, g.img);
-        const l = await s.get("gallery") || []; l.unshift({ id:g.id, title:clean(b.title, 60) || g.title, by:g.by, ts:now }); await s.put("gallery", l.slice(0, 100));
+        const l = await s.get("gallery") || []; l.unshift({ id:g.id, title:clean(b.title, 60) || g.title, by:g.by, ts:now, ...(g.kind ? { kind:g.kind, link:g.link || "" } : {}) }); await s.put("gallery", l.slice(0, 100));
         for (const x of l.slice(100)) await s.delete("gi:" + x.id);
       }
       return { ok:true };
@@ -151,7 +153,7 @@ export async function ledgerApi(path, req, env, cors) {
   }
   if (req.method === "GET" && path === "/gallery") {
     const r = await ledgerCall(env, { op:"gallery.public" }), base = new URL(req.url).origin;
-    const res = json({ ok:true, items:(r.items || []).map(x => ({ id:x.id, title:x.title, by:x.by, url:base + "/gallery/img/" + x.id })) }, 200, cors);
+    const res = json({ ok:true, items:(r.items || []).map(x => ({ id:x.id, title:x.title, by:x.by, url:base + "/gallery/img/" + x.id, ...(x.kind ? { kind:x.kind, link:x.link || "" } : {}) })) }, 200, cors);
     res.headers.set("cache-control", "public, max-age=300");
     return res;
   }
@@ -163,7 +165,7 @@ export async function ledgerApi(path, req, env, cors) {
   if (path === "/gallery/send") {
     const img = String(b.img || "");
     if (!/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(img) || img.length > MAX_IMG * 4 / 3 + 30) return json({ error:"bad", message:"Send a JPEG picture under 600 KB." }, 400, cors);
-    const r = await ledgerCall(env, { op:"gallery.send", dev, title:b.title, by:b.by, img, platform:b.platform });
+    const r = await ledgerCall(env, { op:"gallery.send", dev, title:b.title, by:b.by, img, platform:b.platform, kind:b.kind, link:b.link });
     return json(r, r.ok ? 200 : 429, cors);
   }
   if (path === "/invite/new") return json(await ledgerCall(env, { op:"invite.new", dev }), 200, cors);

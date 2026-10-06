@@ -23,6 +23,7 @@
    The browser talks to it as:
      GET  /        is it running?
      POST /check   { code?, device? }          -> { ok, name, left, limit, open }
+     GET  /filler?s=<show>   which episodes of a long anime are filler (filler.js)
      POST /speak   { code?, device?, text, voice? }   -> audio/mpeg in the assistant's voice (speak.js)
      POST /chat    { code?, device?, messages:[{role, content}], web?, prefs?, task? }
                    web:true (the iPhone app, which can't read pages itself) lets Claude
@@ -91,6 +92,7 @@ import { ledgerApi, ledgerAdmin, Ledger } from "./ledger.js";
 import { readApi } from "./reader.js";
 import { nearApi } from "./near.js";
 import { speakApi, speakReady } from "./speak.js";
+import { fillerApi } from "./filler.js";
 export { Room, Ledger };
 import { ADMIN_PAGE, DASH_JS, DASH_CSS, DASH_SW, DASH_MANIFEST, DASH_ICON, DASH_PNG } from "./dash.js";
 
@@ -165,6 +167,7 @@ export default {
       if (req.method === "GET" && path === "/changelog") return Response.redirect(APP_URL.replace(/\/?$/, "/") + "changelog.html", 302);
       if (req.method === "GET" && (path === "/near" || path === "/near/geo")) return await nearApi(path, req, env, cors, ctx);
       if (req.method === "GET" && path === "/read") return await readApi(req, env, cors);
+      if (req.method === "GET" && path === "/filler") return await fillerApi(req, env, cors, ctx, { json });
       if (req.method === "POST" && path === "/speak") { if (!env.LIMITS || typeof env.LIMITS.get !== "function") return json({ error:"setup", message:"The storage (LIMITS) isn't set up." }, 503, cors); return await speakApi(req, env, cors, ctx, { json, person, ownerCfg, isBlocked }); }
       if (req.method === "GET" && path === "/room") return await roomApi(req, env, cors);
       if ((req.method === "GET" && /^\/gallery(\/img\/[a-z0-9]{10})?$/.test(path)) || (req.method === "POST" && /^\/(stats|gallery\/send|invite\/new|invite\/claim)$/.test(path))) return await ledgerApi(path, req, env, cors);

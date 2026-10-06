@@ -2,17 +2,41 @@
    here by code. Its eyes follow you, it blinks, it bounces when you poke it and says something (about the
    time of day, your streak, your level, a game to try), it cheers when you get XP, it sleeps at night,
    and it grows with your level (js/xp.js): antennae at 5, wings at 10, a crown at 15, a glow at 20.
-   Buddy.mount({ bottom, right, hidden }) / Buddy.unmount(); nothing it does leaves this device. */
+   Buddy.mount({ bottom, right, hidden }) / Buddy.unmount(); nothing it does leaves this device.
+   3.14 / 2.11 (#060): outfits. By itself Mochi dresses for the season (a witch's hat in October, a Santa hat in
+   December, a scarf when it's cold, sunglasses in summer, a flower in spring, a party hat for the new year), or
+   you pick one: Buddy.OUTFITS, Buddy.outfit() (what it's wearing now), Buddy.setOutfit("auto" | "none" | id),
+   Buddy.preview(id) (a picture of it, as SVG). wsb.buddyOutfit keeps the choice. */
 (function () {
 "use strict";
 if (window.Buddy) return;
 const get = (k, d) => { try { const v = localStorage.getItem("wsb." + k); return v ? JSON.parse(v) : d; } catch (e) { return d; } };
 const put = (k, v) => { try { localStorage.setItem("wsb." + k, JSON.stringify(v)); } catch (e) {} };
 let el = null, timers = [], said = 0, sleepy = false;
+// [id, name, emoji, hat (instead of the crown), over the body, months it's worn by itself (1-12)]
+const OUTFITS = [
+  ["witch", "Witch's hat", "🎃", true, '<ellipse cx="50" cy="31" rx="30" ry="5" fill="#2b1d3a"/><path d="M35 31L54 1 67 31z" fill="#2b1d3a"/><path d="M38 26h28v4H37z" fill="#ff7a1a"/>', [10]],
+  ["santa", "Santa hat", "🎅", true, '<path d="M30 33Q44 2 77 9Q70 21 70 33z" fill="#d6262b"/><rect x="26" y="28" width="48" height="9" rx="4.5" fill="#fff"/><circle cx="78" cy="10" r="5.5" fill="#fff"/>', [12]],
+  ["scarf", "Cozy scarf", "🧣", false, '<path d="M21 73q29 13 58 0v9q-29 13-58 0z" fill="#3a7bd5"/><path d="M63 80l3 15h9l-3-16z" fill="#2f63ad"/><path d="M27 77q23 9 46 0" stroke="#fff" stroke-width="1.5" stroke-dasharray="3 3" fill="none" opacity=".6"/>', [1, 2, 11]],
+  ["sakura", "Cherry blossom", "🌸", false, '<g transform="translate(70 31)">' + [0, 72, 144, 216, 288].map(a => '<ellipse cx="0" cy="-6" rx="4.4" ry="6.5" fill="#ffc2d8" transform="rotate(' + a + ')"/>').join("") + '<circle r="2.6" fill="#ff7aa8"/></g>', [3, 4]],
+  ["shades", "Sunglasses", "😎", false, '<rect x="28" y="47" width="19" height="12" rx="5" fill="#16121c"/><rect x="53" y="47" width="19" height="12" rx="5" fill="#16121c"/><path d="M47 51h6" stroke="#16121c" stroke-width="2.5"/><path d="M31 50l5-1" stroke="#fff" stroke-width="1.6" opacity=".5"/>', [6, 7, 8]],
+  ["party", "Party hat", "🎉", true, '<path d="M40 31L52 3 63 31z" fill="#ffd34d"/><path d="M44 22l15-5M47 13l9-3" stroke="#ff5c93" stroke-width="2.4"/><circle cx="52" cy="3" r="3.5" fill="#ff5c93"/>', []],
+  ["band", "Ninja headband", "🍥", false, '<path d="M17 41q33-11 66 0v8q-33-11-66 0z" fill="#2a2f45"/><rect x="40" y="35.5" width="20" height="10" rx="2" fill="#c3cad6"/><path d="M46 40.5h8" stroke="#6b7385" stroke-width="1.5"/><path d="M82 43l13 5-12 3z" fill="#2a2f45"/>', []],
+  ["bow", "Big bow", "🎀", false, '<path d="M50 30l-14-8v16zM50 30l14-8v16z" fill="#ff5c93"/><circle cx="50" cy="30" r="4" fill="#e23d7a"/>', []],
+  ["cat", "Cat ears", "🐱", true, '<path d="M24 38l4-22 14 12zM76 38l-4-22-14 12z" fill="var(--bd2,#8a1810)"/><path d="M28 32l2-10 7 6zM72 32l-2-10-7 6z" fill="#ff8fb0"/>', []]
+];
+const outfitPick = () => { const v = get("buddyOutfit", "auto"); return v === "none" || OUTFITS.some(o => o[0] === v) ? v : "auto"; };
+function outfit(d) {
+  const v = outfitPick(); if (v !== "auto") return v === "none" ? "" : v;
+  d = d || new Date();
+  if (d.getMonth() === 0 && d.getDate() <= 3) return "party";
+  const o = OUTFITS.find(x => x[5].indexOf(d.getMonth() + 1) >= 0); return o ? o[0] : "";
+}
 const level = () => window.XP ? XP.info().level : 1;
 const stage = () => { const L = level(); return L >= 20 ? 4 : L >= 15 ? 3 : L >= 10 ? 2 : L >= 5 ? 1 : 0; };
-function svg() {
-  const st = stage();
+function svg(wear, st) {
+  if (st == null) st = stage();
+  const of = OUTFITS.find(o => o[0] === (wear == null ? outfit() : wear));
   return '<svg viewBox="0 0 100 100" aria-hidden="true"><defs><radialGradient id="bdB" cx="38%" cy="32%" r="70%"><stop offset="0" stop-color="#fff" stop-opacity=".75"/>' +
     '<stop offset=".35" stop-color="var(--bd,#e8342a)"/><stop offset="1" stop-color="var(--bd2,#8a1810)"/></radialGradient></defs>' +
     (st >= 4 ? '<circle class="bd-aura" cx="50" cy="56" r="44" fill="var(--bd,#e8342a)" opacity=".18"/>' : "") +
@@ -26,14 +50,17 @@ function svg() {
     '<g class="bd-eye"><ellipse cx="62" cy="54" rx="6.5" ry="8" fill="#fff"/><circle class="bd-p" cx="62" cy="55" r="3.6" fill="#1b1220"/><circle cx="60.6" cy="53" r="1.2" fill="#fff"/></g></g>' +
     '<path class="bd-zz" d="M37 55h8M55 55h8" stroke="#1b1220" stroke-width="2.5" stroke-linecap="round"/>' +
     '<ellipse cx="29" cy="66" rx="5" ry="3" fill="#ff8fb0" opacity=".55"/><ellipse cx="71" cy="66" rx="5" ry="3" fill="#ff8fb0" opacity=".55"/>' +
-    '<path class="bd-m" d="M45 68q5 5 10 0" stroke="#1b1220" stroke-width="2.4" fill="none" stroke-linecap="round"/></g>' +
-    (st >= 3 ? '<path class="bd-crown" d="M36 30l4-12 6 8 4-10 4 10 6-8 4 12z" fill="#f5c242" stroke="#b8862b" stroke-width="1.2"/>' : "") + "</svg>";
+    '<path class="bd-m" d="M45 68q5 5 10 0" stroke="#1b1220" stroke-width="2.4" fill="none" stroke-linecap="round"/>' + (of ? '<g class="bd-of">' + of[4] + "</g>" : "") + "</g>" +
+    (st >= 3 && !(of && of[3]) ? '<path class="bd-crown" d="M36 30l4-12 6 8 4-10 4 10 6-8 4 12z" fill="#f5c242" stroke="#b8862b" stroke-width="1.2"/>' : "") + "</svg>";
 }
 function lines() {
   const h = new Date().getHours(), x = window.XP ? XP.info() : null, s = window.XP ? XP.read() : {}, out = [];
   out.push(h < 5 ? "It's so late… are you sleeping soon?" : h < 12 ? "Good morning! ☀️" : h < 18 ? "Good afternoon!" : "Good evening! 🌙");
   if (s.streak > 1) out.push("Day " + s.streak + " in a row! 🔥");
   if (x) out.push("You're level " + x.level + ". " + (x.need - x.into) + " XP to go!");
+  const of = OUTFITS.find(o => o[0] === outfit());
+  if (of) out.push({ witch:"Boo! 🎃 Do you like my hat?", santa:"Ho ho ho! 🎄", scarf:"Brr… good thing I have my scarf. 🧣", sakura:"The cherry blossoms are out! 🌸", shades:"Too cool. 😎", party:"Happy new year! 🎉",
+    band:"Believe it! 🍥", bow:"Do you like my bow? 🎀", cat:"Nyaa~ 🐱" }[of[0]]);
   out.push("Have you tried Sudoku? 🔢", "A game of chess? ♟️", "Psst… a little spider hides in the anime wallpaper. 🕷", "Drink some water! 💧", "I like it here.", "Boop!", "Blocks is fun. Just one more game…",
     "Take a little break? Look at something far away for a moment. 👀", "You're doing great.");
   return out;
@@ -72,13 +99,15 @@ function mount(opt) {
   el.innerHTML = '<div class="bd-say" role="status"></div><div class="bd-art"></div><i class="bd-z">z</i><i class="bd-z z2">z</i>';
   (opt.parent || document.body).appendChild(el);
   paint();
-  const poke = () => { sleepy = false; el.classList.remove("sleep"); hop(); const l = lines(); say(l[Math.floor(Math.random() * l.length)]); const n = get("buddyPokes", 0) + 1; put("buddyPokes", n); if (n === 25) say("We're friends now! 💖", 4500); };
+  const poke = () => { sleepy = false; el.classList.remove("sleep"); hop(); const l = lines(); say(l[Math.floor(Math.random() * l.length)]); const n = get("buddyPokes", 0) + 1; put("buddyPokes", n); if (n === 25) say("We're friends now! 💖", 4500); if (n >= 50 && window.AnimeMore) AnimeMore.mochiCheck(); };
   el.addEventListener("click", poke);
   el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); poke(); } });
   addEventListener("pointermove", look, { passive:true });
   const onXp = e => { paint(); hop("cheer"); const d = e.detail || {}; say(d.up ? "Level " + d.level + "! 🎉" : "Yay! ✨", 2600); };
   document.addEventListener("wsb-xp", onXp);
-  el._off = () => { removeEventListener("pointermove", look); document.removeEventListener("wsb-xp", onXp); };
+  const onStore = e => { if (e.key === "wsb.buddyOutfit") { paint(); hop(); } };      // a new outfit, picked somewhere else
+  addEventListener("storage", onStore);
+  el._off = () => { removeEventListener("pointermove", look); document.removeEventListener("wsb-xp", onXp); removeEventListener("storage", onStore); };
   // hello, now and then a word, and sleep at night
   const last = get("buddySeen", 0), away = last && Date.now() - last > 3 * 864e5;
   put("buddySeen", Date.now());
@@ -112,5 +141,7 @@ st.textContent = `
 :root[data-motion="off"] .bd *{animation:none!important}
 `;
 document.head.appendChild(st);
-window.Buddy = { mount, unmount, say, hop, on:() => !!el };
+window.Buddy = { mount, unmount, say, hop, on:() => !!el, OUTFITS:OUTFITS.map(o => ({ id:o[0], name:o[1], e:o[2], months:o[5].slice() })), outfit, outfitPick,
+  setOutfit(v) { put("buddyOutfit", v === "none" || OUTFITS.some(o => o[0] === v) ? v : "auto"); paint(); hop(); },
+  preview:(id, st) => svg(id || "", st == null ? 0 : st) };
 })();

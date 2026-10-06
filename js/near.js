@@ -1,6 +1,6 @@
 /* Webs Browser - Happening near you (Windows 3.11, iPhone 2.10), shared by both apps: big things around you, from
    the Web AI server (GET /near, server/web-ai/near.js): concerts, sports, festivals and shows, severe weather,
-   earthquakes, local news, and local posts from the people who make Webs.
+   earthquakes, local news, and local posts from the people who make Webs; 3.14 / 2.11: anime and comic conventions.
    Where you are: by default your town, as the server sees your internet address (no question asked); or your exact
    position (rounded to about 10 km before it leaves the device); or a city you choose (wsb.near).
    Near.card(el, opt)   a card for a start page: the three biggest things, and "See all"
@@ -65,6 +65,8 @@ function items(d) {
   (d.quakes || []).forEach(q => out.push({ g:"alerts", rank:q.mag >= 4.5 ? 1 : 5, e:"🌋", t:"Earthquake, magnitude " + q.mag, s:q.place + (q.km != null ? " · " + q.km + " km away" : ""), u:q.url }));
   (d.posts || []).forEach(p => out.push({ g:"events", rank:1, e:"📌", t:p.title, s:[when(p.date), p.text].filter(Boolean).join(" · "), u:p.link, owner:true }));
   (d.events || []).forEach((e, i) => out.push({ g:"events", rank:3 + i / 100, e:EMO[e.kind] || "🎫", t:e.name, s:[when(e.date, e.time), e.venue, e.km != null ? e.km + " km" : ""].filter(Boolean).join(" · "), u:e.url, img:e.img }));
+  // anime and comic conventions, cosplay meets (3.14 / 2.11, #066): up to 4 months ahead and 300 km away
+  (d.cons || []).forEach((c, i) => out.push({ g:"cons", rank:4 + i / 100, e:"🎌", t:c.name, s:[when(c.date), c.venue, c.city, c.km != null ? c.km + " km" : ""].filter(Boolean).join(" · "), u:c.url, img:c.img }));
   (d.news || []).forEach((n, i) => out.push({ g:"news", rank:6 + i / 100, e:"📰", t:n.title, s:n.src, u:n.url }));
   return out.sort((a, b) => a.rank - b.rank);
 }
@@ -112,7 +114,7 @@ async function full(el, opt) {
   paintWhere();
   try { d = await load(); } catch (e) { el.querySelector(".nr-list").innerHTML = '<p class="nr-dim"></p>'; el.querySelector(".nr-list p").textContent = e.message; return; }
   paintWhere();
-  const l = items(d), T = [["all", "All"], ["events", "Events"], ["alerts", "Alerts"], ["news", "News"]];
+  const l = items(d), T = [["all", "All"], ["events", "Events"]].concat(l.some(x => x.g === "cons") ? [["cons", "Anime cons"]] : [], [["alerts", "Alerts"], ["news", "News"]]);
   const paint = () => {
     el.querySelector(".nr-tabs").innerHTML = T.map(t => { const n = t[0] === "all" ? l.length : l.filter(x => x.g === t[0]).length; return '<button type="button" data-t="' + t[0] + '" class="' + (t[0] === tab ? "on" : "") + '">' + t[1] + (n ? " " + n : "") + "</button>"; }).join("");
     el.querySelectorAll(".nr-tabs [data-t]").forEach(b => { b.onclick = () => { tab = b.dataset.t; paint(); }; });

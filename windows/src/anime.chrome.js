@@ -49,7 +49,7 @@ function animePanel() {
   Anime.schedEditor(more.querySelector("#anpSched"), cfg.animeSched || {}, sc => { cfg.animeSched = sc; cfg.animeSlot = ""; saveNow("settings"); schedNow(); });
   const snd = p.querySelector("input");
   snd.checked = !!(cfg.anime && cfg.ambient && Anime.get(cfg.anime) && cfg.ambient === Anime.get(cfg.anime).amb);
-  const pk = Anime.picker(p.querySelector(".anp-pick"), { current:cfg.anime || "", onPick:id => { choose(id, snd.checked); toast(id ? Anime.get(id).name + " is on: open a new tab to see its wallpaper" : "Back to your own look"); } });
+  const pk = Anime.picker(p.querySelector(".anp-pick"), { current:cfg.anime || "", make:X3.animeHub ? () => X3.animeHub("maker") : null, onPick:id => { choose(id, snd.checked); toast(id ? Anime.get(id).name + " is on: open a new tab to see its wallpaper" : "Back to your own look"); } });
   snd.onchange = () => { if (cfg.anime) choose(cfg.anime, snd.checked); };
   const n = openOver("anp", p); n.style.right = "8px";
   new MutationObserver((m, o) => { if (!p.isConnected) { pk.stop(); o.disconnect(); } }).observe($("#over"), { childList:true });
@@ -138,7 +138,7 @@ const PAGE_JS = @@ANIME_PAGE@@;
 const SITE_ID = "jjk";      // the wallpaper when neither the site nor the browser has a theme
 function siteLook(h) {
   const own = (cfg.animeSites || {})[h] || {}, web = cfg.animeWeb || "";
-  const id = Anime.has(own.id) ? own.id : Anime.has(cfg.anime) ? cfg.anime : SITE_ID;
+  const id = Anime.has(own.id) && own.id !== "mine" ? own.id : Anime.has(cfg.anime) && cfg.anime !== "mine" ? cfg.anime : SITE_ID;     // (your own picture stays in the browser)
   return { on:!PRIVATE && !!h && !!web && (own.on === true || (web === "all" && own.on !== false)), id, mode:own.mode === "over" ? "over" : "behind",
     k:Math.max(0, Math.min(.9, +own.k || 0)), panels:own.panels !== false, soft:!!own.soft, still:!!own.still, motion:Anime.motion() };
 }
@@ -209,7 +209,7 @@ function sitePanel() {
   let pk = null;
   const pick = () => {
     const b = Anime.get(cfg.anime);
-    pk = Anime.picker(p.querySelector(".ans-pick"), { current:own().id || "", onPick:id => upd({ id }),
+    pk = Anime.picker(p.querySelector(".ans-pick"), { current:own().id || "", onPick:id => upd({ id }), mine:false,
       none:{ name:"Match the browser", show:b ? b.name + ", your anime theme" : Anime.get(SITE_ID).name + " until you pick an anime theme", e:"🎌" } });
   };
   function paint() {

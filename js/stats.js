@@ -7,7 +7,8 @@
      Stats.invite()         -> { code, n, url }  your invite link, and how many friends joined with it
      Stats.claim(code)      a new device opened a friend's invite: both of you get an achievement
      Stats.gallery()        the wallpapers people shared that the owner approved
-     Stats.share(file, title, by)   share one (a JPEG made from your picture, at most 1600 px wide) */
+     Stats.share(file, title, by, opt)   share one (a JPEG made from your picture, at most 1600 px wide); opt { kind:"fanart", link }
+                                         marks fan art you drew (items then carry kind and link too) */
 (function () {
 "use strict";
 if (window.Stats) return;
@@ -126,7 +127,12 @@ function toJpeg(file) {
     im.src = u;
   });
 }
-async function share(file, title, by) { const img = typeof file === "string" ? file : await toJpeg(file); return post("/gallery/send", { img, title:String(title || "").slice(0, 60), by:String(by || "").slice(0, 40) }); }
+// opt (3.14 / 2.11, #074): { kind:"fanart", link } for fan art you drew yourself, with a link to your page (https only)
+async function share(file, title, by, opt) {
+  opt = opt || {};
+  const img = typeof file === "string" ? file : await toJpeg(file), link = /^https:\/\/\S+$/.test(String(opt.link || "").trim()) ? String(opt.link).trim().slice(0, 300) : "";
+  return post("/gallery/send", Object.assign({ img, title:String(title || "").slice(0, 60), by:String(by || "").slice(0, 40) }, opt.kind === "fanart" ? { kind:"fanart", link } : {}));
+}
 
 window.Stats = { init, use, err, ab, flush, invite, claim, gallery, share, toJpeg, buf, APP_URL, _opt:opt };
 })();

@@ -21,7 +21,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   check(ids.length === 9, "nine themes");
   check(await n.evaluate(() => document.getElementById("anSec").classList.contains("hide") && !document.getElementById("anlive")), "nothing until one is picked");
   await n.evaluate(() => { document.getElementById("bgbox").classList.remove("hide"); paintBgBox(); }); await wait(600);
-  check(await n.evaluate(() => document.querySelectorAll("#anPick .an-tile").length === 10), "Background → Anime themes: nine tiles and Off");
+  check(await n.evaluate(() => document.querySelectorAll("#anPick .an-tile:not([data-id='+make'])").length === 10 && !!document.querySelector("#anPick .an-tile[data-id='+make']")), "Background → Anime themes: nine tiles and Off (and 3.14: make your own)");
   await n.screenshot({ path:SHOTS + "anime-ntp-picker.png" });
   for (const id of ids) {
     await n.evaluate(id => { document.getElementById("bgbox").classList.remove("hide"); paintBgBox(); document.querySelector('#anPick .an-tile[data-id="' + id + '"]').click(); }, id); await wait(700);
@@ -76,7 +76,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   check(await c.evaluate(ids => { const r = ids.every(id => { document.documentElement.dataset.anime = id; const st = getComputedStyle(document.querySelector(".anband")); return st.animationName !== "none" && st.animationIterationCount.split(",").every(x => x.trim() === "infinite"); }); applyPack(); return r; }, ids), "every theme's band moves, on a loop");
   check(await c.evaluate(() => { const m = document.createElement("div"); X3.menuRows(m); return /Anime themes…/.test(m.textContent) && /Phantom Thief/.test(m.textContent); }), "Menu → Anime themes… (with the one that's on)");
   await c.evaluate(() => X3.animePanel()); await wait(700);
-  check(await c.evaluate(() => document.querySelectorAll("#anp .an-tile").length === 10), "the window's picker");
+  check(await c.evaluate(() => document.querySelectorAll("#anp .an-tile:not([data-id='+make'])").length === 10 && !!document.querySelector("#anp .an-tile[data-id='+make']")), "the window's picker");
   { const a = await c.evaluate(() => document.querySelector('#anp .an-tile[data-id="jjk"] canvas').toDataURL()); await wait(600);
     check(a !== await c.evaluate(() => document.querySelector('#anp .an-tile[data-id="jjk"] canvas').toDataURL()), "its tiles play"); }
   await c.screenshot({ path:SHOTS + "anime-chrome-picker.png" });
