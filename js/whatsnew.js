@@ -1,8 +1,28 @@
-/* Webs Browser for iPhone - what's new in 2.10, 2.9, 2.8, 2.7, 2.6, 2.5, 2.4, 2.3, 2.2, 2.1 and 2.0, listed in the app
-   (Menu → What's new) and offered once after each update. */
+/* Webs Browser for iPhone - what's new in 2.11, 2.10, 2.9, 2.8, 2.7, 2.6, 2.5, 2.4, 2.3, 2.2, 2.1 and 2.0, listed in
+   the app (Menu → What's new) and offered once after each update. */
 "use strict";
 
 const WHATS_NEW = [
+  ["New in 2.11: Web AI tools", "sparkle", [
+    "25 tools in Menu → More from Web AI: rewrite, reply to a message, change the tone, a cover letter, a spreadsheet formula, explain code, summarize reviews or comments, a recipe, the fine print in plain words, simpler words, a quiz, lecture notes from a video's transcript, fact check with sources, describe a picture you choose, compare two things, names, gift ideas, a trip, meals and a workout",
+    "Answers can be copied or saved; the picture tool takes a photo or a link",
+    "Write your own prompt once and run it with a tap",
+    "How many questions you have left today, on the Web AI screen"
+  ]],
+  ["New in 2.11: for anime fans", "sparkle", [
+    "The Anime hub (Menu → Anime hub): this season's shows with air times in your time zone, countdowns to shows you follow, character birthdays, a quote, a Japanese word and the opening of the week",
+    "Guess the anime from a blurred cover, and anime trivia",
+    "Who voices a character, which episodes are filler, and the best watch order for a franchise",
+    "Make a whole theme from a photo, with it as a moving wallpaper; Mochi has outfits; stickers for the start page",
+    "A cosplay board, anime radio, hidden secrets, and anime conventions in Happening near you",
+    "Share fan art you drew to the wallpaper gallery, with a link to your page"
+  ]],
+  ["New in 2.11: watching", "eye", [
+    "Watching (Menu): one Watch later queue from any site, and moments saved with a note to jump back to",
+    "Streamers you follow on Twitch, live now and when they stream next, with a card on the start page",
+    "How much you watched this week, by site",
+    "A daily limit for YouTube Shorts: after it, Webs takes you back to the start page"
+  ]],
   ["New in 2.10: happening near you", "world", [
     "Big things around you on the start page: concerts, sports, festivals and shows, severe weather warnings, earthquakes and local news",
     "Everything in Menu → Happening near you, with links to tickets and stories",
