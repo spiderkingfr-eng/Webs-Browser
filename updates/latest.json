@@ -1,15 +1,16 @@
 {
-  "version": "3.13.2",
+  "version": "3.14.0",
   "date": "2026-10-06",
   "notes": [
-    "The assistant's voice can't get stuck: if Adam is slow or sound isn't allowed yet, a Windows voice carries on",
-    "A Web AI voice call in the sidebar gets the microphone; Hey Webs pauses until you hang up",
-    "Notes taken by voice no longer break the sidebar's Notes"
+    "The assistant does more: routines, a daily recap, reminders, dictation, cooking and translator modes, a pomodoro coach, quizzes and stories, spoken search results, and more voice control",
+    "25 Web AI tools in Menu and Ctrl+K: rewrite, reply, tone, cover letter, formulas, explain code, summaries, recipes, fine print, simpler words, quizzes, lecture notes, fact check, ask across tabs, describe a picture, compare, names, gifts, trips, meals and workouts, plus your own prompts",
+    "For anime fans: the Anime hub (seasonal chart, countdowns, birthdays, guess the anime, trivia, voice actors, filler guide, watch order, cosplay board, radio, secrets), a theme from your own picture, Mochi outfits, a spoiler shield, manga mode, romaji on hover, theme of the day, theme sounds and fonts, stickers, conventions in Happening near you, and fan art in the gallery",
+    "Watching: watch later, video moments, Twitch streamers live and their schedules, skip intro, volume and speed per site, the video follows you, brightness, subtitle styles, ambient glow, cinema mode, a Shorts limit, a binge guard, chapters, Twitch chat over the stream, sleep-timer fade, save captions, lecture notes by time, and a reaction recorder"
   ],
   "exe": {
-    "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.13.2.exe",
-    "sha256": "326940255d025e8132908343f5adc9764d2c96580139f3749978e67b77cd3e4e",
-    "size": 3734528
+    "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.14.0.exe",
+    "sha256": "78b8fbc56f36ff3156f5ac8cc2dc17ea5752cb15be6dc8e52eef4ff8ac7dfb21",
+    "size": 4140032
   },
   "updater": {
     "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebsUpdate.exe",
@@ -25,11 +26,11 @@
     "code": "jcku563mgxwn"
   },
   "previous": {
-    "version": "3.13.1",
+    "version": "3.13.2",
     "exe": {
-      "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.13.1.exe",
-      "sha256": "27a55d7c42acaa3c63173a2d6b38ff3b94811d7b1db21750df5d05b111b96bdc",
-      "size": 3730944
+      "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.13.2.exe",
+      "sha256": "326940255d025e8132908343f5adc9764d2c96580139f3749978e67b77cd3e4e",
+      "size": 3734528
     }
   }
 }
