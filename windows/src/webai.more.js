@@ -227,6 +227,7 @@ function morePanel() {
   m.innerHTML = '<div class="xhead"><div class="xic">✦</div><div><b>More from Web AI</b><span>Each one asks Web AI when you click it.</span></div></div>';
   [yt ? ["▶️", "Key moments of this video", keyMoments] : null, ["🎓", "Study this page", studyPage], ["⚖️", "Compare tabs…", compareTabs], ["🧹", "Tidy my tabs", tidyTabs], ["🔎", "Find it again…", findAgain]]
     .filter(Boolean).forEach(([e, n, fn]) => { const r = el("div", "mi"); r.innerHTML = '<span class="aie">' + e + "</span><span></span>"; r.lastChild.textContent = n; r.onclick = () => { closeOver(); fn(); }; m.appendChild(r); });
+  if (X3.aiMoreRows) X3.aiMoreRows(m);       // 3.14: the Web AI tools (webai.tools.js)
   const n = openOver("aimore", m); n.style.right = "8px";
 }
 X3.ai = { keyMoments, tidyTabs, compareTabs, studyPage, findAgain, morePanel, readTab, explain, pageTool };

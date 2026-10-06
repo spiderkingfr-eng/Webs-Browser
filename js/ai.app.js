@@ -108,11 +108,63 @@ function find() {
   inp.addEventListener("keydown", e => { if (e.key === "Enter") search(); });
 }
 function openMore() {
-  const t = curTab(), web = !!(t && t.u) && !t.internal;
-  const r = (act, e, n, s) => '<button type="button" class="mrow" data-ai="' + act + '"><span class="aie">' + e + "</span><span>" + n + "</span><em>" + s + "</em></button>";
-  openSheet("More from Web AI", '<p class="ailead">Each one asks Web AI when you tap it.</p><div class="card">' + (web ? r("study", "🎓", "Study this page", "Flashcards and a quiz") : "") +
-    r("compare", "⚖️", "Compare tabs", "Side by side") + r("tidy", "🧹", "Tidy my tabs", "By topic") + r("find", "🔎", "Find it again", "In your history") + "</div>");
-  $("#sheetBody").querySelectorAll("[data-ai]").forEach(b => { b.onclick = () => ({ study, compare, tidy, find })[b.dataset.ai](); });
+  const t = curTab(), web = !!(t && t.u) && !t.internal, left = AI.left();
+  const r = (act, e, n, s) => '<button type="button" class="mrow aitr" data-ai="' + act + '"><span class="aie">' + e + '</span><span class="aitn"><b>' + esc(n) + "</b>" + (s ? "<small>" + esc(s) + "</small>" : "") + "</span></button>";
+  let tools = "";
+  if (window.AITools) {
+    AITools.GROUPS.forEach(g => { const l = AITools.TOOLS.filter(x => x.g === g && !x.pc); if (l.length) tools += '<h3 class="aih">' + esc(g) + '</h3><div class="card">' + l.map(x => r("t:" + x.id, x.icon, x.name, x.sub || "")).join("") + "</div>"; });
+    tools += '<h3 class="aih">Your prompts</h3><div class="card">' + AITools.prompts().map(p => r("t:p:" + p.id, "⭐", p.name, p.on === "page" ? "On this page" : p.on === "sel" ? "On text" : "")).join("") + r("prompts", "✎", AITools.prompts().length ? "Edit your prompts" : "Make your own prompt", "Write once, run with a tap") + "</div>";
+  }
+  openSheet("More from Web AI", '<p class="ailead">Each one asks Web AI when you tap it.' + (left == null ? "" : " " + left + " question" + (left === 1 ? "" : "s") + " left today.") + '</p><div class="card">' + (web ? r("study", "🎓", "Study this page", "Flashcards and a quiz") : "") +
+    r("compare", "⚖️", "Compare tabs", "Side by side") + r("tidy", "🧹", "Tidy my tabs", "By topic") + r("find", "🔎", "Find it again", "In your history") + "</div>" + tools);
+  $("#sheetBody").querySelectorAll("[data-ai]").forEach(b => { b.onclick = () => { const a = b.dataset.ai; if (a.startsWith("t:")) toolSheet(a.slice(2)); else if (a === "prompts") promptsSheet(); else ({ study, compare, tidy, find })[a](); }; });
+  if (AI.ready()) AI.check().then(j => { const l = $("#sheetBody .ailead"); if (j && l && $("#sheet").dataset.kind !== "settings" && /Each one asks/.test(l.textContent)) l.textContent = "Each one asks Web AI when you tap it. " + j.left + " question" + (j.left === 1 ? "" : "s") + " left today."; });
+}
+
+/* ---------------------------------------------------------------- 2.11: the Web AI tools (../js/ai.tools.js), on the phone */
+// a photo for "Describe a picture": made small enough to send (1024 px, JPEG)
+const shrink = file => new Promise((ok, bad) => { const u = URL.createObjectURL(file), i = new Image(); i.onload = () => { const k = Math.min(1, 1024 / Math.max(i.naturalWidth, i.naturalHeight)), c = document.createElement("canvas"); c.width = Math.round(i.naturalWidth * k); c.height = Math.round(i.naturalHeight * k); c.getContext("2d").drawImage(i, 0, 0, c.width, c.height); URL.revokeObjectURL(u); ok(c.toDataURL("image/jpeg", 0.85)); }; i.onerror = () => bad(new Error("That photo couldn't be opened.")); i.src = u; });
+const appI = {
+  async ctx(tool) {
+    const n = tool.needs || [], c = {}, t = curTab(), web = !!(t && t.u) && !t.internal;
+    if (n.includes("page")) { if (!web) throw new Error("Open the page first."); c.page = { title:t.t || hostOf(t.u), url:t.u, text:"" }; c.web = true; }
+    else if (n.includes("sel") && web) c.page = { title:t.t || hostOf(t.u), url:t.u, text:"" };
+    const x = $("#sheetBody .aiextra");
+    if (n.includes("img")) {
+      const f = x && x.querySelector("input[type=file]"), u = x && x.querySelector(".aiimgurl");
+      if (f && f.files && f.files[0]) c.img = { data:await shrink(f.files[0]) };
+      else if (u && /^https:\/\/\S+$/.test(u.value.trim())) c.img = { url:u.value.trim() };
+      else throw new Error("Choose a photo, or paste a picture's address (https://…).");
+    }
+    if (n.includes("caps")) {
+      const tr = x && x.querySelector(".aitrans"); const text = tr ? tr.value.trim() : "";
+      if (!text) throw new Error("Paste the video's transcript first (on YouTube: … under the video → Show transcript, then select all and copy).");
+      c.caps = { title:web ? t.t || "" : "", text };
+    }
+    return c;
+  },
+  copy:t => { try { navigator.clipboard.writeText(t).then(() => toast("Copied"), () => toast("Couldn't copy")); } catch (e) {} },
+  save:(name, text) => saveFile(new Blob([text], { type:"text/plain" }), name, "Saved")
+};
+AI.saveFile = appI.save;
+function toolSheet(id) {
+  if (!window.AITools) return;
+  const tool = /^p:/.test(id) ? AITools.prompts().map(AITools.promptTool).find(t => t.id === id) : AITools.byId(id);
+  if (!tool) return;
+  if (PRIVATE) { toast("Not in private browsing"); return; }
+  openSheet(tool.name, '<p class="ailead"></p><div class="aiextra"></div><div class="aitbox"></div>', { back:openMore });
+  $("#sheetBody .ailead").textContent = tool.sub || "";
+  const x = $("#sheetBody .aiextra");
+  if (tool.id === "picture") x.innerHTML = '<label class="aipick"><input type="file" accept="image/*"><span>📷 Choose a photo</span></label><input class="ait-i aiimgurl" type="url" placeholder="or paste a picture\'s address (https://…)"><img class="aiprev" alt="" hidden>';
+  if (tool.id === "lecture") x.innerHTML = '<textarea class="ait-i aitrans" rows="4" placeholder="Paste the video\'s transcript here (on YouTube: … under the video → Show transcript)"></textarea>';
+  const f = x.querySelector("input[type=file]");
+  if (f) f.onchange = () => { const im = x.querySelector(".aiprev"); if (f.files[0]) { im.src = URL.createObjectURL(f.files[0]); im.hidden = false; x.querySelector(".aipick span").textContent = "📷 " + f.files[0].name; } };
+  AITools.mount($("#sheetBody .aitbox"), tool, appI);
+}
+function promptsSheet() {
+  if (!window.AITools) return;
+  openSheet("Your prompts", '<p class="ailead">Write a prompt once, then run it with a tap from More from Web AI.</p><div class="aiprompts"></div>', { back:openMore });
+  AITools.promptsEditor($("#sheetBody .aiprompts"));
 }
 ACTIONS.aimore = openMore;
 const openMenu9 = openMenu;
@@ -121,7 +173,7 @@ openMenu = function () {
   const w = $('#sheetBody .mrow[data-act="webai"]');
   if (w && !PRIVATE) w.insertAdjacentHTML("afterend", '<button type="button" class="mrow" data-act="aimore">' + ico("sparkle") + "<span>More from Web AI</span><em>Study, compare, tidy, find</em></button>");
 };
-window.AIApp = { study, compare, tidy, find, openMore };
+window.AIApp = { study, compare, tidy, find, openMore, toolSheet, promptsSheet, appI };
 
 const st = document.createElement("style");
 st.textContent = ".ailead{color:var(--dim);font-size:14.5px;line-height:1.45;margin:0 4px 12px}.aibody{font-size:15px;line-height:1.5}.aiw{display:flex;align-items:center;gap:10px;padding:16px 4px;color:var(--dim)}" +
@@ -130,6 +182,9 @@ st.textContent = ".ailead{color:var(--dim);font-size:14.5px;line-height:1.45;mar
   ".aic em{font-style:normal;color:var(--dim);font-size:12.5px;max-width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.aic input{width:20px;height:20px;accent-color:var(--accent)}.aigo{width:100%;margin-top:12px}" +
   ".aig{margin:0 0 12px}.aig b{display:block;margin-bottom:6px}.aig span{display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:0 6px 6px 0;padding:4px 10px;border-radius:999px;background:var(--bg3);font-size:13px}" +
   ".aiq{width:100%;height:44px;border:0;background:none;color:var(--fg);font:inherit;font-size:16px;padding:0 12px}.aires{margin-top:12px}.aihit{display:flex;flex-direction:column;align-items:flex-start;width:100%;text-align:left;padding:10px 12px;border:0;border-radius:12px;background:var(--bg2);color:var(--fg);font:inherit;margin-bottom:6px}" +
-  ".aihit span{color:var(--dim);font-size:13px}.aie{width:24px;text-align:center;font-size:18px}.aik{margin:14px 0 6px}";
+  ".aihit span{color:var(--dim);font-size:13px}.aie{width:24px;text-align:center;font-size:18px}.aik{margin:14px 0 6px}" +
+  ".aih{font-size:13px;color:var(--dim);font-weight:600;margin:18px 6px 6px;text-transform:uppercase;letter-spacing:.04em}.aiextra{display:grid;gap:8px;margin-bottom:10px}.aiextra:empty{display:none}" +
+  ".aitr{align-items:center}.aitn{display:flex;flex-direction:column;align-items:flex-start;text-align:left;flex:1;min-width:0;gap:1px}.aitn b{font-weight:600}.aitn small{color:var(--dim);font-size:12.5px;line-height:1.3}" +
+  ".aipick{display:block;text-align:center;padding:14px;border:1.5px dashed var(--line);border-radius:12px;color:var(--fg);font-weight:600}.aipick input{display:none}.aiprev{max-width:100%;max-height:220px;border-radius:12px}";
 document.head.appendChild(st);
 })();
