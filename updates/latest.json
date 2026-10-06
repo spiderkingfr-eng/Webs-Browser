@@ -1,13 +1,15 @@
 {
-  "version": "3.13.1",
-  "date": "2026-10-05",
+  "version": "3.13.2",
+  "date": "2026-10-06",
   "notes": [
-    "The assistant's card now shows at the bottom right of the window instead of getting stuck at the top"
+    "The assistant's voice can't get stuck: if Adam is slow or sound isn't allowed yet, a Windows voice carries on",
+    "A Web AI voice call in the sidebar gets the microphone; Hey Webs pauses until you hang up",
+    "Notes taken by voice no longer break the sidebar's Notes"
   ],
   "exe": {
-    "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.13.1.exe",
-    "sha256": "27a55d7c42acaa3c63173a2d6b38ff3b94811d7b1db21750df5d05b111b96bdc",
-    "size": 3730944
+    "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.13.2.exe",
+    "sha256": "326940255d025e8132908343f5adc9764d2c96580139f3749978e67b77cd3e4e",
+    "size": 3734528
   },
   "updater": {
     "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebsUpdate.exe",
@@ -23,11 +25,11 @@
     "code": "jcku563mgxwn"
   },
   "previous": {
-    "version": "3.13.0",
+    "version": "3.13.1",
     "exe": {
-      "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.13.0.exe",
-      "sha256": "9b96a90945dd62b1c0de95613fb81ca1a411e7b9254d5bae06c3f8d08d62999a",
-      "size": 3728384
+      "url": "https://raw.githubusercontent.com/spiderkingfr-eng/Webs-Browser/main/updates/WebStudiosBrowser-3.13.1.exe",
+      "sha256": "27a55d7c42acaa3c63173a2d6b38ff3b94811d7b1db21750df5d05b111b96bdc",
+      "size": 3730944
     }
   }
 }
