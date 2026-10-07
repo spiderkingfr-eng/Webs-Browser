@@ -20,8 +20,17 @@ const DIR = app.getPath("userData");
 let cfg = config.load(DIR);
 const speechOk = process.platform === "win32";     // Windows' built-in recognition
 
-let tray = null, overlay = null, settingsWin = null, worker = null;
+let tray = null, overlay = null, settingsWin = null, worker = null, indicator = null;
 let listening = false, asking = false, listenProc = null, onceProc = null;
+
+// the wake words to tell Windows' recogniser about (the name, "hey <name>", and a few near-spellings Windows
+// commonly mishears the name as - that's what makes it actually catch "Jarvis")
+function wakeWords() {
+  const name = config.wakeWord(cfg);
+  const out = new Set(wake.variants(cfg.name));
+  out.add("hey " + name); out.add("okay " + name);
+  return [...out].join(",");
+}
 
 /* ---------------------------------------------------------------- hearing you (Windows speech) */
 const PS = path.join(__dirname, "lib", "stt-win.ps1");
@@ -48,11 +57,12 @@ function setListening(on) {
   if (listenProc) { try { listenProc.kill(); } catch (e) {} listenProc = null; }
   if (listening) {
     try {
-      listenProc = spawn("powershell", psArgs("continuous"), { windowsHide: true });
-      readLines(listenProc, text => { if (listening) handleWake(text); }, msg => { listening = false; refreshTray(); });
+      listenProc = spawn("powershell", psArgs("continuous").concat(["-Wake", wakeWords()]), { windowsHide: true });
+      readLines(listenProc, text => { if (listening) { showDot("busy"); setTimeout(() => { if (listening && !asking) showDot("listening"); }, 1200); handleWake(text); } }, msg => { listening = false; showDot("off"); refreshTray(); });
       listenProc.on("close", () => { listenProc = null; });
     } catch (e) { listening = false; }
   }
+  showDot(listening ? "listening" : "off");
   refreshTray();
 }
 function handleWake(text) {
@@ -65,6 +75,7 @@ function startVoiceAsk() {
   if (!speechOk) { showBubble(true); toBubble("say", { text: "Type your question below. (Spoken questions need Windows, with its speech recognition on.)", listening: false }); return; }
   if (onceProc) return;
   showBubble(false);
+  showDot("listening");
   toBubble("say", { text: "Listening… ask your question.", listening: true });
   // pause the always-on listener so the two don't fight over the microphone
   const wasListening = listening;
@@ -102,6 +113,30 @@ function makeWorker() {
   worker = new BrowserWindow({ show: false, webPreferences: { preload: path.join(__dirname, "preload.js") } });
   worker.loadFile("worker.html");
   worker.on("closed", () => { worker = null; });
+}
+// the little "I'm listening" red ball in the bottom-right corner - always on top, never clickable
+function indicatorBounds() {
+  const d = screen.getPrimaryDisplay().workArea, s = 22, m = 8;
+  return { x: d.x + d.width - s - m, y: d.y + d.height - s - m, width: s, height: s };
+}
+function makeIndicator() {
+  indicator = new BrowserWindow(Object.assign(indicatorBounds(), {
+    frame: false, transparent: true, resizable: false, movable: false, skipTaskbar: true,
+    alwaysOnTop: true, focusable: false, show: false, hasShadow: false,
+    webPreferences: { preload: path.join(__dirname, "preload.js") }
+  }));
+  indicator.setAlwaysOnTop(true, "screen-saver");
+  indicator.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  try { indicator.setIgnoreMouseEvents(true, { forward: true }); } catch (e) {}
+  indicator.loadFile("dot.html");
+  indicator.on("closed", () => { indicator = null; });
+}
+function showDot(state) {
+  if (state === "off") { if (indicator) indicator.hide(); return; }
+  if (!cfg.overlay) return;      // the bubble being off hides every on-screen piece (for anti-cheat)
+  if (!indicator) makeIndicator();
+  const go = () => { indicator.setBounds(indicatorBounds()); indicator.showInactive(); try { indicator.webContents.send("dot", { state }); } catch (e) {} };
+  if (indicator.webContents.isLoading()) indicator.webContents.once("did-finish-load", go); else go();
 }
 function openSettings() {
   if (settingsWin) { settingsWin.show(); settingsWin.focus(); return; }
@@ -167,6 +202,7 @@ async function ask(question) {
   if (!cfg.server) { showBubble(true); toBubble("answer", { done: true, text: "Open Settings and paste your Web AI server address first." }); openSettings(); return; }
   asking = true;
   showBubble(false);
+  showDot("busy");
   toBubble("question", { text: question });
   toBubble("answer", { text: "", thinking: true });
   let answer = "";
@@ -198,6 +234,7 @@ async function ask(question) {
     toBubble("answer", { done: true, text: "Couldn't reach your Web AI server. Check it's on, and the address in Settings." });
   }
   asking = false;
+  showDot(listening ? "listening" : "off");
 }
 
 /* ---------------------------------------------------------------- the voice (Adam, through /speak) */
@@ -276,5 +313,6 @@ else {
     try { globalShortcut.unregisterAll(); } catch (e) {}
     if (listenProc) try { listenProc.kill(); } catch (e) {}
     if (onceProc) try { onceProc.kill(); } catch (e) {}
+    if (indicator) try { indicator.destroy(); } catch (e) {}
   });
 }

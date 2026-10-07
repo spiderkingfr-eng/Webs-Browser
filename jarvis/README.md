@@ -43,7 +43,8 @@ via `lib/stt-win.ps1`). There's nothing to download or install, and nothing abou
 
 - **Press the hotkey** (default **Alt+Shift+J**) and just speak your question.
 - Or turn on the always-listening wake word: tray icon → tick **Listen for "Jarvis"** → then say
-  *"Jarvis, how do I make a furnace?"* any time.
+  *"Jarvis, how do I make a furnace?"* any time. A small **red ball** appears in the bottom-right corner so
+  you can see it's listening; it glows amber while it's working on your question.
 
 If Windows speech has never been used on your PC, Windows may ask to set it up the first time (Start →
 Settings → Time & language → Speech). It's only Windows itself — not us. On non-Windows PCs there's no
@@ -90,7 +91,8 @@ produces an installer under `dist/`.
 | `preload.js` | the safe bridge between the windows and the app |
 | `overlay.html/.js/.css` | the bubble at the bottom‑right |
 | `settings.html/.js/.css` | the settings window |
-| `worker.html/.js` | hidden: the microphone and playing the voice |
+| `worker.html/.js` | hidden: playing the spoken answer |
+| `dot.html/.css/.js` | the little red "I'm listening" ball |
 | `lib/config.js` | your settings, in one JSON file on this PC |
 | `lib/wake.js` | hearing the wake word and pulling out the question |
 | `lib/ai.js` | the request to `/chat` and reading the streamed answer |
