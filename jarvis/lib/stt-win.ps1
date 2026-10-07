@@ -11,14 +11,19 @@ try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
 
 try {
   Add-Type -AssemblyName System.Speech
-  $rec = New-Object System.Speech.Recognition.SpeechRecognitionEngine
+  # use an English recogniser if one is installed (better than whatever the default happens to be)
+  $ri = $null
+  try { $ri = [System.Speech.Recognition.SpeechRecognitionEngine]::InstalledRecognizers() | Where-Object { $_.Culture.Name -like "en*" } | Select-Object -First 1 } catch {}
+  if ($ri) { $rec = New-Object System.Speech.Recognition.SpeechRecognitionEngine $ri.Id }
+  else { $rec = New-Object System.Speech.Recognition.SpeechRecognitionEngine }
   $rec.SetInputToDefaultAudioDevice()
+  $rec.MaxAlternates = 3
 } catch {
   [Console]::Out.WriteLine("ERR:Windows speech recognition isn't available on this PC.")
   exit 1
 }
-# be a little more forgiving about how clearly things are said
-try { $rec.UpdateRecognizerSetting("CFGConfidenceRejectionThreshold", 20) } catch {}
+# don't throw words away for being a bit unclear - we'd rather get a rough transcript than nothing
+try { $rec.UpdateRecognizerSetting("CFGConfidenceRejectionThreshold", 0) } catch {}
 
 if ($Mode -eq "continuous") {
   # grammar: (one of the wake words) + anything you then say

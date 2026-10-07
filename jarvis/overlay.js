@@ -3,7 +3,7 @@
 "use strict";
 (function () {
 const $ = id => document.getElementById(id);
-const body = document.body, a = $("a"), q = $("q"), dot = $("dot");
+const body = document.body, a = $("a"), q = $("q"), warn = $("warn");
 let hideTimer = 0;
 
 function armHide(ms) { clearTimeout(hideTimer); hideTimer = setTimeout(() => window.jarvis.hideBubble(), ms); }
@@ -29,7 +29,10 @@ window.jarvis.onBubble(d => {
       break;
     case "question":
       body.classList.remove("listening");
-      q.hidden = false; q.textContent = "“" + (d.text || "") + "”"; a.textContent = "";
+      q.hidden = false; q.textContent = "“" + (d.text || "") + "”"; a.textContent = ""; warn.hidden = true;
+      break;
+    case "warn":
+      warn.hidden = false; warn.textContent = "⚠ " + (d.text || "");
       break;
     case "answer":
       body.classList.toggle("thinking", !!d.thinking);

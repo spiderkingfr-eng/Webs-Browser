@@ -177,25 +177,33 @@ function refreshTray() {
 }
 
 /* ---------------------------------------------------------------- the screenshot */
+let lastShotNote = "";
 async function grabScreen() {
-  if (!cfg.sendScreenshot) return null;
+  if (!cfg.sendScreenshot) { lastShotNote = "off"; return null; }
   try {
-    // the monitor you're actually looking at (the one your mouse is on), so "what am I looking at" sees the right screen
+    // the monitor you're actually looking at (the one your mouse is on)
     const d = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()) || screen.getPrimaryDisplay();
-    const size = d.size, sf = d.scaleFactor || 1;
-    const sources = await desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width: Math.round(size.width * sf), height: Math.round(size.height * sf) } });
-    if (!sources.length) return null;
-    const src = sources.find(s => String(s.display_id) === String(d.id)) || sources[0];
+    // capture straight at the small size we want (asking for the full 4K can come back blank on some PCs)
+    const want = shot.fitSize(d.size.width, d.size.height, cfg.maxWidth);
+    const sources = await desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width: want.w, height: want.h } });
+    if (!sources.length) { lastShotNote = "nosrc"; return null; }
+    // the display under the cursor; else whichever source actually came back with a picture
+    let src = sources.find(s => String(s.display_id) === String(d.id) && !s.thumbnail.isEmpty());
+    if (!src) src = sources.filter(s => !s.thumbnail.isEmpty()).sort((a, b) => { const A = a.thumbnail.getSize(), B = b.thumbnail.getSize(); return B.width * B.height - A.width * A.height; })[0];
+    if (!src || src.thumbnail.isEmpty()) { lastShotNote = "empty"; return null; }
     let img = src.thumbnail;
     const got = img.getSize();
     const fit = shot.fitSize(got.width, got.height, cfg.maxWidth);
     if (fit.scale < 1) img = img.resize({ width: fit.w, height: fit.h, quality: "good" });
-    for (const q of [70, 55, 40, 28]) {
-      const data = "data:image/jpeg;base64," + img.toJPEG(q).toString("base64");
-      if (!shot.tooBig(data)) return data;
+    for (const q of [72, 55, 40, 28, 18]) {
+      const jpeg = img.toJPEG(q);
+      if (jpeg && jpeg.length > 200) {
+        const data = "data:image/jpeg;base64," + jpeg.toString("base64");
+        if (!shot.tooBig(data)) { lastShotNote = "ok"; return data; }
+      }
     }
-    return null;
-  } catch (e) { return null; }
+    lastShotNote = "toobig"; return null;
+  } catch (e) { lastShotNote = "err:" + (e && e.message || e); console.error("screenshot failed:", e); return null; }
 }
 
 /* ---------------------------------------------------------------- asking the server */
@@ -210,6 +218,7 @@ async function ask(question) {
   let answer = "";
   try {
     const image = await grabScreen();
+    if (cfg.sendScreenshot && !image) toBubble("warn", { text: "Couldn't capture the screen (" + lastShotNote + ") — answering from your words. Tell me if this keeps happening." });
     const body = ai.buildBody({ question, cfg, imageDataUrl: image, now: new Date() });
     const res = await fetch(cfg.server + "/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
     if (!res.ok || !res.body) {
