@@ -10,6 +10,7 @@
 "use strict";
 const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, desktopCapturer, screen, nativeImage, shell } = require("electron");
 const path = require("path");
+const fs = require("fs");
 const { spawn } = require("child_process");
 const config = require("./lib/config");
 const ai = require("./lib/ai");
@@ -196,6 +197,7 @@ function refreshTray() {
     { label: "Listen for \"" + cfg.name + "\"", type: "checkbox", checked: listening && speechOk, enabled: speechOk, click: m => setListening(m.checked) },
     { label: "Show the bubble", type: "checkbox", checked: cfg.overlay, click: m => { cfg = config.save(DIR, Object.assign({}, cfg, { overlay: m.checked })); } },
     { type: "separator" },
+    { label: "Show what I can see", enabled: !!cfg.sendScreenshot, click: () => showWhatISee() },
     { label: "Settings…", click: openSettings },
     { label: whisperOk ? "Voice: Whisper (accurate)" : whisperLoading ? "Voice: downloading Whisper…" : speechOk ? "Voice: Windows speech" : "Voice: type only", enabled: false },
     { type: "separator" },
@@ -223,6 +225,53 @@ function startWatch() {
 /* ---------------------------------------------------------------- the screenshot */
 const SHOT_PS = path.join(__dirname, "lib", "shot-win.ps1");
 let lastShotNote = "";
+function shotData(b64) {
+  b64 = String(b64 || "").trim();
+  if (!/^[A-Za-z0-9+/=]+$/.test(b64) || b64.length <= 500) return null;
+  const data = "data:image/jpeg;base64," + b64;
+  return shot.tooBig(data) ? null : data;
+}
+// The helper stays open (one PowerShell, started once), so each picture takes a moment instead of a whole
+// PowerShell start-up every couple of seconds. Each line we send it takes one picture; it answers SHOT:<base64>.
+let shotProc = null, shotBuf = "", shotWait = [];
+function shotServer() {
+  if (shotProc) return shotProc;
+  try {
+    const p = spawn("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", SHOT_PS, "-Serve", "-MaxWidth", String(cfg.maxWidth), "-Quality", "70"], { windowsHide: true });
+    shotProc = p; shotBuf = "";
+    p.stdout.setEncoding("ascii");
+    p.stdout.on("data", d => {
+      shotBuf += d;
+      let i;
+      while ((i = shotBuf.indexOf("\n")) >= 0) {
+        const line = shotBuf.slice(0, i).trim(); shotBuf = shotBuf.slice(i + 1);
+        if (!/^(SHOT|ERR):/.test(line)) continue;      // anything else PowerShell says isn't an answer
+        const w = shotWait.shift(); if (w) w(line);
+      }
+    });
+    const gone = () => { if (shotProc === p) shotProc = null; shotWait.splice(0).forEach(w => w("")); };
+    p.on("error", gone); p.on("close", gone);
+    p.stdin.on("error", () => {});
+  } catch (e) { shotProc = null; }
+  return shotProc;
+}
+function stopShotServer() { if (shotProc) { try { shotProc.kill(); } catch (e) {} shotProc = null; } }
+function shotViaServer() {
+  return new Promise(resolve => {
+    const p = shotServer();
+    if (!p) return resolve(null);
+    let done = false, timer = 0;
+    const finish = v => { if (!done) { done = true; clearTimeout(timer); resolve(v); } };
+    const onLine = line => {
+      if (line.startsWith("SHOT:")) finish(shotData(line.slice(5)));
+      else { if (line.startsWith("ERR:")) lastShotNote = "win:" + line.slice(4); finish(null); }
+    };
+    // the first picture also starts PowerShell, so give it a while; if it's stuck, drop it and start fresh next time
+    timer = setTimeout(() => { const i = shotWait.indexOf(onLine); if (i >= 0) shotWait.splice(i, 1); if (shotProc === p) stopShotServer(); finish(null); }, 9000);
+    shotWait.push(onLine);
+    try { p.stdin.write("shot\n"); } catch (e) { finish(null); }
+  });
+}
 // the reliable Windows way (System.Drawing) - what Electron's own capture couldn't manage on some PCs
 function shotViaWindows() {
   return new Promise(resolve => {
@@ -231,11 +280,7 @@ function shotViaWindows() {
       let out = "";
       p.stdout.on("data", d => { out += d; });
       p.on("error", () => resolve(null));
-      p.on("close", () => {
-        out = out.trim();
-        if (/^[A-Za-z0-9+/=]+$/.test(out) && out.length > 500) { const data = "data:image/jpeg;base64," + out; resolve(shot.tooBig(data) ? null : data); }
-        else resolve(null);
-      });
+      p.on("close", () => resolve(shotData(out)));
       setTimeout(() => { try { p.kill(); } catch (e) {} resolve(null); }, 6000);
     } catch (e) { resolve(null); }
   });
@@ -243,9 +288,9 @@ function shotViaWindows() {
 async function grabScreen() {
   if (!cfg.sendScreenshot) { lastShotNote = "off"; return null; }
   if (process.platform === "win32") {
-    const d = await shotViaWindows();
+    const d = (await shotViaServer()) || (await shotViaWindows());
     if (d) { lastShotNote = "ok"; return d; }
-    lastShotNote = "win-failed";     // fall through to Electron's capture as a backup
+    if (!/^win:/.test(lastShotNote)) lastShotNote = "win-failed";     // fall through to Electron's capture as a backup
   }
   try {
     // the monitor you're actually looking at (the one your mouse is on)
@@ -273,6 +318,33 @@ async function grabScreen() {
   } catch (e) { lastShotNote = "err:" + (e && e.message || e); console.error("screenshot failed:", e); return null; }
 }
 
+// See exactly what it sees: takes a picture now and opens it, so you can check the capture itself works.
+async function showWhatISee() {
+  const img = cfg.sendScreenshot ? await grabScreen() : null;
+  if (!img) {
+    showBubble(false);
+    toBubble("warn", { text: cfg.sendScreenshot ? "Couldn't capture the screen (" + lastShotNote + ")." : "\"Let it see my screen\" is off in Settings." });
+    return;
+  }
+  const file = path.join(DIR, "what-" + config.wakeWord(cfg).replace(/[^a-z0-9]+/gi, "-") + "-sees.jpg");
+  try { fs.writeFileSync(file, Buffer.from(img.slice(img.indexOf(",") + 1), "base64")); await shell.openPath(file); } catch (e) {}
+}
+
+/* ---------------------------------------------------------------- can your server look at pictures? */
+// Web AI servers from before the 3.14 update quietly drop the screenshot, so the answer comes back as if it's blind
+// ("I can't see your screen"). Servers that can look list "see" in GET /. Without it, say so plainly.
+let serverSees = null;      // null = not known yet
+const OLD_SERVER = "Your Web AI server is an older version that can't look at pictures, so I can't see your screen yet. Update it: unzip the new web-ai-server zip and run setup.cmd, then ask again.";
+async function checkServer() {
+  if (!cfg.server) { serverSees = null; return null; }
+  try {
+    const r = await fetch(cfg.server + "/", { method: "GET" });
+    const j = await r.json();
+    serverSees = Array.isArray(j.features) && j.features.includes("see");
+    return j;
+  } catch (e) { return null; }
+}
+
 /* ---------------------------------------------------------------- asking the server */
 async function ask(question) {
   if (asking) return;
@@ -285,8 +357,11 @@ async function ask(question) {
   let answer = "";
   try {
     // use the freshest watched frame if we have one (instant); otherwise grab one right now
+    // (and, until we know the server can look at pictures, ask it - at the same time, so it costs no extra wait)
+    const sees = cfg.sendScreenshot && serverSees !== true ? checkServer() : null;
     let image = (cfg.watch && lastFrame && Date.now() - lastFrameAt < 4000) ? lastFrame : await grabScreen();
-    if (cfg.sendScreenshot && !image) toBubble("warn", { text: "Couldn't capture the screen (" + lastShotNote + ") — answering from your words. Tell me if this keeps happening." });
+    if (cfg.sendScreenshot && !image) toBubble("warn", { text: "Couldn't capture the screen (" + lastShotNote + ") — answering from your words. Tray icon → \"Show what I can see\" to check." });
+    if (image && sees) { await sees; if (serverSees === false) toBubble("warn", { text: OLD_SERVER }); }
     const body = ai.buildBody({ question, cfg, imageDataUrl: image, now: new Date() });
     const res = await fetch(cfg.server + "/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
     if (!res.ok || !res.body) {
@@ -349,6 +424,8 @@ ipcMain.handle("save-config", (e, next) => {
   cfg = config.save(DIR, Object.assign({}, cfg, next || {}));
   applyHotkey();
   applyAutostart();
+  if (before.maxWidth !== cfg.maxWidth || !cfg.sendScreenshot) stopShotServer();
+  if (before.server !== cfg.server) { serverSees = null; checkServer(); }
   startWatch();
   refreshTray();
   if (tray) tray.setToolTip(cfg.name + " - your screen assistant");
@@ -357,8 +434,9 @@ ipcMain.handle("save-config", (e, next) => {
 });
 ipcMain.handle("test-server", async () => {
   if (!cfg.server) return { ok: false, message: "No server address yet." };
-  try { const r = await fetch(cfg.server + "/", { method: "GET" }); const j = await r.json(); return { ok: !!j.ok, ready: !!j.ready, name: j.name || "Web AI", voice: (j.features || []).includes("voice"), message: j.missing || "" }; }
-  catch (e) { return { ok: false, message: "Couldn't reach that address." }; }
+  const j = await checkServer();
+  if (!j) return { ok: false, message: "Couldn't reach that address." };
+  return { ok: !!j.ok, ready: !!j.ready, name: j.name || "Web AI", voice: (j.features || []).includes("voice"), sees: serverSees === true, message: j.missing || "" };
 });
 // the worker (Whisper) reports in
 ipcMain.on("whisper-loading", () => { whisperLoading = true; refreshTray(); });
@@ -398,6 +476,7 @@ else {
     applyHotkey();
     applyAutostart();
     startWatch();
+    checkServer();
     if (cfg.wakeEnabled && speechOk) setTimeout(() => setListening(true), 1500);
     if (!cfg.server) setTimeout(openSettings, 800);
   });
@@ -405,6 +484,7 @@ else {
   app.on("will-quit", () => {
     try { globalShortcut.unregisterAll(); } catch (e) {}
     clearInterval(watchTimer);
+    stopShotServer();
     if (listenProc) try { listenProc.kill(); } catch (e) {}
     if (onceProc) try { onceProc.kill(); } catch (e) {}
     if (indicator) try { indicator.destroy(); } catch (e) {}

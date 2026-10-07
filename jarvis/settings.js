@@ -40,7 +40,7 @@ $("test").onclick = async () => {
   const out = $("testOut"); out.className = "testout"; out.textContent = "Checking…";
   await window.jarvis.saveConfig({ server: $("server").value, code: $("code").value });
   const r = await window.jarvis.testServer();
-  if (r.ok) { out.className = "testout ok"; out.textContent = (r.name || "Web AI") + " is reachable" + (r.ready ? "" : " (but " + (r.message || "not fully set up") + ")") + (r.voice ? " · voice ready" : " · no voice key yet"); }
+  if (r.ok) { out.className = "testout ok"; out.textContent = (r.name || "Web AI") + " is reachable" + (r.ready ? "" : " (but " + (r.message || "not fully set up") + ")") + (r.voice ? " · voice ready" : " · no voice key yet") + (r.sees ? " · can see your screen" : " · ⚠ too old to see your screen - update it with setup.cmd from the new web-ai-server zip"); }
   else { out.className = "testout bad"; out.textContent = r.message || "Couldn't reach it."; }
 };
 $("speechNote").textContent = "";

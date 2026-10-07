@@ -33,6 +33,7 @@ window.jarvis.onBubble(d => {
       break;
     case "warn":
       warn.hidden = false; warn.textContent = "⚠ " + (d.text || "");
+      if (!body.classList.contains("thinking")) armHide(20000);     // a note on its own (no answer coming) goes away too
       break;
     case "answer":
       body.classList.toggle("thinking", !!d.thinking);

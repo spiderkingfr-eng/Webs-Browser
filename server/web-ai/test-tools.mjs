@@ -27,6 +27,14 @@ const n = sent.length;
 for (const bad of [{ url:"http://img.example/a.jpg" }, { url:"javascript:alert(1)" }, { data:"data:image/svg+xml;base64,AAAA" }, { data:"data:image/png;base64," + "A".repeat(2000004) }, "https://x.example/a.png", 5])
   ok((await chat({ image:bad })).s === 400, "refused: " + JSON.stringify(bad).slice(0, 40));
 ok(sent.length === n, "without asking Claude");
+// Jarvis on the PC sends a screenshot of the screen: it reaches Claude, Claude is told to use it, and GET / says the server can see
+const jpg = "data:image/jpeg;base64," + Buffer.from("fakejpg").toString("base64");
+r = await chat({ task:"jarvis", image:{ data:jpg }, messages:[{ role:"user", content:"What am I looking at?" }] });
+m = sent[sent.length - 1].messages.slice(-1)[0];
+ok(r.s === 200 && m.content[0].source.media_type === "image/jpeg" && m.content[1].text === "What am I looking at?", "a Jarvis screenshot goes with the question");
+ok(/screenshot of their screen is attached, it IS what they're looking at/.test(sent[sent.length - 1].system) && /never say you can't see their screen/.test(sent[sent.length - 1].system), "and Jarvis is told to look at it");
+const home = await (await worker.fetch(new Request("https://w.example/", { method:"GET" }), env, { waitUntil(){} })).json();
+ok(home.features.includes("see"), "GET / says this server can look at pictures");
 r = await chat({ task:"factcheck", search:true, messages:[{ role:"user", content:"The Great Wall is visible from space." }] });
 let b = sent[sent.length - 1];
 ok(b.tools && b.tools.some(t => t.type === "web_search_20250305" && t.max_uses === 3) && /verdict in bold/.test(b.system), "a fact check searches the web (3 searches at most)");

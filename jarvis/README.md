@@ -14,8 +14,11 @@ question** — never continuously.
 ## What you need
 
 1. **Node.js** (18 or newer) — https://nodejs.org
-2. **Your Web AI server address** — the `…workers.dev` address you set up for the browser (it already
-   does images and, with an ElevenLabs key, the voice). You paste it into Settings on first run.
+2. **Your Web AI server address**: the `…workers.dev` address you set up for the browser. You paste it
+   into Settings on first run. To **see your screen**, the server must be the updated one (unzip the newest
+   `web-ai-server` zip and run `setup.cmd`). Older servers quietly drop the screenshot, so the answer comes
+   back "blind". **Test the connection** in Settings tells you which you have ("can see your screen"). With an
+   ElevenLabs key it also does the voice.
 
 Hearing you (the wake word and spoken questions) uses **Windows' own built-in speech recognition** — no
 download, no account, no extra install. The hotkey and the typed box also work on their own.
@@ -34,6 +37,7 @@ name, and close it. The tray icon (bottom‑right of Windows) is where everythin
 - **Ask Jarvis** (or press the hotkey, default **Alt+Shift+J**) — listen for one question and answer.
 - **Type a question** — opens the bubble with a text box (always works).
 - **Listen for "Jarvis"** — always‑on wake word (Windows speech).
+- **Show what I can see**: takes a screenshot now and opens it, so you can check exactly what it sees.
 - **Settings…**, **Show the bubble**, **Quit**.
 
 ## The wake word / talking to it
@@ -65,6 +69,13 @@ server has an ElevenLabs key (the browser's `setup.cmd` asks for one).
 - **Server address** and **code** — your Web AI server.
 - **Listen for the wake word**, **Read answers aloud**, **Let it see my screen**, **Show the bubble**.
 - **Hotkey**, **Microphone**, **Start with Windows**.
+
+## "It says it can't see my screen"
+
+1. Tray icon → **Show what I can see**. If a picture of your screen opens, the capture works.
+2. Settings → **Test the connection**. If it says *"too old to see your screen"*, update the server (newest
+   `web-ai-server` zip → `setup.cmd`). The bubble also shows an orange ⚠ line when this is the problem.
+3. If the capture itself fails, the orange ⚠ line in the bubble says why.
 
 ## Honest notes
 

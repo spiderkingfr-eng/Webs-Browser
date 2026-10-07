@@ -12,7 +12,7 @@ const STYLE_TEXT = {
 };
 
 // the <assistant> and <now> blocks the server's jarvis prompt expects, adapted for the desktop overlay
-function context(cfg, now) {
+function context(cfg, now, hasImage) {
   const name = (cfg && cfg.name) || "Jarvis";
   const call = cfg && cfg.callYou ? cfg.callYou : "";
   const style = STYLE_TEXT[cfg && cfg.style] || STYLE_TEXT.calm;
@@ -21,7 +21,7 @@ function context(cfg, now) {
   s += "Style: " + style + "\n</assistant>\n";
   s += "<now>\nThe time is " + (now || new Date()).toString() + ".\n";
   s += "This is the desktop overlay, not the browser: there are no tabs or browser commands here, so never use [[do: ...]] commands - just answer.\n";
-  s += (cfg && cfg.sendScreenshot ? "A screenshot of their screen is attached; use it to see what they're doing.\n" : "No screenshot is attached this time.\n");
+  s += (hasImage ? "A screenshot of their screen (the monitor their mouse is on) is attached: it is exactly what they're looking at right now, so look at it and answer from it.\n" : "No screenshot is attached this time.\n");
   s += "</now>";
   return s;
 }
@@ -31,7 +31,8 @@ function buildBody(opt) {
   opt = opt || {};
   const cfg = opt.cfg || {};
   const q = String(opt.question || "").trim().slice(0, 2000);
-  const text = context(cfg, opt.now) + "\n\n" + q;
+  const image = cfg.sendScreenshot && typeof opt.imageDataUrl === "string" && /^data:image\/(png|jpeg|webp|gif);base64,/.test(opt.imageDataUrl) ? opt.imageDataUrl : null;
+  const text = context(cfg, opt.now, !!image) + "\n\n" + q;
   const body = {
     task: "jarvis",
     device: cfg.device || "",
@@ -39,9 +40,7 @@ function buildBody(opt) {
   };
   if (cfg.code) body.code = cfg.code;
   if (cfg.callYou || cfg.style) body.prefs = (cfg.callYou ? "Call me " + cfg.callYou + ". " : "") + (STYLE_TEXT[cfg.style] || "");
-  if (cfg.sendScreenshot && typeof opt.imageDataUrl === "string" && /^data:image\/(png|jpeg|webp|gif);base64,/.test(opt.imageDataUrl)) {
-    body.image = { data: opt.imageDataUrl };
-  }
+  if (image) body.image = { data: image };
   return body;
 }
 
