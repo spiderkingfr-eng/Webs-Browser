@@ -56,6 +56,7 @@ const ok = (c, w) => { if (c) pass++; else { fail++; console.log("  FAIL:", w); 
   ok(/no tabs or browser commands/.test(b.messages[0].content), "it's told there's no browser here");
   const b2 = ai.buildBody({ question: "hi", cfg: Object.assign({}, cfg, { sendScreenshot: false }), imageDataUrl: img });
   ok(!b2.image, "no screenshot when that's off");
+  ok(ai.parseLine('{"end":1,"left":999,"unlimited":1}').unlimited === true && ai.parseLine('{"end":1,"left":999,"unlimited":1}').left === null && ai.parseLine('{"end":1,"left":4}').left === 4, "an unlimited code's answers say so");
   ok(/screenshot of their screen[\s\S]*is attached/.test(b.messages[0].content), "it's told a screenshot is attached when one is");
   ok(/No screenshot is attached/.test(b2.messages[0].content), "and that none is when it's off");
   const b3 = ai.buildBody({ question: "what am i looking at", cfg, imageDataUrl: null });

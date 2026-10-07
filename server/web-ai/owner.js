@@ -18,7 +18,7 @@
      push:sched    notifications waiting to go out at a set time
      watch:state   whether the iPhone app's website and the update files answer */
 import { json, readJSON, hash, rnd, cut, same, count, pushOne, pushCtx, vapid, tidyMsg, PUSH_HOSTS, unb64u,
-  envCodes, limit, cost, APP_URL, IPHONE_UPDATES, WIN_UPDATES } from "./worker.js";
+  envCodes, limit, UNLIMITED_SHOWN, cost, APP_URL, IPHONE_UPDATES, WIN_UPDATES } from "./worker.js";
 
 const now = () => Date.now();
 const sha = async s => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(s))))].map(b => b.toString(16).padStart(2, "0")).join("");
@@ -86,7 +86,7 @@ export async function allCodes(env) {
   const mm = M(env), sig = String(env.WEB_AI_CODES || "") + "|" + String(env.DAILY_LIMIT || "");
   if (mm.codes && mm.codes.sig === sig && now() - mm.codes.at < 20000) return mm.codes.v;
   const k = await readJSON(env, "admin:codes"), c = await ownerCfg(env), daily = c.ai.daily || limit(env.DAILY_LIMIT, 25);
-  const v = k && Array.isArray(k.list) ? k.list.filter(okCode).map(x => ({ name:x.name || "Someone", code:x.code, limit:x.limit > 0 ? x.limit : daily })) : envCodes(env, daily);
+  const v = k && Array.isArray(k.list) ? k.list.filter(okCode).map(x => x.unlimited ? { name:x.name || "Someone", code:x.code, limit:UNLIMITED_SHOWN, unlimited:true } : { name:x.name || "Someone", code:x.code, limit:x.limit > 0 ? x.limit : daily }) : envCodes(env, daily);
   mm.codes = { at:now(), v, sig };
   return v;
 }
@@ -239,10 +239,10 @@ export async function ownerAdmin(op, body, env, h, req) {
   }
   if (op === "codes.get") {
     const list = await allCodes(env), k = await readJSON(env, "admin:codes");
-    return json({ ok:true, list:list.map(x => ({ name:x.name, code:x.code, limit:x.limit })), fromDashboard:!!k }, 200, h);
+    return json({ ok:true, list:list.map(x => ({ name:x.name, code:x.code, limit:x.unlimited ? 0 : x.limit, unlimited:!!x.unlimited })), fromDashboard:!!k }, 200, h);
   }
   if (op === "codes.set") {
-    const list = (Array.isArray(body.list) ? body.list : []).slice(0, 200).map(x => ({ name:txt(x && x.name, 40) || "Someone", code:String(x && x.code || "").trim(), limit:num(x && x.limit, 0, 100000, 0) }));
+    const list = (Array.isArray(body.list) ? body.list : []).slice(0, 200).map(x => ({ name:txt(x && x.name, 40) || "Someone", code:String(x && x.code || "").trim(), limit:num(x && x.limit, 0, 100000, 0), ...(x && x.unlimited === true ? { unlimited:true } : {}) }));
     const bad = list.find(x => !okCode(x));
     if (bad) return json({ error:"bad", message:"Codes need 8 to 64 letters and numbers (" + bad.name + ")." }, 400, h);
     if (new Set(list.map(x => x.code)).size !== list.length) return json({ error:"bad", message:"Two people have the same code." }, 400, h);

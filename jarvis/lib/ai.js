@@ -50,7 +50,7 @@ function parseLine(line) {
   if (!line) return null;
   let j; try { j = JSON.parse(line); } catch (e) { return null; }
   if (j.error) return { error: j.message || j.error };
-  if (j.end) return { end: true, left: typeof j.left === "number" ? j.left : null, stop: j.stop || "" };
+  if (j.end) return { end: true, left: j.unlimited ? null : typeof j.left === "number" ? j.left : null, unlimited: !!j.unlimited, stop: j.stop || "" };
   if (typeof j.d === "string") return { text: j.d };
   return null;
 }

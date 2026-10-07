@@ -73,6 +73,11 @@ Me=k7m2qx9wfp3d,Sam=r4tz8nv2hc6y,Alex=w9pd3kx7mq2b
 
 - Each code needs 8 or more letters and numbers. Make them random, not words.
 - `Me=k7m2qx9wfp3d=60` gives that person 60 questions a day instead of the usual 25.
+- `Me=k7m2qx9wfp3d=unlimited` gives that code **no daily limit** (for you, the owner): it skips the
+  daily limits and the server's total, and the voice's daily cap. Your **spending limit** (owner's
+  dashboard) and a pause still apply, and every question is still on your Claude bill, so keep a
+  spending limit on. The apps show "999 left today" for it (it never goes down); Jarvis shows "no
+  daily limit". On the dashboard, it's the **No daily limit** switch on a code.
 - The name is what Web AI greets them with.
 
 ### 2. Get a Claude API key

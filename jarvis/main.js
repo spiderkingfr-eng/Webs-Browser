@@ -395,7 +395,7 @@ async function ask(question) {
       for (const part of reader.push(dec.decode(value, { stream: true }))) {
         if (part.error) { toBubble("answer", { done: true, text: part.error }); asking = false; return; }
         if (part.text) { answer += part.text; toBubble("answer", { text: ai.cleanForShow(answer) }); }
-        if (part.end && typeof part.left === "number") toBubble("left", { left: part.left });
+        if (part.end && (part.unlimited || typeof part.left === "number")) toBubble("left", { left: part.left, unlimited: part.unlimited });
       }
     }
     reader.end().forEach(p => { if (p.text) answer += p.text; });

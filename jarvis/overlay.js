@@ -43,7 +43,7 @@ window.jarvis.onBubble(d => {
       if (d.done) { body.classList.remove("thinking"); a.classList.remove("thinking"); armHide(30000); linkify(); }
       break;
     case "left":
-      $("left").textContent = d.left != null ? d.left + " left today" : "";
+      $("left").textContent = d.unlimited ? "no daily limit" : d.left != null ? d.left + " left today" : "";
       break;
   }
 });

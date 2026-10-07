@@ -10,7 +10,8 @@
      ANTHROPIC_API_KEY   secret   the key from console.anthropic.com
      OPEN                text     "true": no code needed (see the limits below)
      WEB_AI_CODES        secret   Web AI codes: Name=code, one per line or comma separated
-                                  (Name=code=50 gives that person 50 a day); needed unless OPEN
+                                  (Name=code=50 gives that person 50 a day; Name=code=unlimited gives
+                                  them no daily limit - for you); needed unless OPEN
      LIMITS              KV namespace binding that keeps the daily counts
      DAILY_LIMIT         text     questions per person (or device, without a code) per day (25)
      NETWORK_DAILY_LIMIT text     questions per internet connection per day without a code (100)
@@ -203,7 +204,7 @@ export default {
       const day = new Date().toISOString().slice(0, 10);
       const [used, all, net] = await Promise.all([count(env, who.id, day), count(env, "everyone", day), who.net ? count(env, who.net, day) : 0]);
       const total = ai.total, netLimit = ai.network;
-      if (path === "/check") return json({ ok:true, name:who.name, left:Math.max(0, who.limit - used), limit:who.limit, open:isOpen(env), model:ai.model }, 200, cors);
+      if (path === "/check") return json({ ok:true, name:who.name, left:who.unlimited ? UNLIMITED_SHOWN : Math.max(0, who.limit - used), limit:who.limit, open:isOpen(env), model:ai.model, ...(who.unlimited ? { unlimited:true } : {}) }, 200, cors);
       // the owner's daily spending limit
       if (oc.ai.cap > 0) {
         let t = {}; try { t = JSON.parse(await env.LIMITS.get("u:" + day) || "{}") || {}; } catch (e) {}
@@ -215,9 +216,11 @@ export default {
         }
       }
 
-      if (used >= who.limit) return json({ error:"limit", message:"You've asked your " + who.limit + " questions for today. Web AI is back tomorrow (midnight UTC).", left:0 }, 429, cors);
+      // an unlimited code (yours) skips the daily limits - but not the owner's spending limit above, nor a pause
+      if (!who.unlimited && used >= who.limit) return json({ error:"limit", message:"You've asked your " + who.limit + " questions for today. Web AI is back tomorrow (midnight UTC).", left:0 }, 429, cors);
       if (who.net && net >= netLimit) return json({ error:"limit", message:"This internet connection has asked its " + netLimit + " questions for today. Web AI is back tomorrow (midnight UTC).", left:0 }, 429, cors);
-      if (all >= total) return json({ error:"busy", message:"Web AI has answered everyone's questions for today. It's back tomorrow (midnight UTC)." }, 429, cors);
+      // (the unlimited code's own questions don't use up everyone else's share: they're counted apart as well)
+      if (!who.unlimited && all >= total && all - await count(env, "unl", day) >= total) return json({ error:"busy", message:"Web AI has answered everyone's questions for today. It's back tomorrow (midnight UTC)." }, 429, cors);
       const messages = tidy(body.messages);
       if (typeof messages === "string") return json({ error:"bad", message:messages }, 400, cors);
       // a picture to look at (3.14, "Describe this picture"): its address, or the picture itself, with the last question
@@ -251,9 +254,9 @@ export default {
         return json({ error:e.error, message:e.message }, e.status, cors);
       }
       // counted once Claude has taken the question
-      ctx.waitUntil(Promise.all([bump(env, who.id, day, used), bump(env, "everyone", day, all), who.net ? bump(env, who.net, day, net) : null]));
+      ctx.waitUntil(Promise.all([bump(env, who.id, day, used), bump(env, "everyone", day, all), who.net ? bump(env, who.net, day, net) : null, who.unlimited ? count(env, "unl", day).then(n => bump(env, "unl", day, n)) : null]));
       const pipe = new TransformStream();
-      ctx.waitUntil(relay(up.body, pipe.writable, who, Math.max(0, who.limit - used - 1), u => addUsage(env, day, { ...u, model:ai.model })));
+      ctx.waitUntil(relay(up.body, pipe.writable, who, who.unlimited ? UNLIMITED_SHOWN : Math.max(0, who.limit - used - 1), u => addUsage(env, day, { ...u, model:ai.model })));
       return new Response(pipe.readable, { headers:{ ...cors, "content-type":"application/x-ndjson; charset=utf-8", "cache-control":"no-store" } });
     } catch (e) {
       console.log("Web AI server error", e && e.stack || e);
@@ -286,6 +289,9 @@ function json(o, status, headers) {
 const model = env => String(env.MODEL || "").trim() || "claude-sonnet-5-5";
 const isOpen = env => /^(true|yes|1|on)$/i.test(String(env.OPEN || "").trim());
 const limit = (v, d) => { const n = parseInt(v, 10); return n > 0 ? n : d; };
+// a code with no daily limit (the owner's own, usually). Apps show this many "left today", and it never goes down.
+export const UNLIMITED_SHOWN = 999;
+const isUnlimited = v => /^(unlimited|infinite|inf|∞|no ?limit|none)$/i.test(String(v || "").trim());
 
 function setupProblem(env) {
   const key = String(env.ANTHROPIC_API_KEY || "").trim();
@@ -296,12 +302,13 @@ function setupProblem(env) {
   return "";
 }
 
-/* WEB_AI_CODES: "Sam=k3j9w2mx8q" or "Sam=k3j9w2mx8q=50", one per line (commas work too).
+/* WEB_AI_CODES: "Sam=k3j9w2mx8q" or "Sam=k3j9w2mx8q=50" or "Me=k3j9w2mx8q=unlimited", one per line (commas work too).
    Once the owner changes the codes on the dashboard, that list is used instead (allCodes, owner.js). */
 function envCodes(env, daily) {
   return String(env.WEB_AI_CODES || "").split(/[\n,;]+/).map(s => s.trim()).filter(Boolean).map((s, i) => {
     const p = s.split("=").map(x => x.trim());
     const [name, code, n] = p.length === 1 ? ["Person " + (i + 1), p[0], ""] : p;
+    if (isUnlimited(n)) return { name:name || "Person " + (i + 1), code, limit:UNLIMITED_SHOWN, unlimited:true };
     return { name:name || "Person " + (i + 1), code, limit:limit(n, daily || limit(env.DAILY_LIMIT, 25)) };
   }).filter(c => /^[A-Za-z0-9_-]{8,}$/.test(c.code || ""));
 }
@@ -317,7 +324,7 @@ async function person(env, body, req) {
   const code = String(body.code || "").trim();
   if (code) {
     const c = (await allCodes(env)).find(x => same(x.code, code));
-    return c ? { name:c.name, limit:c.limit, id:"p" + await hash(c.code) } : null;
+    return c ? { name:c.name, limit:c.limit, id:"p" + await hash(c.code), ...(c.unlimited ? { unlimited:true } : {}) } : null;
   }
   if (!isOpen(env)) return null;
   const ip = req.headers.get("CF-Connecting-IP") || "", device = String(body.device || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40);
@@ -391,7 +398,7 @@ async function relay(src, dst, who, left, onUsage) {
       while ((i = buf.indexOf("\n")) >= 0) { const line = buf.slice(0, i).replace(/\r$/, ""); buf = buf.slice(i + 1); await take(line); }
     }
     if (buf) await take(buf.trim());
-    if (!failed) await out({ end:1, stop:stop || "end_turn", left });
+    if (!failed) await out({ end:1, stop:stop || "end_turn", left, ...(who && who.unlimited ? { unlimited:1 } : {}) });
     if (onUsage) await onUsage(usage).catch(() => {});
     console.log("Web AI", who.name || "(no code)", "stop", stop, "tokens in", (usage.input_tokens || 0) + (usage.cache_read_input_tokens || 0) + (usage.cache_creation_input_tokens || 0),
       "(cached " + (usage.cache_read_input_tokens || 0) + ")", "out", usage.output_tokens || 0);

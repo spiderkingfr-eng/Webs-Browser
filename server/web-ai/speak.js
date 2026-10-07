@@ -2,7 +2,8 @@
    Turns one sentence or two of the assistant's answer into speech with ElevenLabs, using the server's own
    ELEVENLABS_KEY (a secret; the browser never sees it). The voice is "Adam", one of ElevenLabs' stock voices,
    unless the browser asks for another stock or designed voice by its id. Counted per person per day in
-   characters (SPEAK_DAILY, 20,000 by default, about 25 minutes of talking) so a key can't be run dry. */
+   characters (SPEAK_DAILY, 20,000 by default, about 25 minutes of talking) so a key can't be run dry - except for an
+   unlimited code (the owner's own), which ElevenLabs' own plan still caps. */
 export const ADAM = "pNInz6obpgDQGcFmaJgB";
 const API = "https://api.elevenlabs.io/v1/text-to-speech/";
 const MAX_TEXT = 600;
@@ -26,7 +27,7 @@ export async function speakApi(req, env, cors, ctx, h) {
   const daily = Math.max(0, parseInt(env.SPEAK_DAILY, 10) || 20000);
   const day = new Date().toISOString().slice(0, 10), key = "tts:" + day + ":" + who.id;
   const used = parseInt(await env.LIMITS.get(key), 10) || 0;
-  if (used + text.length > daily) return out({ error:"limit", message:"The voice has talked enough for today. It's back tomorrow; until then Webs uses a Windows voice.", left:0 }, 429);
+  if (!who.unlimited && used + text.length > daily) return out({ error:"limit", message:"The voice has talked enough for today. It's back tomorrow; until then Webs uses a Windows voice.", left:0 }, 429);
   let up;
   try {
     up = await fetch(API + voice + "?output_format=mp3_44100_64", { method:"POST",

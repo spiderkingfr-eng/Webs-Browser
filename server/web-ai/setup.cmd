@@ -30,6 +30,8 @@ if errorlevel 2 goto done
 echo.
 echo === Step 3 of 3: the Web AI codes ===
 echo Paste the line of codes, like Me=abcd1234efgh,Sam=wxyz9876mnop - then press Enter.
+echo For no daily limit on your own code, add =unlimited to it: Me=abcd1234efgh=unlimited,Sam=wxyz9876mnop
+echo (Every question still costs you on your Claude bill - keep a spending limit on in the owner's dashboard.)
 call npx --yes wrangler@4 secret put WEB_AI_CODES
 if errorlevel 1 goto failed
 :done
