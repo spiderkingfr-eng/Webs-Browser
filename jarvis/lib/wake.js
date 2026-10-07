@@ -1,14 +1,15 @@
 /* Jarvis for Webs - hearing the wake word.
-   The speech model (vosk) keeps turning what the microphone hears into text. detect(transcript, name) looks for the
-   wake word in it ("jarvis", or "hey jarvis", or the name you chose) and gives back the words that came after it -
-   your actual question. So "jarvis how do i make a furnace" -> { hit:true, question:"how do i make a furnace" }. */
+   detect(transcript, name) looks for the wake word in what was heard ("jarvis", or "hey jarvis", or the name you
+   chose) and gives back the words that came after it - your actual question. So "jarvis how do i make a furnace" ->
+   { hit:true, question:"how do i make a furnace" }. afterWake() is for when Windows has already heard the name and
+   Whisper heard the whole thing: it also copes with Whisper spelling the name a bit differently ("Jarvus", "Jarvas"). */
 "use strict";
 
 const norm = s => String(s || "").toLowerCase().replace(/[^\p{L}\p{N}\s']/gu, " ").replace(/\s+/g, " ").trim();
 
 // a few ways the model might hear common names, so the wake word is forgiving
 const ALSO = {
-  jarvis: ["jarvis", "jervis", "jarvais", "jar vis", "javis", "service"],
+  jarvis: ["jarvis", "jervis", "jarvais", "jar vis", "javis", "jarvus", "jarvas", "jarves", "service"],
   friday: ["friday", "fry day"],
   computer: ["computer", "computor"],
   alexa: ["alexa", "alexis"],
@@ -29,7 +30,7 @@ function detect(transcript, name) {
   if (!t) return { hit: false, question: "" };
   for (const w of variants(name)) {
     // "hey jarvis ...", "ok jarvis ...", "jarvis ..."
-    const re = new RegExp("(?:^|\\b)(?:hey |ok |okay |yo )?" + w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b[\\s,.:-]*", "i");
+    const re = new RegExp("(?:^|\\b)(?:hey |ok |okay |yo )?" + w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?:'s)?\\b[\\s,.:-]*", "i");
     const m = re.exec(t);
     if (m) {
       const q = t.slice(m.index + m[0].length).trim();
@@ -39,10 +40,37 @@ function detect(transcript, name) {
   return { hit: false, question: "" };
 }
 
+// how many single-letter changes turn a into b
+function distance(a, b) {
+  const m = a.length, n = b.length;
+  let prev = Array.from({ length: n + 1 }, (_, j) => j);
+  for (let i = 1; i <= m; i++) {
+    const cur = [i];
+    for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = cur;
+  }
+  return prev[n];
+}
+
+// Windows already heard the name, and Whisper heard everything from just before it: the question is what follows the
+// name. If Whisper spelled the name a little differently, a word close to it in the first few still counts.
+function afterWake(transcript, name) {
+  const d = detect(transcript, name);
+  if (d.hit) return d.question;
+  const words = norm(transcript).split(" ").filter(Boolean);
+  const target = (norm(name) || "jarvis").replace(/\s+/g, "");
+  const near = Math.max(1, Math.floor(target.length / 3));
+  for (let i = 0; i < Math.min(words.length, 4); i++) {
+    const w = words[i].replace(/'s$/, "");
+    if (w.length >= 3 && distance(w, target) <= near) return words.slice(i + 1).join(" ");
+  }
+  return norm(transcript);
+}
+
 // a spoken question is "ready" once it has a few words and the person has paused (handled by vosk's final result)
 function looksComplete(question) {
   const words = norm(question).split(" ").filter(Boolean);
   return words.length >= 2;
 }
 
-module.exports = { detect, variants, norm, looksComplete };
+module.exports = { detect, afterWake, distance, variants, norm, looksComplete };

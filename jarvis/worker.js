@@ -1,93 +1,128 @@
 /* Jarvis for Webs - the hidden worker. It HEARS you (records the microphone and turns it into text with Whisper,
    which runs here on your PC - far more accurate than Windows' built-in recognition) and plays the spoken answer.
-   The Whisper model (~40 MB) is fetched once from a public CDN on first run and cached; after that it works offline.
+   The Whisper model (~75 MB, or ~40 MB for "fast") is fetched once from a public CDN on first run and cached; after
+   that it works offline.
    Nothing about you is stored or sent anywhere by this file - the text goes to the main app, which you control. */
 "use strict";
 
+import { to16k, createListener } from "./lib/listen.mjs";
+
 /* ---------------------------------------------------------------- Whisper (speech -> text), in the browser engine */
-let asr = null, loading = false, failed = false;
+// "accurate" (the default) is Whisper base.en (~75 MB, noticeably better at hearing you); "fast" is tiny.en (~40 MB).
+const MODELS = { accurate: "Xenova/whisper-base.en", fast: "Xenova/whisper-tiny.en" };
+let asr = null, loading = false, failed = false, modelName = "";
+const CDN = "https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2";
 async function ensureModel() {
   if (asr) return asr;
   if (failed) return null;
-  if (loading) { while (loading) { await new Promise(r => setTimeout(r, 200)); } return asr; }
+  if (loading) { while (loading) { await new Promise(r => setTimeout(r, 200)); } return asr || (failed ? null : ensureModel()); }
   loading = true;
   try { window.jarvis.whisperLoading(); } catch (e) {}
+  if (!modelName) { let cfg = {}; try { cfg = await window.jarvis.getConfig(); } catch (e) {} modelName = MODELS[cfg.hearing] || MODELS.accurate; }
+  const want = modelName;
+  let err = null;
   try {
-    const mod = await import("https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2");
+    const mod = await import(CDN);
     mod.env.allowLocalModels = false;
     mod.env.useBrowserCache = true;
-    asr = await mod.pipeline("automatic-speech-recognition", "Xenova/whisper-tiny.en");
-    try { window.jarvis.whisperReady(); } catch (e) {}
-  } catch (e) {
-    failed = true;
-    try { window.jarvis.whisperFail(String((e && e.message) || e)); } catch (x) {}
-  }
+    // the one picked in Settings; if that won't load, the small one, so hearing still works
+    for (const name of want === MODELS.fast ? [want] : [want, MODELS.fast]) {
+      try { asr = await mod.pipeline("automatic-speech-recognition", name); break; } catch (e) { err = e; }
+    }
+  } catch (e) { err = e; }
   loading = false;
+  if (want !== modelName) { asr = null; return ensureModel(); }     // the setting changed while it was loading
+  if (asr) { try { window.jarvis.whisperReady(); } catch (e) {} }
+  else { failed = true; try { window.jarvis.whisperFail(String((err && err.message) || err)); } catch (x) {} }
   return asr;
 }
 // start fetching the model as soon as the app opens, so it's ready when you first speak
 ensureModel();
 
-/* ---------------------------------------------------------------- recording the microphone */
-let actx = null, stream = null, node = null, src = null;
-let recording = false, buffers = [], total = 0, started = 0, lastVoice = 0, haveVoice = false, oneShot = false;
-let deviceId = "";
+// what Whisper writes for silence or noise rather than words
+function tidy(text) {
+  text = String(text || "").replace(/\[[^\]]*\]|\([^)]*\)/g, " ").replace(/\s+/g, " ").trim();
+  if (/^(you|thank you\.?|thanks\.?|thanks for watching[.!]?|bye\.?|\.+)$/i.test(text)) return "";
+  return text;
+}
+async function hear(audio) {
+  if (!asr) return "";
+  // English-only models must NOT be given a language or task (that confuses them into hearing the wrong thing)
+  const r = await asr(audio, { chunk_length_s: 30 });
+  return tidy(r && r.text);
+}
 
-// mix the mic down to 16 kHz mono Float32 (what Whisper wants), the simple way
-function to16k(input, inRate) {
-  const ratio = inRate / 16000, outLen = Math.max(1, Math.floor(input.length / ratio)), out = new Float32Array(outLen);
-  for (let i = 0; i < outLen; i++) {
-    const a = Math.floor(i * ratio), b = Math.min(input.length, Math.floor((i + 1) * ratio));
-    let s = 0, n = 0; for (let j = a; j < b; j++) { s += input[j]; n++; }
-    out[i] = n ? s / n : 0;
-  }
-  return out;
+/* ---------------------------------------------------------------- the microphone */
+// While "Listen for Jarvis" is on, the microphone stays open and the last few seconds are kept in memory (see
+// lib/listen.mjs) so a question said straight after "Jarvis" isn't missed. Turn listening off and it's closed.
+const listener = createListener();
+let mic = null, micDevice = "", armed = false, busy = false, opening = null;
+
+async function openMic(device) {
+  device = device || "";
+  if (opening) { try { await opening; } catch (e) {} }      // never open it twice at once
+  if (mic && micDevice === device) return true;
+  opening = reallyOpen(device);
+  try { return await opening; } finally { opening = null; }
 }
-async function startRec(mode) {
-  if (recording) return;
-  const ok = await ensureModel();
-  if (!ok) return;      // whisper couldn't load; main falls back to Windows speech
-  try { stream = await navigator.mediaDevices.getUserMedia({ audio: deviceId ? { deviceId: { exact: deviceId } } : true, video: false }); }
-  catch (e) { try { window.jarvis.transcript(""); } catch (x) {} return; }
-  actx = new (window.AudioContext || window.webkitAudioContext)();
-  src = actx.createMediaStreamSource(stream);
-  node = actx.createScriptProcessor(4096, 1, 1);
-  src.connect(node); node.connect(actx.destination);
-  recording = true; oneShot = mode === "once"; buffers = []; total = 0; started = Date.now(); lastVoice = Date.now(); haveVoice = false;
-  try { window.jarvis.recState("listening"); } catch (e) {}
-  node.onaudioprocess = ev => {
-    if (!recording) return;
-    const input = ev.inputBuffer.getChannelData(0);
-    let peak = 0; for (let i = 0; i < input.length; i += 32) peak = Math.max(peak, Math.abs(input[i]));
-    if (peak > 0.035) { lastVoice = Date.now(); haveVoice = true; }
-    buffers.push(to16k(input, actx.sampleRate)); total += Math.ceil(input.length * 16000 / actx.sampleRate);
-    const ms = Date.now();
-    // wait up to 3.5s for you to start; once you do, stop after ~1.2s of quiet; never run past 13s
-    if ((!haveVoice && ms - started > 3500) || (haveVoice && ms - lastVoice > 1200) || ms - started > 13000) finishRec();
-  };
-}
-async function finishRec() {
-  if (!recording) return;
-  recording = false;
-  try { if (node) node.disconnect(); } catch (e) {}
-  try { if (src) src.disconnect(); } catch (e) {}
-  try { if (stream) stream.getTracks().forEach(t => t.stop()); } catch (e) {}
-  try { if (actx) actx.close(); } catch (e) {}
-  node = src = stream = actx = null;
-  if (!haveVoice || total < 16000 * 0.3) { try { window.jarvis.transcript(""); } catch (e) {} return; }
-  const audio = new Float32Array(total); let o = 0;
-  for (const b of buffers) { audio.set(b.subarray(0, Math.min(b.length, audio.length - o)), o); o += b.length; if (o >= audio.length) break; }
-  buffers = [];
-  try { window.jarvis.recState("thinking"); } catch (e) {}
+async function reallyOpen(device) {
+  closeMic();
   try {
-    const r = await asr(audio, { language: "english", task: "transcribe", chunk_length_s: 30 });
-    let text = (r && r.text || "").trim();
-    // Whisper sometimes writes "[BLANK_AUDIO]" or bracketed noises for silence - drop those
-    if (/^[\[(][^\])]*[\])]$/.test(text) || /^(you|thank you\.?|thanks for watching\.?)$/i.test(text)) text = "";
-    window.jarvis.transcript(text);
-  } catch (e) { try { window.jarvis.transcript(""); } catch (x) {} }
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: device ? { deviceId: { exact: device } } : true, video: false });
+    const actx = new (window.AudioContext || window.webkitAudioContext)();
+    try { await actx.resume(); } catch (e) {}
+    const src = actx.createMediaStreamSource(stream);
+    const node = actx.createScriptProcessor(2048, 1, 1);
+    src.connect(node); node.connect(actx.destination);
+    node.onaudioprocess = ev => {
+      const done = listener.push(to16k(ev.inputBuffer.getChannelData(0), actx.sampleRate), Date.now());
+      if (done) heard(done);
+    };
+    mic = { stream, actx, src, node }; micDevice = device || "";
+    return true;
+  } catch (e) { mic = null; return false; }
 }
-window.jarvis.onRecord(d => { deviceId = (d && d.device) || ""; startRec((d && d.mode) || "once"); });
+function closeMic() {
+  if (!mic) return;
+  try { mic.node.onaudioprocess = null; mic.node.disconnect(); mic.src.disconnect(); } catch (e) {}
+  try { mic.stream.getTracks().forEach(t => t.stop()); } catch (e) {}
+  try { mic.actx.close(); } catch (e) {}
+  mic = null;
+}
+
+// a capture is finished: turn it into words
+async function heard(c) {
+  if (!armed) closeMic();     // the hotkey opened it just for this
+  busy = true;
+  let text = "";
+  if (c.voiced && c.audio.length >= 16000 * 0.3) {
+    try { window.jarvis.recState("thinking"); } catch (e) {}
+    try { text = await hear(c.audio); } catch (e) { text = ""; }
+  }
+  busy = false;
+  try { window.jarvis.transcript(text); } catch (e) {}
+}
+
+async function capture(mode, device) {
+  if (busy || listener.capturing) return;
+  if (!(await ensureModel())) { try { window.jarvis.transcript(""); } catch (e) {} return; }
+  if (!(await openMic(device))) { try { window.jarvis.transcript(""); } catch (e) {} return; }
+  listener.start(mode === "wake" ? "wake" : "once", Date.now());
+  try { window.jarvis.recState("listening"); } catch (e) {}
+}
+
+window.jarvis.onRecord(d => {
+  d = d || {};
+  const device = d.device || "";
+  if (d.mode === "arm") { armed = true; ensureModel().then(ok => { if (ok && armed) openMic(device); }); }
+  else if (d.mode === "disarm") { armed = false; if (!listener.capturing && !busy) closeMic(); }
+  else if (d.mode === "model") {
+    // a different hearing quality was picked in Settings: load that one instead
+    const next = MODELS[d.hearing] || MODELS.accurate;
+    if (next !== modelName) { modelName = next; asr = null; failed = false; ensureModel(); }
+  }
+  else capture(d.mode, device);
+});
 
 /* ---------------------------------------------------------------- playing the spoken answer */
 let audio = null;

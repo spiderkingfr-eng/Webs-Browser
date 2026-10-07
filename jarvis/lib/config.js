@@ -19,11 +19,13 @@ const DEFAULTS = {
   watch: true,                // keep an eye on the screen locally (every watchSecs), so the newest view is ready at once
   watchSecs: 2,               // how often it looks (kept on this PC; only the latest is sent, and only when you ask)
   mic: "",                    // which microphone (its id; empty = the default)
+  hearing: "accurate",        // Whisper: "accurate" (base.en, ~75 MB) or "fast" (tiny.en, ~40 MB, for slower PCs)
   autostart: false,           // start with Windows
   maxWidth: 1280              // the screenshot is shrunk to at most this wide before it's sent
 };
 
 const STYLES = ["calm", "short", "friendly", "detailed"];
+const HEARING = ["accurate", "fast"];
 
 function file(dir) { return path.join(dir, "config.json"); }
 
@@ -36,6 +38,7 @@ function clean(cfg) {
   c.code = String(c.code || "").trim().slice(0, 200);
   c.hotkey = String(c.hotkey || "").trim().slice(0, 40) || DEFAULTS.hotkey;
   c.mic = String(c.mic || "").slice(0, 200);
+  c.hearing = HEARING.includes(c.hearing) ? c.hearing : "accurate";
   c.maxWidth = Math.max(640, Math.min(2560, +c.maxWidth || DEFAULTS.maxWidth));
   c.watchSecs = Math.max(1, Math.min(10, +c.watchSecs || DEFAULTS.watchSecs));
   ["wakeEnabled", "voice", "overlay", "sendScreenshot", "watch", "autostart"].forEach(k => { c[k] = !!c[k]; });
@@ -61,4 +64,4 @@ function save(dir, cfg) {
 // the wake word the speech model listens for (the name, lowercased; "hey <name>" also works, handled in wake.js)
 const wakeWord = cfg => String((cfg && cfg.name) || "Jarvis").toLowerCase().trim();
 
-module.exports = { DEFAULTS, STYLES, load, save, clean, wakeWord, file };
+module.exports = { DEFAULTS, STYLES, HEARING, load, save, clean, wakeWord, file };

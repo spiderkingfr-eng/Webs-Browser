@@ -1,6 +1,7 @@
 # Jarvis for Webs - speech to text using Windows' own built-in recognition (System.Speech).
 # No download, no account, no extra install - it uses the recognizer that ships with Windows.
-# Usage:  powershell -NoProfile -ExecutionPolicy Bypass -File stt-win.ps1 -Mode once|continuous -Wake "jarvis,hey jarvis"
+# Usage:  powershell -NoProfile -ExecutionPolicy Bypass -File stt-win.ps1 -Mode wake|once|continuous -Wake "jarvis,hey jarvis"
+#   wake:        just spot the wake word and print WAKE (Whisper, in the app, hears the question).  (the usual mode)
 #   once:        listen for a single phrase (plain dictation), print it, exit.  (for the hotkey - no wake word needed)
 #   continuous:  listen for the wake word followed by a question, print the whole thing, keep going.  (the "Jarvis…" mode)
 # Giving the recogniser the wake word up front (a grammar) makes it catch the name far more reliably than plain
@@ -27,17 +28,28 @@ $MinConf = 0.30
 try { $rec.UpdateRecognizerSetting("CFGConfidenceRejectionThreshold", 30) } catch {}
 
 if ($Mode -eq "wake") {
-  # just spot the wake word and say so - the question is heard by Whisper instead (far more accurate)
-  $choices = New-Object System.Speech.Recognition.Choices
-  $added = 0
-  foreach ($w in ($Wake -split ",")) { $t = $w.Trim(); if ($t) { $choices.Add($t); $added++ } }
-  if ($added -eq 0) { $choices.Add("jarvis") }
+  # just spot the wake word and say so - the question is heard by Whisper instead (far more accurate). The app keeps
+  # the last few seconds of sound, so it doesn't matter if this only fires after you've finished the whole question.
+  function New-WakeChoices {
+    $c = New-Object System.Speech.Recognition.Choices
+    $n = 0
+    foreach ($w in ($Wake -split ",")) { $t = $w.Trim(); if ($t) { $c.Add($t); $n++ } }
+    if ($n -eq 0) { $c.Add("jarvis") }
+    return ,$c
+  }
+  # "Jarvis" on its own...
   $wakeGb = New-Object System.Speech.Recognition.GrammarBuilder
-  $wakeGb.Append($choices)
+  $wakeGb.Append((New-WakeChoices))
   $rec.LoadGrammar((New-Object System.Speech.Recognition.Grammar $wakeGb))
+  # ...and "Jarvis <anything>" in one breath (without this, going straight into the question can hide the name)
+  $restGb = New-Object System.Speech.Recognition.GrammarBuilder
+  $restGb.Append((New-WakeChoices))
+  $restGb.AppendWildcard()
+  $rec.LoadGrammar((New-Object System.Speech.Recognition.Grammar $restGb))
   $rec.InitialSilenceTimeout = [TimeSpan]::FromHours(24)
   $rec.BabbleTimeout = [TimeSpan]::FromHours(24)
   $rec.EndSilenceTimeout = [TimeSpan]::FromMilliseconds(250)
+  try { $rec.EndSilenceTimeoutAmbiguous = [TimeSpan]::FromMilliseconds(500) } catch {}
   while ($true) {
     $w = $null
     try { $w = $rec.Recognize() } catch { Start-Sleep -Milliseconds 300; continue }

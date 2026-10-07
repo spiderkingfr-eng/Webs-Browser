@@ -17,6 +17,7 @@ const ok = (c, w) => { if (c) pass++; else { fail++; console.log("  FAIL:", w); 
   const saved = config.save(dir, { name: "  Friday  ", style: "nonsense", server: "https://x.dev/", callYou: "boss", maxWidth: 99999 });
   ok(saved.name === "Friday" && saved.style === "calm" && saved.server === "https://x.dev" && saved.callYou === "boss" && saved.maxWidth === 2560, "a saved config is cleaned");
   ok(config.wakeWord({ name: "Friday" }) === "friday", "the wake word is the name, lowercased");
+  ok(c.hearing === "accurate" && config.clean({ hearing: "fast" }).hearing === "fast" && config.clean({ hearing: "loud" }).hearing === "accurate", "hearing: accurate by default, fast if picked");
   fs.rmSync(dir, { recursive: true, force: true });
 })();
 
@@ -33,6 +34,14 @@ const ok = (c, w) => { if (c) pass++; else { fail++; console.log("  FAIL:", w); 
   r = wake.detect("jervis how do i craft a sword", "Jarvis");
   ok(r.hit && r.question === "how do i craft a sword", "a near-miss spelling still wakes it");
   ok(wake.looksComplete("how do i make a furnace") && !wake.looksComplete("hmm"), "a question needs a couple of words");
+  // after Windows heard the name, Whisper heard the whole thing
+  ok(wake.afterWake("Jarvis, how do I make a furnace?", "Jarvis") === "how do i make a furnace", "after the wake: the question after the name");
+  ok(wake.afterWake("So anyway. Jarvis, what am I looking at?", "Jarvis") === "what am i looking at", "words before the name are dropped");
+  ok(wake.afterWake("Jarvus how do I make a furnace", "Jarvis") === "how do i make a furnace", "Whisper spelling the name a bit off still works");
+  ok(wake.afterWake("Jarvis's turn: what is this", "Jarvis") === "turn what is this", "\"Jarvis's\" is the name too");
+  ok(wake.afterWake("What am I looking at?", "Jarvis") === "what am i looking at", "no name heard: the whole thing is the question");
+  ok(wake.afterWake("Jarvis.", "Jarvis") === "", "just the name: no question yet");
+  ok(wake.afterWake("Javascript tutorials please", "Jarvis") === "javascript tutorials please", "a word that only starts like the name isn't cut");
 })();
 
 /* ai request */
@@ -86,5 +95,47 @@ const ok = (c, w) => { if (c) pass++; else { fail++; console.log("  FAIL:", w); 
   ok(shot.tooBig("data:image/jpeg;base64," + "A".repeat(2000001)) && !shot.tooBig("data:image/jpeg;base64,AAAA"), "the size check");
 })();
 
-console.log("jarvis:", pass, "passed,", fail, "failed");
-process.exit(fail ? 1 : 0);
+/* listening: the last few seconds are kept, so "Jarvis, <question>" in one breath isn't lost */
+async function listening() {
+  const L = await import("../lib/listen.mjs");
+  const STEP = 2048 / 48000 * 1000;      // one chunk from the microphone, in ms
+  const tone = lv => { const n = 683, d = new Float32Array(n); for (let i = 0; i < n; i++) d[i] = lv * Math.SQRT2 * Math.sin(i / 3); return d; };
+  // play a script of [ms, level] through a listener; `wakeAt` (ms) is when Windows says it heard the name
+  function run(script, mode, wakeAt) {
+    const l = L.createListener();
+    let t = 0, out = null, started = false;
+    for (const [ms, lv] of script) {
+      for (let e = 0; e < ms && !out; e += STEP) {
+        t += STEP;
+        if (!started && t >= wakeAt) { l.start(mode, t); started = true; }
+        const r = l.push(tone(lv), t);
+        if (r) out = Object.assign(r, { at: t - wakeAt });
+      }
+    }
+    return out;
+  }
+  const quiet = 0.002, voice = 0.12;
+  // one breath: 2.5 s of "Jarvis how do I make a furnace", Windows only fires 0.5 s after you stop
+  let r = run([[1000, quiet], [2500, voice], [6000, quiet]], "wake", 4000);
+  ok(r && r.voiced && r.audio.length >= 16000 * 2.5, "one breath: the whole question (said before the wake fired) is kept");
+  ok(r && r.at < 600, "one breath: and it answers straight away (no waiting)");
+  // "Jarvis" ... pause ... "how do I make a furnace"
+  r = run([[1000, quiet], [600, voice], [1500, quiet], [2000, voice], [5000, quiet]], "wake", 1900);
+  ok(r && r.voiced && r.audio.length >= 16000 * 2.6, "name, pause, question: both are kept");
+  ok(r && r.at > 1500 + 2000 && r.at < 1500 + 2000 + 1700, "and it stops ~1.2 s after you finish");
+  // just "Jarvis", then nothing: waits ~3.5 s for you to start
+  r = run([[1000, quiet], [600, voice], [8000, quiet]], "wake", 1900);
+  ok(r && r.at >= 3400 && r.at < 4000, "just the name: waits about 3.5 s for the question");
+  // the hotkey, then silence: gives up after ~4.5 s with nothing heard
+  r = run([[9000, quiet]], "once", 500);
+  ok(r && !r.voiced && r.at >= 4400 && r.at < 5000, "hotkey + silence: nothing heard, gives up");
+  // a steady noisy room (a fan, game sound) is learned, and you're still heard over it
+  r = run([[40000, 0.02], [2000, 0.15], [5000, 0.02]], "once", 40000);
+  ok(r && r.voiced && r.at > 2000 && r.at < 2000 + 1800, "a noisy room: learned, and your voice is still picked out");
+  ok(L.to16k(new Float32Array(4800), 48000).length === 1600, "48 kHz is mixed down to 16 kHz");
+}
+
+listening().catch(e => ok(false, "listening tests crashed: " + e)).then(() => {
+  console.log("jarvis:", pass, "passed,", fail, "failed");
+  process.exit(fail ? 1 : 0);
+});

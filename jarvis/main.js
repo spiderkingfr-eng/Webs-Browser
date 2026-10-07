@@ -55,12 +55,18 @@ function readLines(proc, h) {
   });
 }
 
-// got a question (from Whisper, or from Windows speech as a fallback)
-function gotQuestion(raw) {
-  recording = false;
-  const q = wake.detect(raw, cfg.name).question || raw;
+// got a question (from Whisper, or from Windows speech as a fallback). After the wake word, Whisper has heard
+// "Jarvis, how do I make a furnace" - the question is what comes after the name.
+function gotQuestion(raw, mode) {
+  recording = false; clearTimeout(recTimer);
+  raw = String(raw || "").trim();
+  const q = mode === "wake" ? wake.afterWake(raw, cfg.name) : (wake.detect(raw, cfg.name).question || raw);
   if (wake.looksComplete(q)) ask(q);
-  else { showDot(listening ? "listening" : "off"); toBubble("say", { text: "I didn't catch that. " + (listening ? "Say “" + cfg.name + "” and ask again." : "Press " + cfg.hotkey + " and ask again, or type below."), listening: listening }); }
+  else {
+    showDot(listening ? "listening" : "off");
+    const heard = q ? "I only heard “" + q + "”. " : "I didn't catch that. ";
+    toBubble("say", { text: heard + (listening ? "Say “" + cfg.name + "” and ask again." : "Press " + cfg.hotkey + " and ask again, or type below."), listening: listening });
+  }
 }
 
 // the always-on wake word. With Whisper: Windows just spots "Jarvis", then Whisper hears the question (far better).
@@ -71,6 +77,7 @@ function setListening(on) {
   if (listening) {
     try {
       if (whisperOk) {
+        armMic(true);      // the worker keeps the last few seconds, so a question said right after the name isn't lost
         listenProc = spawn("powershell", psArgs("wake").concat(["-Wake", wakeWords()]), { windowsHide: true });
         readLines(listenProc, {
           wake: () => { if (!listening || asking || recording) return; recording = true; showBubble(false); showDot("busy"); toBubble("say", { text: "Yes? I'm listening…", listening: true }); recordQuestion("wake"); },
@@ -88,6 +95,7 @@ function setListening(on) {
       listenProc.on("close", () => { listenProc = null; });
     } catch (e) { listening = false; }
   }
+  if (!listening || !whisperOk) armMic(false);
   showDot(listening ? "listening" : "off");
   refreshTray();
 }
@@ -142,7 +150,16 @@ function makeWorker() {
   worker.loadFile("worker.html");
   worker.on("closed", () => { worker = null; });
 }
-function recordQuestion(mode) { if (worker && worker.webContents) worker.webContents.send("record", { mode, device: cfg.mic }); }
+let recMode = "", recTimer = 0;
+function recordQuestion(mode) {
+  recMode = mode;
+  if (worker && worker.webContents) worker.webContents.send("record", { mode, device: cfg.mic });
+  // never get stuck "recording" if the worker doesn't answer
+  clearTimeout(recTimer);
+  recTimer = setTimeout(() => { if (recording) { recording = false; showDot(listening ? "listening" : "off"); } }, 40000);
+}
+// keep the microphone open in the worker (while listening for the wake word), or close it
+function armMic(on) { if (worker && worker.webContents) worker.webContents.send("record", { mode: on ? "arm" : "disarm", device: cfg.mic }); }
 // the little "I'm listening" red ball in the bottom-right corner - always on top, never clickable
 function indicatorBounds() {
   const d = screen.getPrimaryDisplay().workArea, s = 22, m = 8;
@@ -429,6 +446,12 @@ ipcMain.handle("save-config", (e, next) => {
   startWatch();
   refreshTray();
   if (tray) tray.setToolTip(cfg.name + " - your screen assistant");
+  if (before.hearing !== cfg.hearing && worker && worker.webContents) {
+    // load the other Whisper; until it's ready, Windows' own recognition stands in
+    whisperOk = false; whisperLoading = true;
+    worker.webContents.send("record", { mode: "model", hearing: cfg.hearing });
+    if (listening) setListening(true);
+  } else if (before.mic !== cfg.mic && listening && whisperOk) armMic(true);
   if (before.wakeEnabled !== cfg.wakeEnabled) setListening(cfg.wakeEnabled);
   return cfg;
 });
@@ -445,7 +468,7 @@ ipcMain.on("whisper-ready", () => {
   if (listening) setListening(true);      // switch the wake listener over to the accurate mode
 });
 ipcMain.on("whisper-fail", () => { whisperOk = false; whisperLoading = false; refreshTray(); });
-ipcMain.on("transcript", (e, t) => { recording = false; gotQuestion(String(t || "")); });
+ipcMain.on("transcript", (e, t) => { recording = false; gotQuestion(String(t || ""), recMode); });
 ipcMain.on("rec-state", (e, s) => {
   if (s === "thinking") { showDot("busy"); toBubble("say", { text: "…", listening: false }); }
   else if (s === "listening") { showDot("busy"); }

@@ -42,12 +42,16 @@ name, and close it. The tray icon (bottom‑right of Windows) is where everythin
 
 ## The wake word / talking to it
 
-Turning your speech into text is done **on your PC by Whisper** (a small, accurate speech model that runs
-locally in the app). The model (~40 MB) is fetched once from a public CDN the first time you use voice, then
-cached - so the first spoken question after installing takes a moment while it downloads. Windows' own
-recognition is used only to spot the wake word "Jarvis" (it's reliable at one known word); Whisper hears the
-actual question. Nothing about you leaves the PC. If Whisper can't load (offline on first run), it falls back
-to Windows' own recognition, and typing always works.
+Turning your speech into text is done **on your PC by Whisper** (an accurate speech model that runs locally in
+the app). The model (~75 MB, or ~40 MB if you pick **Hearing: Fast** in Settings for a slower PC) is fetched once
+from a public CDN the first time you use voice, then cached - so the first spoken question after installing takes
+a moment while it downloads. Windows' own recognition is used only to spot the wake word "Jarvis" (it's reliable
+at one known word); Whisper hears the actual question. Nothing about you leaves the PC. If Whisper can't load
+(offline on first run), it falls back to Windows' own recognition, and typing always works.
+
+You can say it all in one breath - *"Jarvis, how do I make a furnace?"* - or pause after the name. While it's
+listening for the wake word, the app keeps the last few seconds of sound **in memory only** (never saved, never
+sent), so a question you've already started when Windows recognises the name isn't lost.
 
 - **Press the hotkey** (default **Alt+Shift+J**) and just speak your question.
 - Or turn on the always-listening wake word: tray icon → tick **Listen for "Jarvis"** → then say
@@ -68,7 +72,7 @@ server has an ElevenLabs key (the browser's `setup.cmd` asks for one).
 - **Style** — calm, short, friendly or detailed.
 - **Server address** and **code** — your Web AI server.
 - **Listen for the wake word**, **Read answers aloud**, **Let it see my screen**, **Show the bubble**.
-- **Hotkey**, **Microphone**, **Start with Windows**.
+- **Hotkey**, **Microphone**, **Hearing** (accurate or fast), **Start with Windows**.
 
 ## "It says it can't see my screen"
 
@@ -111,6 +115,7 @@ produces an installer under `dist/`.
 | `dot.html/.css/.js` | the little red "I'm listening" ball |
 | `lib/config.js` | your settings, in one JSON file on this PC |
 | `lib/wake.js` | hearing the wake word and pulling out the question |
+| `lib/listen.mjs` | telling your voice from quiet, keeping the last few seconds, knowing when you've finished |
 | `lib/ai.js` | the request to `/chat` and reading the streamed answer |
 | `lib/shot.js` | keeping the screenshot small |
 | `test/test.js` | tests for the parts that don't need a screen or a mic (`npm test`) |
