@@ -22,8 +22,9 @@ try {
   [Console]::Out.WriteLine("ERR:Windows speech recognition isn't available on this PC.")
   exit 1
 }
-# don't throw words away for being a bit unclear - we'd rather get a rough transcript than nothing
-try { $rec.UpdateRecognizerSetting("CFGConfidenceRejectionThreshold", 0) } catch {}
+# how sure it has to be before it counts something as what you said (higher = fewer made-up words from noise)
+$MinConf = 0.30
+try { $rec.UpdateRecognizerSetting("CFGConfidenceRejectionThreshold", 30) } catch {}
 
 if ($Mode -eq "continuous") {
   # Two stages, in one process (so there's no gap where it stops hearing you):
@@ -59,7 +60,8 @@ if ($Mode -eq "continuous") {
     $rec.EndSilenceTimeout = [TimeSpan]::FromSeconds(1.5)       # keep going until ~1.5s of quiet
     $q = $null
     try { $q = $rec.Recognize() } catch {}
-    if ($q -and $q.Text) { [Console]::Out.WriteLine("TEXT:" + $q.Text) }
+    # only accept it if it heard you clearly enough - otherwise it's probably background noise, so ignore it
+    if ($q -and $q.Text -and $q.Confidence -ge $MinConf) { [Console]::Out.WriteLine("TEXT:" + $q.Text) }
     else { [Console]::Out.WriteLine("NONE") }
   }
 }
@@ -70,7 +72,7 @@ else {
   $rec.EndSilenceTimeout = [TimeSpan]::FromSeconds(1)
   try {
     $result = $rec.Recognize()
-    if ($result -and $result.Text) { [Console]::Out.WriteLine("TEXT:" + $result.Text) } else { [Console]::Out.WriteLine("TEXT:") }
+    if ($result -and $result.Text -and $result.Confidence -ge 0.20) { [Console]::Out.WriteLine("TEXT:" + $result.Text) } else { [Console]::Out.WriteLine("TEXT:") }
   } catch {
     [Console]::Out.WriteLine("ERR:Couldn't listen just now.")
   }

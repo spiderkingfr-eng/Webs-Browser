@@ -185,6 +185,22 @@ function refreshTray() {
   tray.setContextMenu(menu);
 }
 
+/* ---------------------------------------------------------------- keeping an eye on the screen (locally) */
+// It looks at your screen every couple of seconds and keeps only the latest picture, here on your PC. Nothing is
+// sent anywhere by this - only when you ask a question is the newest picture sent (once), to protect your daily limit.
+let lastFrame = null, lastFrameAt = 0, watchTimer = 0, watchBusy = false;
+function startWatch() {
+  clearInterval(watchTimer); watchTimer = 0;
+  if (!cfg.watch || !cfg.sendScreenshot) { lastFrame = null; return; }
+  const every = Math.max(1000, (+cfg.watchSecs || 2) * 1000);
+  watchTimer = setInterval(async () => {
+    if (watchBusy || asking) return;
+    watchBusy = true;
+    try { const img = await grabScreen(); if (img) { lastFrame = img; lastFrameAt = Date.now(); } } catch (e) {}
+    watchBusy = false;
+  }, every);
+}
+
 /* ---------------------------------------------------------------- the screenshot */
 let lastShotNote = "";
 async function grabScreen() {
@@ -226,7 +242,8 @@ async function ask(question) {
   toBubble("answer", { text: "", thinking: true });
   let answer = "";
   try {
-    const image = await grabScreen();
+    // use the freshest watched frame if we have one (instant); otherwise grab one right now
+    let image = (cfg.watch && lastFrame && Date.now() - lastFrameAt < 4000) ? lastFrame : await grabScreen();
     if (cfg.sendScreenshot && !image) toBubble("warn", { text: "Couldn't capture the screen (" + lastShotNote + ") — answering from your words. Tell me if this keeps happening." });
     const body = ai.buildBody({ question, cfg, imageDataUrl: image, now: new Date() });
     const res = await fetch(cfg.server + "/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
@@ -290,6 +307,7 @@ ipcMain.handle("save-config", (e, next) => {
   cfg = config.save(DIR, Object.assign({}, cfg, next || {}));
   applyHotkey();
   applyAutostart();
+  startWatch();
   refreshTray();
   if (tray) tray.setToolTip(cfg.name + " - your screen assistant");
   if (before.wakeEnabled !== cfg.wakeEnabled) setListening(cfg.wakeEnabled);
@@ -325,12 +343,14 @@ else {
     buildTray();
     applyHotkey();
     applyAutostart();
+    startWatch();
     if (cfg.wakeEnabled && speechOk) setTimeout(() => setListening(true), 1500);
     if (!cfg.server) setTimeout(openSettings, 800);
   });
   app.on("window-all-closed", () => { /* a tray app keeps running */ });
   app.on("will-quit", () => {
     try { globalShortcut.unregisterAll(); } catch (e) {}
+    clearInterval(watchTimer);
     if (listenProc) try { listenProc.kill(); } catch (e) {}
     if (onceProc) try { onceProc.kill(); } catch (e) {}
     if (indicator) try { indicator.destroy(); } catch (e) {}

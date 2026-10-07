@@ -16,6 +16,8 @@ const DEFAULTS = {
   voice: true,                // read answers aloud (Adam, through your server's /speak)
   overlay: true,              // show the little bubble (turn off for games with strict anti-cheat)
   sendScreenshot: true,       // send a screenshot with your question so it can see what you're doing
+  watch: true,                // keep an eye on the screen locally (every watchSecs), so the newest view is ready at once
+  watchSecs: 2,               // how often it looks (kept on this PC; only the latest is sent, and only when you ask)
   mic: "",                    // which microphone (its id; empty = the default)
   autostart: false,           // start with Windows
   maxWidth: 1280              // the screenshot is shrunk to at most this wide before it's sent
@@ -35,7 +37,8 @@ function clean(cfg) {
   c.hotkey = String(c.hotkey || "").trim().slice(0, 40) || DEFAULTS.hotkey;
   c.mic = String(c.mic || "").slice(0, 200);
   c.maxWidth = Math.max(640, Math.min(2560, +c.maxWidth || DEFAULTS.maxWidth));
-  ["wakeEnabled", "voice", "overlay", "sendScreenshot", "autostart"].forEach(k => { c[k] = !!c[k]; });
+  c.watchSecs = Math.max(1, Math.min(10, +c.watchSecs || DEFAULTS.watchSecs));
+  ["wakeEnabled", "voice", "overlay", "sendScreenshot", "watch", "autostart"].forEach(k => { c[k] = !!c[k]; });
   if (!/^dev-[0-9a-f]{16}$/.test(c.device || "")) c.device = "dev-" + crypto.randomBytes(8).toString("hex");
   return c;
 }
