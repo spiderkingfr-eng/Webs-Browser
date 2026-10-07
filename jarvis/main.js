@@ -4,34 +4,81 @@
    (the same one the browser uses) for the answer and the voice; nothing goes anywhere else, and a screenshot is only
    ever sent the moment you ask a question. Settings (tray → Settings) change its name, voice, hotkey and the rest.
 
-   This is the main process: windows, the tray, the hotkey, the screenshot, and the talking-to-the-server. The speech
-   model (vosk) is optional - without it, the hotkey and the typed box still work (see README.md). */
+   This is the main process: windows, the tray, the hotkey, the screenshot, and the talking-to-the-server. Hearing you
+   is done by Windows' own built-in speech recognition (lib/stt-win.ps1) - no download, no extra install. Without it
+   (non-Windows, or speech turned off in Windows) the hotkey opens a box you can type into, and typing always works. */
 "use strict";
 const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, desktopCapturer, screen, nativeImage, shell } = require("electron");
 const path = require("path");
+const { spawn } = require("child_process");
 const config = require("./lib/config");
 const ai = require("./lib/ai");
 const shot = require("./lib/shot");
+const wake = require("./lib/wake");
 
 const DIR = app.getPath("userData");
 let cfg = config.load(DIR);
+const speechOk = process.platform === "win32";     // Windows' built-in recognition
 
 let tray = null, overlay = null, settingsWin = null, worker = null;
-let listening = false, asking = false, modelReady = false;
+let listening = false, asking = false, listenProc = null, onceProc = null;
 
-/* ---------------------------------------------------------------- the speech model (optional) */
-let vosk = null, voskModel = null, rec = null;
-function startModel() {
-  try { vosk = require("vosk"); } catch (e) { vosk = null; }
-  if (!vosk) { console.log("Speech model not installed (npm i vosk). The hotkey and typing still work."); return; }
-  const modelDir = process.env.JARVIS_MODEL || path.join(__dirname, "model");
+/* ---------------------------------------------------------------- hearing you (Windows speech) */
+const PS = path.join(__dirname, "lib", "stt-win.ps1");
+function psArgs(mode) { return ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", PS, "-Mode", mode]; }
+
+// read "TEXT:…" / "ERR:…" lines from a PowerShell helper, calling onText for each phrase
+function readLines(proc, onText, onErr) {
+  let buf = "";
+  proc.stdout.setEncoding("utf8");
+  proc.stdout.on("data", d => {
+    buf += d;
+    let i;
+    while ((i = buf.indexOf("\n")) >= 0) {
+      const line = buf.slice(0, i).replace(/\r$/, ""); buf = buf.slice(i + 1);
+      if (line.startsWith("TEXT:")) onText(line.slice(5).trim());
+      else if (line.startsWith("ERR:") && onErr) onErr(line.slice(4).trim());
+    }
+  });
+}
+
+// the always-on wake word
+function setListening(on) {
+  listening = !!on && speechOk;
+  if (listenProc) { try { listenProc.kill(); } catch (e) {} listenProc = null; }
+  if (listening) {
+    try {
+      listenProc = spawn("powershell", psArgs("continuous"), { windowsHide: true });
+      readLines(listenProc, text => { if (listening) handleWake(text); }, msg => { listening = false; refreshTray(); });
+      listenProc.on("close", () => { listenProc = null; });
+    } catch (e) { listening = false; }
+  }
+  refreshTray();
+}
+function handleWake(text) {
+  const r = wake.detect(text, cfg.name);
+  if (r.hit && wake.looksComplete(r.question)) ask(r.question);
+}
+
+// the hotkey / tray "Ask": listen for one question (no wake word needed), then answer
+function startVoiceAsk() {
+  if (!speechOk) { showBubble(true); toBubble("say", { text: "Type your question below. (Spoken questions need Windows, with its speech recognition on.)", listening: false }); return; }
+  if (onceProc) return;
+  showBubble(false);
+  toBubble("say", { text: "Listening… ask your question.", listening: true });
+  // pause the always-on listener so the two don't fight over the microphone
+  const wasListening = listening;
+  if (listenProc) { try { listenProc.kill(); } catch (e) {} listenProc = null; }
+  let answered = false;
   try {
-    vosk.setLogLevel(-1);
-    voskModel = new vosk.Model(modelDir);
-    rec = new vosk.Recognizer({ model: voskModel, sampleRate: 16000 });
-    modelReady = true;
-    console.log("Speech model loaded from", modelDir);
-  } catch (e) { modelReady = false; console.log("No speech model in", modelDir, "- put an unzipped vosk model there for the wake word (see README.md)."); }
+    onceProc = spawn("powershell", psArgs("once"), { windowsHide: true });
+    readLines(onceProc, text => {
+      answered = true;
+      const q = wake.detect(text, cfg.name).question || text;
+      if (wake.looksComplete(q)) ask(q); else toBubble("say", { text: "I didn't catch that. Try again, or type it below.", listening: false });
+    }, () => { toBubble("say", { text: "Couldn't hear the microphone. You can type below instead.", listening: false }); });
+    onceProc.on("close", () => { onceProc = null; if (!answered) toBubble("say", { text: "I didn't catch that. Try again, or type below.", listening: false }); if (wasListening) setTimeout(() => setListening(true), 400); });
+  } catch (e) { onceProc = null; toBubble("say", { text: "Couldn't start listening. Type below instead.", listening: false }); }
 }
 
 /* ---------------------------------------------------------------- windows */
@@ -68,8 +115,7 @@ function openSettings() {
 
 /* ---------------------------------------------------------------- the tray */
 function trayIcon() {
-  const p = path.join(__dirname, "assets", "icon.png");
-  const img = nativeImage.createFromPath(p);
+  const img = nativeImage.createFromPath(path.join(__dirname, "assets", "icon.png"));
   return img.isEmpty() ? nativeImage.createEmpty() : img;
 }
 function buildTray() {
@@ -84,62 +130,15 @@ function refreshTray() {
     { label: "Ask " + cfg.name + " (" + (cfg.hotkey || "hotkey") + ")", click: () => startVoiceAsk() },
     { label: "Type a question", click: () => showBubble(true) },
     { type: "separator" },
-    { label: "Listen for \"" + cfg.name + "\"", type: "checkbox", checked: listening && modelReady, enabled: modelReady, click: m => setListening(m.checked) },
+    { label: "Listen for \"" + cfg.name + "\"", type: "checkbox", checked: listening && speechOk, enabled: speechOk, click: m => setListening(m.checked) },
     { label: "Show the bubble", type: "checkbox", checked: cfg.overlay, click: m => { cfg = config.save(DIR, Object.assign({}, cfg, { overlay: m.checked })); } },
     { type: "separator" },
     { label: "Settings…", click: openSettings },
-    { label: modelReady ? "Speech: ready" : "Speech: not set up (README)", enabled: false },
+    { label: speechOk ? "Voice: Windows speech" : "Voice: type only (not Windows)", enabled: false },
     { type: "separator" },
     { label: "Quit", click: () => app.quit() }
   ]);
   tray.setContextMenu(menu);
-}
-
-/* ---------------------------------------------------------------- listening */
-function setListening(on) {
-  listening = !!on && modelReady;
-  if (worker && worker.webContents) worker.webContents.send("mic", listening ? { on: true, device: cfg.mic } : { on: false });
-  refreshTray();
-}
-// the hotkey / tray "Ask": listen for one question (no wake word needed), then answer
-let oneShot = false;
-function startVoiceAsk() {
-  if (!modelReady) { showBubble(true); toBubble("say", { text: "Type your question below (voice needs the speech model - see README).", listening: false }); return; }
-  oneShot = true;
-  if (rec) try { rec.reset(); } catch (e) {}
-  if (worker && worker.webContents) worker.webContents.send("mic", { on: true, device: cfg.mic, oneShot: true });
-  showBubble(false);
-  toBubble("say", { text: "Listening…", listening: true });
-}
-
-// mic frames from the worker (16 kHz mono Int16) -> vosk -> wake word / question
-ipcMain.on("mic-data", (e, buf) => {
-  if (!rec || !(listening || oneShot)) return;
-  const b = Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
-  let done = false;
-  try { done = rec.acceptWaveform(b); } catch (err) { return; }
-  if (done) {
-    let text = ""; try { text = (JSON.parse(rec.result()).text || ""); } catch (err) {}
-    handleHeard(text, true);
-  } else {
-    let part = ""; try { part = (JSON.parse(rec.partialResult()).partial || ""); } catch (err) {}
-    if (part) toBubble("heard", { text: part });
-  }
-});
-function handleHeard(text, isFinal) {
-  if (!text) return;
-  const wake = require("./lib/wake");
-  if (oneShot) {
-    // the hotkey/tray already started us; the whole utterance is the question
-    oneShot = false;
-    if (worker && worker.webContents && !listening) worker.webContents.send("mic", { on: false });
-    const q = wake.detect(text, cfg.name).question || text;     // allow "jarvis ..." here too
-    if (wake.looksComplete(q)) ask(q); else toBubble("say", { text: "I didn't catch that. Try again, or type it.", listening: false });
-    return;
-  }
-  if (!listening) return;
-  const r = wake.detect(text, cfg.name);
-  if (r.hit && wake.looksComplete(r.question)) ask(r.question);
 }
 
 /* ---------------------------------------------------------------- the screenshot */
@@ -158,7 +157,7 @@ async function grabScreen() {
       const data = "data:image/jpeg;base64," + img.toJPEG(q).toString("base64");
       if (!shot.tooBig(data)) return data;
     }
-    return null;     // couldn't get it small enough; ask without it
+    return null;
   } catch (e) { return null; }
 }
 
@@ -187,14 +186,13 @@ async function ask(question) {
       const { value, done } = await r.read();
       if (done) break;
       for (const part of reader.push(dec.decode(value, { stream: true }))) {
-        if (part.error) { answer = part.error; toBubble("answer", { done: true, text: ai.cleanForShow(answer) }); asking = false; return; }
+        if (part.error) { toBubble("answer", { done: true, text: part.error }); asking = false; return; }
         if (part.text) { answer += part.text; toBubble("answer", { text: ai.cleanForShow(answer) }); }
         if (part.end && typeof part.left === "number") toBubble("left", { left: part.left });
       }
     }
     reader.end().forEach(p => { if (p.text) answer += p.text; });
-    const shown = ai.cleanForShow(answer) || "(no answer)";
-    toBubble("answer", { done: true, text: shown });
+    toBubble("answer", { done: true, text: ai.cleanForShow(answer) || "(no answer)" });
     if (cfg.voice && answer) speak(ai.cleanForSpeech(answer));
   } catch (e) {
     toBubble("answer", { done: true, text: "Couldn't reach your Web AI server. Check it's on, and the address in Settings." });
@@ -221,7 +219,7 @@ function showBubble(focus) {
   if (overlay.webContents.isLoading()) overlay.webContents.once("did-finish-load", go); else go();
 }
 function toBubble(kind, data) {
-  if (!cfg.overlay) { if (!overlay) return; }
+  if (!cfg.overlay && !overlay) return;
   if (!overlay) makeOverlay();
   const msg = Object.assign({ kind: kind, name: cfg.name }, data);
   const send = () => { try { overlay.webContents.send("bubble", msg); } catch (e) {} };
@@ -233,11 +231,11 @@ ipcMain.handle("get-config", () => cfg);
 ipcMain.handle("save-config", (e, next) => {
   const before = cfg;
   cfg = config.save(DIR, Object.assign({}, cfg, next || {}));
-  applyHotkey(before.hotkey);
+  applyHotkey();
   applyAutostart();
-  if (settingsWin) settingsWin.setTitle("Jarvis settings");
   refreshTray();
   if (tray) tray.setToolTip(cfg.name + " - your screen assistant");
+  if (before.wakeEnabled !== cfg.wakeEnabled) setListening(cfg.wakeEnabled);
   return cfg;
 });
 ipcMain.handle("test-server", async () => {
@@ -249,10 +247,9 @@ ipcMain.on("ask-text", (e, q) => { if (q && String(q).trim()) ask(String(q).trim
 ipcMain.on("open-external", (e, u) => { if (/^https?:\/\//.test(u)) shell.openExternal(u); });
 ipcMain.on("hide-bubble", () => { if (overlay) overlay.hide(); });
 ipcMain.on("start-voice", () => startVoiceAsk());
-ipcMain.handle("mics", () => true);
 
 /* ---------------------------------------------------------------- hotkey & autostart */
-function applyHotkey(oldKey) {
+function applyHotkey() {
   try { globalShortcut.unregisterAll(); } catch (e) {}
   if (cfg.hotkey) { try { globalShortcut.register(cfg.hotkey, () => startVoiceAsk()); } catch (e) {} }
 }
@@ -267,14 +264,17 @@ else {
   app.on("second-instance", () => showBubble(true));
   app.whenReady().then(() => {
     if (process.platform === "darwin" && app.dock) app.dock.hide();
-    startModel();
     makeWorker();
     buildTray();
     applyHotkey();
     applyAutostart();
-    if (cfg.wakeEnabled && modelReady) setTimeout(() => setListening(true), 1500);
+    if (cfg.wakeEnabled && speechOk) setTimeout(() => setListening(true), 1500);
     if (!cfg.server) setTimeout(openSettings, 800);
   });
-  app.on("window-all-closed", e => { /* a tray app keeps running */ });
-  app.on("will-quit", () => { try { globalShortcut.unregisterAll(); } catch (e) {} if (rec) try { rec.free(); } catch (e) {} if (voskModel) try { voskModel.free(); } catch (e) {} });
+  app.on("window-all-closed", () => { /* a tray app keeps running */ });
+  app.on("will-quit", () => {
+    try { globalShortcut.unregisterAll(); } catch (e) {}
+    if (listenProc) try { listenProc.kill(); } catch (e) {}
+    if (onceProc) try { onceProc.kill(); } catch (e) {}
+  });
 }

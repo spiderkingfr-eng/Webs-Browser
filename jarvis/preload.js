@@ -14,8 +14,6 @@ contextBridge.exposeInMainWorld("jarvis", {
   askText: q => ipcRenderer.send("ask-text", q),
   startVoice: () => ipcRenderer.send("start-voice"),
   hideBubble: () => ipcRenderer.send("hide-bubble"),
-  // the hidden worker (microphone + playing the voice)
-  onMic: fn => ipcRenderer.on("mic", (e, d) => fn(d)),
-  micData: buf => ipcRenderer.send("mic-data", buf),
+  // the hidden worker (playing the spoken answer)
   onPlay: fn => ipcRenderer.on("play", (e, buf) => fn(buf))
 });

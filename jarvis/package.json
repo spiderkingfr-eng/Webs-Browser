@@ -14,15 +14,25 @@
     "electron": "^31.0.0",
     "electron-builder": "^24.13.3"
   },
-  "optionalDependencies": {
-    "vosk": "^0.3.39"
-  },
   "build": {
     "appId": "com.webs.jarvis",
     "productName": "Jarvis for Webs",
-    "files": ["main.js", "preload.js", "overlay.*", "settings.*", "worker.*", "lib/**", "assets/**"],
-    "extraResources": [{ "from": "model", "to": "model", "filter": ["**/*"] }],
-    "win": { "target": "nsis", "icon": "assets/icon.png" },
-    "nsis": { "oneClick": true, "perMachine": false }
+    "files": [
+      "main.js",
+      "preload.js",
+      "overlay.*",
+      "settings.*",
+      "worker.*",
+      "lib/**",
+      "assets/**"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false
+    }
   }
 }

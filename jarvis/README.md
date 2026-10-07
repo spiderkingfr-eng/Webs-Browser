@@ -16,7 +16,9 @@ question** — never continuously.
 1. **Node.js** (18 or newer) — https://nodejs.org
 2. **Your Web AI server address** — the `…workers.dev` address you set up for the browser (it already
    does images and, with an ElevenLabs key, the voice). You paste it into Settings on first run.
-3. *(Optional, for the "Jarvis…" wake word and talking)* a small **speech model** — see below.
+
+Hearing you (the wake word and spoken questions) uses **Windows' own built-in speech recognition** — no
+download, no account, no extra install. The hotkey and the typed box also work on their own.
 
 ## Run it
 
@@ -30,25 +32,22 @@ On first run the Settings window opens. Paste your server address, press **Test 
 name, and close it. The tray icon (bottom‑right of Windows) is where everything lives:
 
 - **Ask Jarvis** (or press the hotkey, default **Alt+Shift+J**) — listen for one question and answer.
-- **Type a question** — opens the bubble with a text box (works even without the speech model).
-- **Listen for "Jarvis"** — always‑on wake word (needs the speech model).
+- **Type a question** — opens the bubble with a text box (always works).
+- **Listen for "Jarvis"** — always‑on wake word (Windows speech).
 - **Settings…**, **Show the bubble**, **Quit**.
 
-## The wake word / talking to it (optional speech model)
+## The wake word / talking to it
 
-Turning speech into text is done **on your PC** by an open‑source model called **Vosk** (no account, no
-key, nothing leaves the PC). It's optional — without it, the **hotkey** and the **typed box** still work.
+Turning your speech into text is done **on your PC by Windows itself** (its built-in speech recognition,
+via `lib/stt-win.ps1`). There's nothing to download or install, and nothing about you leaves the PC.
 
-To enable the spoken wake word and voice questions:
+- **Press the hotkey** (default **Alt+Shift+J**) and just speak your question.
+- Or turn on the always-listening wake word: tray icon → tick **Listen for "Jarvis"** → then say
+  *"Jarvis, how do I make a furnace?"* any time.
 
-```
-npm install vosk
-```
-
-Then download a small English model from https://alphacephei.com/vosk/models (for example
-`vosk-model-small-en-us-0.15`, ~40 MB), unzip it, and put its contents in a folder called **`model`**
-next to `main.js`, so you have `jarvis/model/…`. (Or set the `JARVIS_MODEL` environment variable to a
-model folder elsewhere.) Restart the app; the tray will say **"Speech: ready"**.
+If Windows speech has never been used on your PC, Windows may ask to set it up the first time (Start →
+Settings → Time & language → Speech). It's only Windows itself — not us. On non-Windows PCs there's no
+built-in recogniser, so use the typed box.
 
 The voice that reads answers aloud is **Adam**, through your server's `/speak` — it only works if your
 server has an ElevenLabs key (the browser's `setup.cmd` asks for one).
@@ -80,14 +79,14 @@ npm install
 npm run dist
 ```
 
-produces an installer under `dist/`. Put your `model/` folder in place first if you want the wake word
-bundled (it's copied in as an extra resource).
+produces an installer under `dist/`.
 
 ## What's inside
 
 | file | what it does |
 |------|--------------|
-| `main.js` | the app: tray, windows, hotkey, screenshot, talking to the server, the speech model |
+| `main.js` | the app: tray, windows, hotkey, screenshot, talking to the server, Windows speech |
+| `lib/stt-win.ps1` | hearing you, using Windows' own speech recognition |
 | `preload.js` | the safe bridge between the windows and the app |
 | `overlay.html/.js/.css` | the bubble at the bottom‑right |
 | `settings.html/.js/.css` | the settings window |
