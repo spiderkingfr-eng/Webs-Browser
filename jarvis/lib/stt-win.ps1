@@ -26,23 +26,42 @@ try {
 try { $rec.UpdateRecognizerSetting("CFGConfidenceRejectionThreshold", 0) } catch {}
 
 if ($Mode -eq "continuous") {
-  # grammar: (one of the wake words) + anything you then say
+  # Two stages, in one process (so there's no gap where it stops hearing you):
+  #   A) wait for the wake word only - a grammar of just the name, so it fires fast and reliably.
+  #   B) then open a fresh listening window: wait up to ~3.5s for you to start, and once you do, keep
+  #      going until you've been quiet for ~1.5s. So "Jarvis" <pause> "how do I make a furnace" works.
   $choices = New-Object System.Speech.Recognition.Choices
   $added = 0
   foreach ($w in ($Wake -split ",")) { $t = $w.Trim(); if ($t) { $choices.Add($t); $added++ } }
   if ($added -eq 0) { $choices.Add("jarvis") }
-  $gb = New-Object System.Speech.Recognition.GrammarBuilder
-  $gb.Append($choices)
-  $gb.AppendDictation()
-  try { $rec.LoadGrammar((New-Object System.Speech.Recognition.Grammar $gb)) }
-  catch { $rec.LoadGrammar((New-Object System.Speech.Recognition.DictationGrammar)) }
+  $wakeGb = New-Object System.Speech.Recognition.GrammarBuilder
+  $wakeGb.Append($choices)
+  $wakeGrammar = New-Object System.Speech.Recognition.Grammar $wakeGb
+  $dictation = New-Object System.Speech.Recognition.DictationGrammar
 
-  Register-ObjectEvent -InputObject $rec -EventName SpeechRecognized -Action {
-    $t = $Event.SourceEventArgs.Result.Text
-    if ($t) { [Console]::Out.WriteLine("TEXT:" + $t) }
-  } | Out-Null
-  $rec.RecognizeAsync([System.Speech.Recognition.RecognizeMode]::Multiple)
-  while ($true) { Start-Sleep -Milliseconds 400 }
+  while ($true) {
+    # --- A) listen for the wake word (wait as long as it takes) ---
+    try { $rec.UnloadAllGrammars() } catch {}
+    $rec.LoadGrammar($wakeGrammar)
+    $rec.InitialSilenceTimeout = [TimeSpan]::FromHours(24)
+    $rec.BabbleTimeout = [TimeSpan]::FromHours(24)
+    $rec.EndSilenceTimeout = [TimeSpan]::FromMilliseconds(250)
+    $w = $null
+    try { $w = $rec.Recognize() } catch { Start-Sleep -Milliseconds 300; continue }
+    if (-not $w) { Start-Sleep -Milliseconds 80; continue }
+    [Console]::Out.WriteLine("WAKE")
+
+    # --- B) now capture the question, with a generous window ---
+    try { $rec.UnloadAllGrammars() } catch {}
+    $rec.LoadGrammar($dictation)
+    $rec.InitialSilenceTimeout = [TimeSpan]::FromSeconds(3.5)   # at least ~3s to start speaking
+    $rec.BabbleTimeout = [TimeSpan]::FromSeconds(3)
+    $rec.EndSilenceTimeout = [TimeSpan]::FromSeconds(1.5)       # keep going until ~1.5s of quiet
+    $q = $null
+    try { $q = $rec.Recognize() } catch {}
+    if ($q -and $q.Text) { [Console]::Out.WriteLine("TEXT:" + $q.Text) }
+    else { [Console]::Out.WriteLine("NONE") }
+  }
 }
 else {
   $rec.LoadGrammar((New-Object System.Speech.Recognition.DictationGrammar))

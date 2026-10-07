@@ -36,8 +36,8 @@ function wakeWords() {
 const PS = path.join(__dirname, "lib", "stt-win.ps1");
 function psArgs(mode) { return ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", PS, "-Mode", mode]; }
 
-// read "TEXT:…" / "ERR:…" lines from a PowerShell helper, calling onText for each phrase
-function readLines(proc, onText, onErr) {
+// read the helper's lines (TEXT: a phrase · WAKE: heard the wake word · NONE: nothing after the wake · ERR: a problem)
+function readLines(proc, h) {
   let buf = "";
   proc.stdout.setEncoding("utf8");
   proc.stdout.on("data", d => {
@@ -45,8 +45,10 @@ function readLines(proc, onText, onErr) {
     let i;
     while ((i = buf.indexOf("\n")) >= 0) {
       const line = buf.slice(0, i).replace(/\r$/, ""); buf = buf.slice(i + 1);
-      if (line.startsWith("TEXT:")) onText(line.slice(5).trim());
-      else if (line.startsWith("ERR:") && onErr) onErr(line.slice(4).trim());
+      if (line.startsWith("TEXT:") && h.text) h.text(line.slice(5).trim());
+      else if (line === "WAKE" && h.wake) h.wake();
+      else if (line === "NONE" && h.none) h.none();
+      else if (line.startsWith("ERR:") && h.err) h.err(line.slice(4).trim());
     }
   });
 }
@@ -58,16 +60,20 @@ function setListening(on) {
   if (listening) {
     try {
       listenProc = spawn("powershell", psArgs("continuous").concat(["-Wake", wakeWords()]), { windowsHide: true });
-      readLines(listenProc, text => { if (listening) { showDot("busy"); setTimeout(() => { if (listening && !asking) showDot("listening"); }, 1200); handleWake(text); } }, msg => { listening = false; showDot("off"); refreshTray(); });
+      readLines(listenProc, {
+        // heard "Jarvis": show at once that it's listening for your question (the 3s window is open)
+        wake: () => { if (!listening || asking) return; showBubble(false); showDot("busy"); toBubble("say", { text: "Yes? I'm listening…", listening: true }); },
+        // your question came through
+        text: t => { if (!listening) return; const q = wake.detect(t, cfg.name).question || t; if (wake.looksComplete(q)) ask(q); else { showDot("listening"); toBubble("say", { text: "I didn't catch that. Say “" + cfg.name + "” and ask again.", listening: true }); } },
+        // nothing said in the window: quietly go back to waiting for the wake word
+        none: () => { if (listening && !asking) { showDot("listening"); toBubble("say", { text: "Listening for “" + cfg.name + "”…", listening: true }); } },
+        err: () => { listening = false; showDot("off"); refreshTray(); }
+      });
       listenProc.on("close", () => { listenProc = null; });
     } catch (e) { listening = false; }
   }
   showDot(listening ? "listening" : "off");
   refreshTray();
-}
-function handleWake(text) {
-  const r = wake.detect(text, cfg.name);
-  if (r.hit && wake.looksComplete(r.question)) ask(r.question);
 }
 
 // the hotkey / tray "Ask": listen for one question (no wake word needed), then answer
@@ -83,11 +89,14 @@ function startVoiceAsk() {
   let answered = false;
   try {
     onceProc = spawn("powershell", psArgs("once"), { windowsHide: true });
-    readLines(onceProc, text => {
-      answered = true;
-      const q = wake.detect(text, cfg.name).question || text;
-      if (wake.looksComplete(q)) ask(q); else toBubble("say", { text: "I didn't catch that. Try again, or type it below.", listening: false });
-    }, () => { toBubble("say", { text: "Couldn't hear the microphone. You can type below instead.", listening: false }); });
+    readLines(onceProc, {
+      text: text => {
+        answered = true;
+        const q = wake.detect(text, cfg.name).question || text;
+        if (wake.looksComplete(q)) ask(q); else toBubble("say", { text: "I didn't catch that. Try again, or type it below.", listening: false });
+      },
+      err: () => { toBubble("say", { text: "Couldn't hear the microphone. You can type below instead.", listening: false }); }
+    });
     onceProc.on("close", () => { onceProc = null; if (!answered) toBubble("say", { text: "I didn't catch that. Try again, or type below.", listening: false }); if (wasListening) setTimeout(() => setListening(true), 400); });
   } catch (e) { onceProc = null; toBubble("say", { text: "Couldn't start listening. Type below instead.", listening: false }); }
 }
