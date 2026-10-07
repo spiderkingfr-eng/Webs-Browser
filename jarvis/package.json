@@ -1,0 +1,28 @@
+{
+  "name": "jarvis-for-webs",
+  "version": "1.0.0",
+  "description": "A background screen assistant for your PC: say your wake word, ask anything, and it answers in a little bubble - seeing your screen if you let it. Uses your own Web AI server.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node test/test.js",
+    "dist": "electron-builder"
+  },
+  "author": "Webs",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "optionalDependencies": {
+    "vosk": "^0.3.39"
+  },
+  "build": {
+    "appId": "com.webs.jarvis",
+    "productName": "Jarvis for Webs",
+    "files": ["main.js", "preload.js", "overlay.*", "settings.*", "worker.*", "lib/**", "assets/**"],
+    "extraResources": [{ "from": "model", "to": "model", "filter": ["**/*"] }],
+    "win": { "target": "nsis", "icon": "assets/icon.png" },
+    "nsis": { "oneClick": true, "perMachine": false }
+  }
+}

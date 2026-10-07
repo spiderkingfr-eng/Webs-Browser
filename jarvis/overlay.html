@@ -1,0 +1,27 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Jarvis</title>
+<link rel="stylesheet" href="overlay.css">
+</head>
+<body>
+<div id="bubble" class="idle">
+  <div class="drag"></div>
+  <header>
+    <span class="dot" id="dot"></span>
+    <b id="who">Jarvis</b>
+    <span class="left" id="left"></span>
+    <button class="x" id="mic" title="Ask by voice">🎙️</button>
+    <button class="x" id="close" title="Hide">✕</button>
+  </header>
+  <div class="q" id="q" hidden></div>
+  <div class="a" id="a"></div>
+  <form id="ask">
+    <input id="in" type="text" placeholder="Ask anything…" autocomplete="off" spellcheck="false">
+    <button type="submit" title="Send">➤</button>
+  </form>
+</div>
+<script src="overlay.js"></script>
+</body>
+</html>

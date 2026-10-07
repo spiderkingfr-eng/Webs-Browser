@@ -1,0 +1,25 @@
+/* Jarvis for Webs - the settings window. */
+* { box-sizing: border-box; }
+body { font-family: "Segoe UI", system-ui, -apple-system, sans-serif; background: #15131b; color: #efecf4; margin: 0; padding: 20px 22px 90px; font-size: 14px; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+.lead { color: #a8a2b4; font-size: 12.5px; margin: 0 0 18px; line-height: 1.45; }
+section { background: #1d1a26; border: 1px solid #2a2635; border-radius: 14px; padding: 14px 16px; margin-bottom: 14px; }
+h2 { font-size: 14px; margin: 0 0 10px; }
+.hint { color: #a8a2b4; font-size: 12px; margin: -4px 0 10px; }
+label { display: block; font-size: 13px; margin-bottom: 10px; color: #cfc9d8; }
+label.row { display: flex; align-items: flex-start; gap: 9px; color: #efecf4; }
+label.row span { flex: 1; }
+label.row em { display: block; font-style: normal; color: #a8a2b4; font-size: 11.5px; }
+.opt { color: #8e879b; font-size: 11.5px; font-weight: 400; }
+input[type=text], input:not([type]), select, input#server, input#code, input#name, input#callYou, input#hotkey {
+  display: block; width: 100%; margin-top: 5px; font: inherit; font-size: 13.5px; color: #fff;
+  background: #15131b; border: 1px solid #332e42; border-radius: 9px; padding: 8px 10px; outline: none;
+}
+input:focus, select:focus { border-color: #e8342a; }
+input[type=checkbox] { width: 17px; height: 17px; margin-top: 1px; accent-color: #e8342a; }
+.ghost { font: inherit; font-size: 13px; background: transparent; color: #efecf4; border: 1px solid #39354a; border-radius: 9px; padding: 7px 13px; cursor: pointer; }
+.testout { font-size: 12.5px; margin-left: 10px; }
+.testout.ok { color: #46c27a; } .testout.bad { color: #ff6a5f; }
+.bar { position: fixed; left: 0; right: 0; bottom: 0; display: flex; align-items: center; gap: 12px; padding: 14px 22px; background: #15131b; border-top: 1px solid #2a2635; }
+#save { font: inherit; font-weight: 650; font-size: 14px; background: #e8342a; color: #fff; border: 0; border-radius: 10px; padding: 10px 22px; cursor: pointer; }
+.saved { color: #46c27a; font-size: 13px; }

@@ -1,0 +1,53 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Jarvis settings</title>
+<link rel="stylesheet" href="settings.css">
+</head>
+<body>
+<h1>Jarvis settings</h1>
+<p class="lead">Everything here stays on this PC. A screenshot is only ever sent to your Web AI server the moment you ask a question.</p>
+
+<section>
+  <h2>Who it is</h2>
+  <label>Its name (also the wake word)<input id="name" maxlength="30" placeholder="Jarvis"></label>
+  <label>What it calls you <span class="opt">optional</span><input id="callYou" maxlength="30" placeholder="sir, boss, your name…"></label>
+  <label>Style
+    <select id="style">
+      <option value="calm">Calm, quick, a little wit</option>
+      <option value="short">As short as possible</option>
+      <option value="friendly">Warm and friendly</option>
+      <option value="detailed">Thorough and detailed</option>
+    </select>
+  </label>
+</section>
+
+<section>
+  <h2>Your Web AI server</h2>
+  <p class="hint">The same server the Webs browser uses. It answers and does the voice.</p>
+  <label>Server address<input id="server" placeholder="https://web-ai.you.workers.dev"></label>
+  <label>Your code <span class="opt">optional, for a higher daily limit</span><input id="code" placeholder=""></label>
+  <button id="test" class="ghost">Test the connection</button>
+  <span id="testOut" class="testout"></span>
+</section>
+
+<section>
+  <h2>How it listens and answers</h2>
+  <label class="row"><input type="checkbox" id="wakeEnabled"> <span>Listen for the wake word all the time <em id="speechNote"></em></span></label>
+  <label class="row"><input type="checkbox" id="voice"> <span>Read answers aloud (Adam's voice)</span></label>
+  <label class="row"><input type="checkbox" id="sendScreenshot"> <span>Let it see my screen (send a screenshot with each question)</span></label>
+  <label class="row"><input type="checkbox" id="overlay"> <span>Show the bubble (turn off for games with strict anti-cheat)</span></label>
+  <label>Hotkey to ask from anywhere<input id="hotkey" maxlength="40" placeholder="Alt+Shift+J"></label>
+  <label>Microphone<select id="mic"><option value="">Default microphone</option></select></label>
+  <label class="row"><input type="checkbox" id="autostart"> <span>Start with Windows</span></label>
+</section>
+
+<div class="bar">
+  <button id="save">Save</button>
+  <span id="saved" class="saved"></span>
+</div>
+
+<script src="settings.js"></script>
+</body>
+</html>
