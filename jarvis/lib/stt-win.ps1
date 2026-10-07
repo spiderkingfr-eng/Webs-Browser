@@ -26,7 +26,25 @@ try {
 $MinConf = 0.30
 try { $rec.UpdateRecognizerSetting("CFGConfidenceRejectionThreshold", 30) } catch {}
 
-if ($Mode -eq "continuous") {
+if ($Mode -eq "wake") {
+  # just spot the wake word and say so - the question is heard by Whisper instead (far more accurate)
+  $choices = New-Object System.Speech.Recognition.Choices
+  $added = 0
+  foreach ($w in ($Wake -split ",")) { $t = $w.Trim(); if ($t) { $choices.Add($t); $added++ } }
+  if ($added -eq 0) { $choices.Add("jarvis") }
+  $wakeGb = New-Object System.Speech.Recognition.GrammarBuilder
+  $wakeGb.Append($choices)
+  $rec.LoadGrammar((New-Object System.Speech.Recognition.Grammar $wakeGb))
+  $rec.InitialSilenceTimeout = [TimeSpan]::FromHours(24)
+  $rec.BabbleTimeout = [TimeSpan]::FromHours(24)
+  $rec.EndSilenceTimeout = [TimeSpan]::FromMilliseconds(250)
+  while ($true) {
+    $w = $null
+    try { $w = $rec.Recognize() } catch { Start-Sleep -Milliseconds 300; continue }
+    if ($w) { [Console]::Out.WriteLine("WAKE") } else { Start-Sleep -Milliseconds 80 }
+  }
+}
+elseif ($Mode -eq "continuous") {
   # Two stages, in one process (so there's no gap where it stops hearing you):
   #   A) wait for the wake word only - a grammar of just the name, so it fires fast and reliably.
   #   B) then open a fresh listening window: wait up to ~3.5s for you to start, and once you do, keep

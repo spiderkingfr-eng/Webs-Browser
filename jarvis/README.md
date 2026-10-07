@@ -38,8 +38,12 @@ name, and close it. The tray icon (bottom‑right of Windows) is where everythin
 
 ## The wake word / talking to it
 
-Turning your speech into text is done **on your PC by Windows itself** (its built-in speech recognition,
-via `lib/stt-win.ps1`). There's nothing to download or install, and nothing about you leaves the PC.
+Turning your speech into text is done **on your PC by Whisper** (a small, accurate speech model that runs
+locally in the app). The model (~40 MB) is fetched once from a public CDN the first time you use voice, then
+cached - so the first spoken question after installing takes a moment while it downloads. Windows' own
+recognition is used only to spot the wake word "Jarvis" (it's reliable at one known word); Whisper hears the
+actual question. Nothing about you leaves the PC. If Whisper can't load (offline on first run), it falls back
+to Windows' own recognition, and typing always works.
 
 - **Press the hotkey** (default **Alt+Shift+J**) and just speak your question.
 - Or turn on the always-listening wake word: tray icon → tick **Listen for "Jarvis"** → then say
@@ -91,7 +95,8 @@ produces an installer under `dist/`.
 | `preload.js` | the safe bridge between the windows and the app |
 | `overlay.html/.js/.css` | the bubble at the bottom‑right |
 | `settings.html/.js/.css` | the settings window |
-| `worker.html/.js` | hidden: playing the spoken answer |
+| `worker.html/.js` | hidden: hearing you (Whisper) and playing the spoken answer |
+| `lib/shot-win.ps1` | the screenshot (System.Drawing) |
 | `dot.html/.css/.js` | the little red "I'm listening" ball |
 | `lib/config.js` | your settings, in one JSON file on this PC |
 | `lib/wake.js` | hearing the wake word and pulling out the question |

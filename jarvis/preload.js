@@ -16,6 +16,12 @@ contextBridge.exposeInMainWorld("jarvis", {
   hideBubble: () => ipcRenderer.send("hide-bubble"),
   // the little "listening" ball
   onDot: fn => ipcRenderer.on("dot", (e, d) => fn(d)),
-  // the hidden worker (playing the spoken answer)
+  // the hidden worker (hearing via Whisper, and playing the spoken answer)
+  onRecord: fn => ipcRenderer.on("record", (e, d) => fn(d)),
+  whisperReady: () => ipcRenderer.send("whisper-ready"),
+  whisperFail: m => ipcRenderer.send("whisper-fail", m),
+  whisperLoading: () => ipcRenderer.send("whisper-loading"),
+  transcript: t => ipcRenderer.send("transcript", t),
+  recState: s => ipcRenderer.send("rec-state", s),
   onPlay: fn => ipcRenderer.on("play", (e, buf) => fn(buf))
 });

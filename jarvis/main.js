@@ -22,6 +22,7 @@ const speechOk = process.platform === "win32";     // Windows' built-in recognit
 
 let tray = null, overlay = null, settingsWin = null, worker = null, indicator = null;
 let listening = false, asking = false, listenProc = null, onceProc = null;
+let whisperOk = false, whisperLoading = false, recording = false;   // Whisper = the accurate hearing (worker.js)
 
 // the wake words to tell Windows' recogniser about (the name, "hey <name>", and a few near-spellings Windows
 // commonly mishears the name as - that's what makes it actually catch "Jarvis")
@@ -53,22 +54,36 @@ function readLines(proc, h) {
   });
 }
 
-// the always-on wake word
+// got a question (from Whisper, or from Windows speech as a fallback)
+function gotQuestion(raw) {
+  recording = false;
+  const q = wake.detect(raw, cfg.name).question || raw;
+  if (wake.looksComplete(q)) ask(q);
+  else { showDot(listening ? "listening" : "off"); toBubble("say", { text: "I didn't catch that. " + (listening ? "Say “" + cfg.name + "” and ask again." : "Press " + cfg.hotkey + " and ask again, or type below."), listening: listening }); }
+}
+
+// the always-on wake word. With Whisper: Windows just spots "Jarvis", then Whisper hears the question (far better).
+// Without Whisper (still loading, or it failed): Windows does the whole thing (the older, rougher way).
 function setListening(on) {
   listening = !!on && speechOk;
   if (listenProc) { try { listenProc.kill(); } catch (e) {} listenProc = null; }
   if (listening) {
     try {
-      listenProc = spawn("powershell", psArgs("continuous").concat(["-Wake", wakeWords()]), { windowsHide: true });
-      readLines(listenProc, {
-        // heard "Jarvis": show at once that it's listening for your question (the 3s window is open)
-        wake: () => { if (!listening || asking) return; showBubble(false); showDot("busy"); toBubble("say", { text: "Yes? I'm listening…", listening: true }); },
-        // your question came through
-        text: t => { if (!listening) return; const q = wake.detect(t, cfg.name).question || t; if (wake.looksComplete(q)) ask(q); else { showDot("listening"); toBubble("say", { text: "I didn't catch that. Say “" + cfg.name + "” and ask again.", listening: true }); } },
-        // nothing said in the window: quietly go back to waiting for the wake word
-        none: () => { if (listening && !asking) { showDot("listening"); toBubble("say", { text: "Listening for “" + cfg.name + "”…", listening: true }); } },
-        err: () => { listening = false; showDot("off"); refreshTray(); }
-      });
+      if (whisperOk) {
+        listenProc = spawn("powershell", psArgs("wake").concat(["-Wake", wakeWords()]), { windowsHide: true });
+        readLines(listenProc, {
+          wake: () => { if (!listening || asking || recording) return; recording = true; showBubble(false); showDot("busy"); toBubble("say", { text: "Yes? I'm listening…", listening: true }); recordQuestion("wake"); },
+          err: () => { listening = false; showDot("off"); refreshTray(); }
+        });
+      } else {
+        listenProc = spawn("powershell", psArgs("continuous").concat(["-Wake", wakeWords()]), { windowsHide: true });
+        readLines(listenProc, {
+          wake: () => { if (!listening || asking) return; showBubble(false); showDot("busy"); toBubble("say", { text: "Yes? I'm listening…", listening: true }); },
+          text: t => { if (listening) gotQuestion(t); },
+          none: () => { if (listening && !asking) { showDot("listening"); toBubble("say", { text: "Listening for “" + cfg.name + "”…", listening: true }); } },
+          err: () => { listening = false; showDot("off"); refreshTray(); }
+        });
+      }
       listenProc.on("close", () => { listenProc = null; });
     } catch (e) { listening = false; }
   }
@@ -78,23 +93,26 @@ function setListening(on) {
 
 // the hotkey / tray "Ask": listen for one question (no wake word needed), then answer
 function startVoiceAsk() {
-  if (!speechOk) { showBubble(true); toBubble("say", { text: "Type your question below. (Spoken questions need Windows, with its speech recognition on.)", listening: false }); return; }
-  if (onceProc) return;
+  if (!speechOk && !whisperOk) { showBubble(true); toBubble("say", { text: "Type your question below.", listening: false }); return; }
+  if (recording || onceProc) return;
   showBubble(false);
   showDot("listening");
+  if (whisperOk) {
+    recording = true;
+    toBubble("say", { text: "Listening… ask your question.", listening: true });
+    recordQuestion("once");
+    return;
+  }
+  if (whisperLoading) { toBubble("say", { text: "Jarvis's better hearing is still downloading (one-time). Type below for now.", listening: false }); return; }
+  // fallback: Windows speech, one phrase
   toBubble("say", { text: "Listening… ask your question.", listening: true });
-  // pause the always-on listener so the two don't fight over the microphone
   const wasListening = listening;
   if (listenProc) { try { listenProc.kill(); } catch (e) {} listenProc = null; }
   let answered = false;
   try {
     onceProc = spawn("powershell", psArgs("once"), { windowsHide: true });
     readLines(onceProc, {
-      text: text => {
-        answered = true;
-        const q = wake.detect(text, cfg.name).question || text;
-        if (wake.looksComplete(q)) ask(q); else toBubble("say", { text: "I didn't catch that. Try again, or type it below.", listening: false });
-      },
+      text: text => { answered = true; gotQuestion(text); },
       err: () => { toBubble("say", { text: "Couldn't hear the microphone. You can type below instead.", listening: false }); }
     });
     onceProc.on("close", () => { onceProc = null; if (!answered) toBubble("say", { text: "I didn't catch that. Try again, or type below.", listening: false }); if (wasListening) setTimeout(() => setListening(true), 400); });
@@ -119,10 +137,11 @@ function makeOverlay() {
   overlay.on("closed", () => { overlay = null; });
 }
 function makeWorker() {
-  worker = new BrowserWindow({ show: false, webPreferences: { preload: path.join(__dirname, "preload.js") } });
+  worker = new BrowserWindow({ show: false, webPreferences: { preload: path.join(__dirname, "preload.js"), backgroundThrottling: false } });
   worker.loadFile("worker.html");
   worker.on("closed", () => { worker = null; });
 }
+function recordQuestion(mode) { if (worker && worker.webContents) worker.webContents.send("record", { mode, device: cfg.mic }); }
 // the little "I'm listening" red ball in the bottom-right corner - always on top, never clickable
 function indicatorBounds() {
   const d = screen.getPrimaryDisplay().workArea, s = 22, m = 8;
@@ -178,7 +197,7 @@ function refreshTray() {
     { label: "Show the bubble", type: "checkbox", checked: cfg.overlay, click: m => { cfg = config.save(DIR, Object.assign({}, cfg, { overlay: m.checked })); } },
     { type: "separator" },
     { label: "Settings…", click: openSettings },
-    { label: speechOk ? "Voice: Windows speech" : "Voice: type only (not Windows)", enabled: false },
+    { label: whisperOk ? "Voice: Whisper (accurate)" : whisperLoading ? "Voice: downloading Whisper…" : speechOk ? "Voice: Windows speech" : "Voice: type only", enabled: false },
     { type: "separator" },
     { label: "Quit", click: () => app.quit() }
   ]);
@@ -202,9 +221,32 @@ function startWatch() {
 }
 
 /* ---------------------------------------------------------------- the screenshot */
+const SHOT_PS = path.join(__dirname, "lib", "shot-win.ps1");
 let lastShotNote = "";
+// the reliable Windows way (System.Drawing) - what Electron's own capture couldn't manage on some PCs
+function shotViaWindows() {
+  return new Promise(resolve => {
+    try {
+      const p = spawn("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", SHOT_PS, "-MaxWidth", String(cfg.maxWidth), "-Quality", "70"], { windowsHide: true });
+      let out = "";
+      p.stdout.on("data", d => { out += d; });
+      p.on("error", () => resolve(null));
+      p.on("close", () => {
+        out = out.trim();
+        if (/^[A-Za-z0-9+/=]+$/.test(out) && out.length > 500) { const data = "data:image/jpeg;base64," + out; resolve(shot.tooBig(data) ? null : data); }
+        else resolve(null);
+      });
+      setTimeout(() => { try { p.kill(); } catch (e) {} resolve(null); }, 6000);
+    } catch (e) { resolve(null); }
+  });
+}
 async function grabScreen() {
   if (!cfg.sendScreenshot) { lastShotNote = "off"; return null; }
+  if (process.platform === "win32") {
+    const d = await shotViaWindows();
+    if (d) { lastShotNote = "ok"; return d; }
+    lastShotNote = "win-failed";     // fall through to Electron's capture as a backup
+  }
   try {
     // the monitor you're actually looking at (the one your mouse is on)
     const d = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()) || screen.getPrimaryDisplay();
@@ -317,6 +359,18 @@ ipcMain.handle("test-server", async () => {
   if (!cfg.server) return { ok: false, message: "No server address yet." };
   try { const r = await fetch(cfg.server + "/", { method: "GET" }); const j = await r.json(); return { ok: !!j.ok, ready: !!j.ready, name: j.name || "Web AI", voice: (j.features || []).includes("voice"), message: j.missing || "" }; }
   catch (e) { return { ok: false, message: "Couldn't reach that address." }; }
+});
+// the worker (Whisper) reports in
+ipcMain.on("whisper-loading", () => { whisperLoading = true; refreshTray(); });
+ipcMain.on("whisper-ready", () => {
+  whisperOk = true; whisperLoading = false; refreshTray();
+  if (listening) setListening(true);      // switch the wake listener over to the accurate mode
+});
+ipcMain.on("whisper-fail", () => { whisperOk = false; whisperLoading = false; refreshTray(); });
+ipcMain.on("transcript", (e, t) => { recording = false; gotQuestion(String(t || "")); });
+ipcMain.on("rec-state", (e, s) => {
+  if (s === "thinking") { showDot("busy"); toBubble("say", { text: "…", listening: false }); }
+  else if (s === "listening") { showDot("busy"); }
 });
 ipcMain.on("ask-text", (e, q) => { if (q && String(q).trim()) ask(String(q).trim()); });
 ipcMain.on("open-external", (e, u) => { if (/^https?:\/\//.test(u)) shell.openExternal(u); });
