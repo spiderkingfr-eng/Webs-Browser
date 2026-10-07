@@ -180,11 +180,13 @@ function refreshTray() {
 async function grabScreen() {
   if (!cfg.sendScreenshot) return null;
   try {
-    const d = screen.getPrimaryDisplay();
+    // the monitor you're actually looking at (the one your mouse is on), so "what am I looking at" sees the right screen
+    const d = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()) || screen.getPrimaryDisplay();
     const size = d.size, sf = d.scaleFactor || 1;
     const sources = await desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width: Math.round(size.width * sf), height: Math.round(size.height * sf) } });
     if (!sources.length) return null;
-    let img = sources[0].thumbnail;
+    const src = sources.find(s => String(s.display_id) === String(d.id)) || sources[0];
+    let img = src.thumbnail;
     const got = img.getSize();
     const fit = shot.fitSize(got.width, got.height, cfg.maxWidth);
     if (fit.scale < 1) img = img.resize({ width: fit.w, height: fit.h, quality: "good" });
