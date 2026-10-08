@@ -41,9 +41,10 @@ Keep them together: `setup.cmd` puts all of them on Cloudflare at once.
 ## What it costs
 
 Cloudflare: nothing on the free plan.
-Claude: each question uses credit from your Claude Console account. With the
-standard model (Claude Sonnet 5.5) that's about 1 cent to summarize a page, and
-less for a short question. Set a monthly spend limit in the Console
+Claude: each question uses credit from your Claude Console account. The standard
+model is the smartest one, Claude Fable 5.1: about 5 cents to summarize a page, and
+a cent or two for a short question. Claude Sonnet 5.5 is about a fifth of that (pick
+it on the owner's dashboard, under Model, or with the MODEL setting). Set a monthly spend limit in the Console
 (the Billing page, under **Spend limits**) so the bill can never go over what you choose.
 
 Three limits keep spending in check:
@@ -115,7 +116,7 @@ before changing either. To remove someone, run it again and paste the codes with
 Open the worker's address in a browser. It should say:
 
 ```
-{"ok":true,"name":"Web AI","ready":true,"model":"claude-sonnet-5-5"}
+{"ok":true,"name":"Web AI","ready":true,"model":"claude-fable-5-1"}
 ```
 
 If `ready` is `false`, the key or the codes are missing: run setup.cmd again and answer Y. In Webs Browser, Web AI
@@ -141,7 +142,7 @@ Add these to `"vars"` in `wrangler.jsonc` (for example `"vars": { "DAILY_LIMIT":
 | `DAILY_LIMIT` | `25` | Questions per device (or per code) per day |
 | `NETWORK_DAILY_LIMIT` | `100` | Questions per internet connection per day, without a code |
 | `TOTAL_DAILY_LIMIT` | `150` | Questions for everyone together per day |
-| `MODEL` | `claude-haiku-4-5` | A cheaper, faster model (about half the price). Default `claude-sonnet-5-5` |
+| `MODEL` | `claude-sonnet-5-5` | A cheaper model: `claude-opus-5-5` (less than half the price), `claude-sonnet-5-5` (a fifth), `claude-haiku-4-5` (a tenth). Default `claude-fable-5-1`, the smartest |
 
 ## Notifications on iPhones
 

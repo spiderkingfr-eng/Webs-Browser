@@ -25,7 +25,7 @@ const sha = async s => [...new Uint8Array(await crypto.subtle.digest("SHA-256", 
 const bool = v => v === true;
 const num = (v, lo, hi, d) => { const n = Math.round(+v); return Number.isFinite(n) && n >= lo && n <= hi ? n : d; };
 const txt = (v, n) => cut(v, n).replace(/[\u0000-\u0008\u000b-\u001f]/g, "").trim();
-export const MODELS = ["claude-sonnet-5-5", "claude-haiku-4-5", "claude-opus-5-5"];
+export const MODELS = ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-4-5"];
 export const LENGTHS = { short:1500, normal:4000, long:8000 };
 const day = t => new Date(t || now()).toISOString().slice(0, 10);
 
@@ -76,7 +76,7 @@ export const isBlocked = (c, who) => !!who && (c.block.devices.includes(who.id) 
 // the Web AI limits and model, with the dashboard's choices over the server's settings
 export function aiSettings(env, c) {
   const a = c.ai;
-  return { model:a.model || String(env.MODEL || "").trim() || "claude-sonnet-5-5", maxTokens:LENGTHS[a.length] || 4000,
+  return { model:a.model || String(env.MODEL || "").trim() || "claude-fable-5-1", maxTokens:LENGTHS[a.length] || 4000,
     daily:a.daily || limit(env.DAILY_LIMIT, 25), network:a.network || limit(env.NETWORK_DAILY_LIMIT, 100), total:a.total || limit(env.TOTAL_DAILY_LIMIT, 150) };
 }
 

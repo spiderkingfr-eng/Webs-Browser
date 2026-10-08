@@ -413,6 +413,7 @@ async function ask(question) {
         if (part.error) { toBubble("answer", { done: true, text: part.error }); return; }
         if (part.text) { answer += part.text; toBubble("answer", { text: ai.cleanForShow(answer) }); }
         if (part.end && (part.unlimited || typeof part.left === "number")) toBubble("left", { left: part.left, unlimited: part.unlimited });
+        if (part.end && part.stop === "refusal") { toBubble("answer", { done: true, text: "Sorry, I can't help with that one." }); return; }
       }
     }
     reader.end().forEach(p => { if (p.text) answer += p.text; });

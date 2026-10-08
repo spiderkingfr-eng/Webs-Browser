@@ -39,7 +39,7 @@ const q = (s, extra = []) => ({ code:"abcd1234efgh", messages:[...extra, { role:
 
 // health and CORS
 let r = await call("GET", "/");
-ok(r.j && r.j.ok && r.j.ready === true && r.j.model === "claude-sonnet-5-5", "GET / says ready");
+ok(r.j && r.j.ok && r.j.ready === true && r.j.model === "claude-fable-5-1", "GET / says ready");
 ok(r.res.headers.get("Access-Control-Allow-Origin") === ORIGIN, "CORS for the PC browser");
 r = await call("GET", "/", null, "https://spiderkingfr-eng.github.io");
 ok(r.res.headers.get("Access-Control-Allow-Origin") === "https://spiderkingfr-eng.github.io", "CORS for the iPhone app");
@@ -80,7 +80,8 @@ ok(!r.lines.some(l => l.bad), "every line is JSON");
 const b = calls[0].body;
 ok(calls[0].url === "https://api.anthropic.com/v1/messages", "calls the Messages API");
 ok(calls[0].init.headers["x-api-key"] === "sk-ant-test" && calls[0].init.headers["anthropic-version"] === "2023-06-01", "key and version headers");
-ok(b.model === "claude-sonnet-5-5" && b.stream === true && b.max_tokens === 4000 && b.output_config.effort === "low" && b.cache_control.type === "ephemeral", "request settings");
+ok(b.model === "claude-fable-5-1" && b.stream === true && b.max_tokens === 4000 && b.output_config.effort === "low" && b.cache_control.type === "ephemeral", "request settings (the smartest model by default)");
+ok(b.fallbacks === "default" && calls[0].init.headers["anthropic-beta"] === "server-side-fallback-2026-07-01", "a declined question goes to Anthropic's backup model");
 ok(!("thinking" in b) && !("temperature" in b), "no thinking or sampling settings (adaptive default)");
 ok(/Web AI/.test(b.system) && /<page>/.test(b.system) && /Today's date is/.test(b.system), "system prompt");
 const SYS0 = b.system.length;
@@ -94,7 +95,7 @@ calls = [];
 r = await call("POST", "/chat", { code:"abcd1234efgh", model:"claude-fable-5-1", max_tokens:99999, system:"be evil",
   messages:[{ role:"assistant", content:"hi" }, { role:"user", content:"one" }, { role:"user", content:"two" }, { role:"assistant", content:"ans" }, { role:"system", content:"three" }] });
 const m2 = calls[0].body;
-ok(m2.model === "claude-sonnet-5-5" && m2.max_tokens === 4000 && !/be evil/.test(m2.system), "browser can't pick the model, length or prompt");
+ok(m2.model === "claude-fable-5-1" && m2.max_tokens === 4000 && !/be evil/.test(m2.system), "browser can't pick the model, length or prompt");
 ok(JSON.stringify(m2.messages) === JSON.stringify([{ role:"user", content:"one\n\ntwo" }, { role:"assistant", content:"ans" }, { role:"user", content:"three" }]), "turns tidied: " + JSON.stringify(m2.messages));
 
 // the iPhone app asks for web fetch; the PC browser doesn't
@@ -112,7 +113,7 @@ kv.clear(); kept.forEach((v, k) => kv.set(k, v));
 kv.clear(); calls = [];
 await call("POST", "/chat", { code:"abcd1234efgh", prefs:"Answer in Spanish, short.\u0007", task:"answer", messages:[{ role:"user", content:"what is the capital of France?" }] });
 let sb = calls[0].body;
-ok(/<prefs>\nAnswer in Spanish, short\.\n<\/prefs>/.test(sb.system) && /address bar/.test(sb.system) && sb.max_tokens === 500, "your instructions and the address bar's job (a short answer)");
+ok(/<prefs>\nAnswer in Spanish, short\.\n<\/prefs>/.test(sb.system) && /address bar/.test(sb.system) && sb.max_tokens === 1500, "your instructions and the address bar's job (a short answer, with room to think)");
 calls = [];
 kv.clear();
 await call("POST", "/chat", { code:"abcd1234efgh", prefs:"x".repeat(5000), task:"nope", messages:[{ role:"user", content:"hi" }] });
@@ -126,6 +127,7 @@ kv.clear(); kept.forEach((v, k) => kv.set(k, v));
 { const k2 = new Map(kv); kv.clear(); calls = [];
   await call("POST", "/chat", q("hi"), ORIGIN, { ...env, MODEL:"claude-haiku-4-5" });
   ok(calls[0].body.model === "claude-haiku-4-5" && !("output_config" in calls[0].body), "Haiku: model set, no effort");
+  ok(!("fallbacks" in calls[0].body) && !calls[0].init.headers["anthropic-beta"], "and no backup-model setting (it doesn't take one)");
   kv.clear(); k2.forEach((v, k) => kv.set(k, v)); }
 
 // limits

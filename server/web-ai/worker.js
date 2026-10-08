@@ -21,7 +21,8 @@
      TWITCH_CLIENT_ID    secret   (optional) with TWITCH_CLIENT_SECRET: streamers you follow, live now and their schedules
      TWITCH_CLIENT_SECRET secret  (streams.js): a free app at dev.twitch.tv/console
      SPEAK_DAILY         text     characters the voice may say per person per day (20000)
-     MODEL               text     claude-sonnet-5-5 (or claude-haiku-4-5, about half the price)
+     MODEL               text     claude-fable-5-1, the smartest (or claude-opus-5-5, claude-sonnet-5-5,
+                                  claude-haiku-4-5 - each cheaper than the one before)
 
    The browser talks to it as:
      GET  /        is it running?
@@ -102,6 +103,11 @@ export { Room, Ledger };
 import { ADMIN_PAGE, DASH_JS, DASH_CSS, DASH_SW, DASH_MANIFEST, DASH_ICON, DASH_PNG } from "./dash.js";
 
 const API = "https://api.anthropic.com/v1/messages";
+// If the chosen model can't be used on this Claude account (not offered to it, or its data settings don't allow it),
+// the question is answered by this one instead of failing.
+const BACKUP_MODEL = "claude-opus-5-5";
+// These models can hand a question they decline to Anthropic's recommended backup model, on Anthropic's side (beta).
+const FALLBACK_OK = /^claude-(fable-5-1|opus-5-5|opus-5|sonnet-5-5)$/;
 const ORIGINS = ["https://browser.example", "https://spiderkingfr-eng.github.io"];
 const MAX_TOKENS = 4000;          // the longest answer (and its thinking), about 3,000 words
 const MAX_MESSAGE = 30000;        // characters in one message (a page plus a question)
@@ -233,30 +239,44 @@ export default {
       if (body.web === true) tools.push({ type:"web_fetch_20250910", name:"web_fetch", max_uses:body.task === "compare" ? 4 : 1, max_content_tokens:body.task === "compare" ? 4000 : 6000 });     // comparing tabs on the iPhone: up to four pages
       if (body.search === true && SEARCH_TASKS.includes(body.task)) tools.push({ type:"web_search_20250305", name:"web_search", max_uses:3 });     // fact checks and comparisons look things up
 
-      const up = await fetch(API, {
+      const sys = system(new Date().toUTCString().slice(0, 16), body.prefs, body.task);
+      const claude = m => fetch(API, {
         method:"POST",
-        headers:{ "content-type":"application/json", "x-api-key":String(env.ANTHROPIC_API_KEY).trim(), "anthropic-version":"2023-06-01" },
+        headers:{ "content-type":"application/json", "x-api-key":String(env.ANTHROPIC_API_KEY).trim(), "anthropic-version":"2023-06-01",
+          ...(FALLBACK_OK.test(m) ? { "anthropic-beta":"server-side-fallback-2026-07-01" } : {}) },
         body:JSON.stringify({
-          model:ai.model,
-          max_tokens:body.task === "answer" ? Math.min(ai.maxTokens, 500) : body.task === "jarvis" ? Math.min(ai.maxTokens, 900) : ai.maxTokens,
-          system:system(new Date().toUTCString().slice(0, 16), body.prefs, body.task),
+          model:m,
+          // room for its thinking as well as the answer (the newest models always think a little first)
+          max_tokens:body.task === "answer" ? Math.min(ai.maxTokens, 1500) : body.task === "jarvis" ? Math.min(ai.maxTokens, 3000) : ai.maxTokens,
+          system:sys,
           messages,
-          // chat: short or no thinking, a quick first word (Haiku 4.5 has no effort setting)
-          ...(/haiku/i.test(ai.model) ? {} : { output_config:{ effort:"low" } }),
+          // how hard it thinks: low for quick chat; medium for Jarvis, which looks at your screen and works things out
+          // (Haiku 4.5 has no effort setting)
+          ...(/haiku/i.test(m) ? {} : { output_config:{ effort:body.task === "jarvis" ? "medium" : "low" } }),
+          // a question this model declines goes to Anthropic's recommended backup model instead of coming back empty
+          ...(FALLBACK_OK.test(m) ? { fallbacks:"default" } : {}),
           ...(tools.length ? { tools } : {}),     // comparing tabs on the iPhone: up to four pages
           cache_control:{ type:"ephemeral" },      // follow-up questions reread the page from the cache
           stream:true
         })
       });
+      let usedModel = ai.model, up = await claude(usedModel), errText = null;
+      if (!up.ok && (up.status === 400 || up.status === 404) && usedModel !== BACKUP_MODEL) {
+        errText = await up.text().catch(() => "");
+        if (/model|retention|fallback|tool|web_/i.test(errText)) {
+          console.log("Claude API: " + usedModel + " can't be used (" + up.status + "), answering with " + BACKUP_MODEL, errText.slice(0, 300));
+          usedModel = BACKUP_MODEL; up = await claude(usedModel); errText = null;
+        }
+      }
       if (!up.ok || !up.body) {
-        const e = apiError(up.status, await up.text().catch(() => ""));
+        const e = apiError(up.status, errText != null ? errText : await up.text().catch(() => ""));
         console.log("Claude API error", up.status, e.detail);
         return json({ error:e.error, message:e.message }, e.status, cors);
       }
       // counted once Claude has taken the question
       ctx.waitUntil(Promise.all([bump(env, who.id, day, used), bump(env, "everyone", day, all), who.net ? bump(env, who.net, day, net) : null, who.unlimited ? count(env, "unl", day).then(n => bump(env, "unl", day, n)) : null]));
       const pipe = new TransformStream();
-      ctx.waitUntil(relay(up.body, pipe.writable, who, who.unlimited ? UNLIMITED_SHOWN : Math.max(0, who.limit - used - 1), u => addUsage(env, day, { ...u, model:ai.model })));
+      ctx.waitUntil(relay(up.body, pipe.writable, who, who.unlimited ? UNLIMITED_SHOWN : Math.max(0, who.limit - used - 1), u => addUsage(env, day, { ...u, model:usedModel })));
       return new Response(pipe.readable, { headers:{ ...cors, "content-type":"application/x-ndjson; charset=utf-8", "cache-control":"no-store" } });
     } catch (e) {
       console.log("Web AI server error", e && e.stack || e);
@@ -286,7 +306,7 @@ function corsFor(origin) {
 function json(o, status, headers) {
   return new Response(JSON.stringify(o), { status, headers:{ ...headers, "content-type":"application/json; charset=utf-8", "cache-control":"no-store" } });
 }
-const model = env => String(env.MODEL || "").trim() || "claude-sonnet-5-5";
+const model = env => String(env.MODEL || "").trim() || "claude-fable-5-1";
 const isOpen = env => /^(true|yes|1|on)$/i.test(String(env.OPEN || "").trim());
 const limit = (v, d) => { const n = parseInt(v, 10); return n > 0 ? n : d; };
 // a code with no daily limit (the owner's own, usually). Apps show this many "left today", and it never goes down.
@@ -419,10 +439,10 @@ async function addUsage(env, day, u) {
   await env.LIMITS.put(k, JSON.stringify(t), { expirationTtl:400 * 86400 });
 }
 // dollars per million tokens: input, output, cache read, cache write (5 minutes)
-const PRICES = { sonnet:[2, 10, 0.2, 2.5], haiku:[1, 5, 0.1, 1.25], opus:[4, 20, 0.2, 5] };
+const PRICES = { sonnet:[2, 10, 0.2, 2.5], haiku:[1, 5, 0.1, 1.25], opus:[4, 20, 0.2, 5], fable:[10, 50, 0.25, 12.5] };
 function cost(t, m) {
   if (typeof t.c === "number" && t.m) return t.c;          // added up as it went, at each answer's own model's price
-  const p = /haiku/i.test(m) ? PRICES.haiku : /opus/i.test(m) ? PRICES.opus : PRICES.sonnet;
+  const p = /haiku/i.test(m) ? PRICES.haiku : /opus/i.test(m) ? PRICES.opus : /fable|mythos/i.test(m) ? PRICES.fable : PRICES.sonnet;
   return ((t.input_tokens || 0) * p[0] + (t.output_tokens || 0) * p[1] + (t.cache_read_input_tokens || 0) * p[2] + (t.cache_creation_input_tokens || 0) * p[3]) / 1e6;
 }
 

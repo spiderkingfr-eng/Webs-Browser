@@ -879,7 +879,7 @@ PANES.settings = async function (p) {
   var ai = card(p, "✦ Web AI");
   var pa = sw("Pause Web AI", C.ai.paused, "Nobody can ask until you turn it back on"), pm = inp("What people see while it's paused", C.ai.pauseMsg, { maxlength:200, placeholder:"Web AI is taking a break. Try again later." });
   var cap = inp("Daily spending limit in dollars (0 = none)", C.ai.cap || 0, { type:"number", min:0, step:"0.5" });
-  var mo = sel("Model", C.ai.model, [["", "Default (" + (S.cfg.ai.model) + ")"]].concat(S.cfg.models.map(function (m) { return [m, m + (/haiku/.test(m) ? " (cheapest, fastest)" : /opus/.test(m) ? " (smartest, about twice the price)" : " (balanced)")]; })));
+  var mo = sel("Model", C.ai.model, [["", "Default (" + (S.cfg.ai.model) + ")"]].concat(S.cfg.models.map(function (m) { return [m, m + (/haiku/.test(m) ? " (cheapest, fastest)" : /fable/.test(m) ? " (smartest, about 5 times Sonnet's price)" : /opus/.test(m) ? " (very smart, about twice Sonnet's price)" : " (balanced)")]; })));
   var le = sel("Answer length", C.ai.length, [["", "Default (normal)"], ["short", "Short"], ["normal", "Normal"], ["long", "Long"]]);
   var dl = inp("Questions a day per device or person (0 = default " + S.cfg.ai.daily + ")", C.ai.daily || 0, { type:"number", min:0 }), nl = inp("Per internet connection (0 = default)", C.ai.network || 0, { type:"number", min:0 }), tl = inp("For everyone together (0 = default)", C.ai.total || 0, { type:"number", min:0 });
   var g = E("div", "grid2"); add(g, cap, mo, le, dl, nl, tl);
