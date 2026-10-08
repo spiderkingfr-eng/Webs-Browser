@@ -3,7 +3,7 @@
 "use strict";
 (function () {
 const $ = id => document.getElementById(id);
-const FIELDS = ["name", "callYou", "style", "server", "code", "hotkey", "mic", "hearing", "model"];
+const FIELDS = ["name", "callYou", "style", "server", "code", "hotkey", "mic", "hearing", "model", "wakeSensitivity"];
 const CHECKS = ["wakeEnabled", "voice", "sendScreenshot", "webSearch", "watch", "overlay", "autostart"];
 let cfg = {};
 

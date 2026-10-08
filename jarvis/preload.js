@@ -27,5 +27,7 @@ contextBridge.exposeInMainWorld("jarvis", {
   recState: s => ipcRenderer.send("rec-state", s),
   onPlay: fn => ipcRenderer.on("play", (e, buf) => fn(buf)),
   onStopAudio: fn => ipcRenderer.on("stop-audio", () => fn()),
+  onPauseAudio: fn => ipcRenderer.on("pause-audio", () => fn()),
+  onResumeAudio: fn => ipcRenderer.on("resume-audio", () => fn()),
   audioState: on => ipcRenderer.send("audio-state", !!on)
 });

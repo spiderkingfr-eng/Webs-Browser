@@ -37,7 +37,7 @@ function wakeWords() {
 
 /* ---------------------------------------------------------------- hearing you (Windows speech) */
 const PS = path.join(__dirname, "lib", "stt-win.ps1");
-function psArgs(mode) { return ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", PS, "-Mode", mode]; }
+function psArgs(mode) { return ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", PS, "-Mode", mode, "-WakeConf", String(config.SENSITIVITY[cfg.wakeSensitivity] || 0.5)]; }
 
 // read the helper's lines (TEXT: a phrase · WAKE: heard the wake word · NONE: nothing after the wake · ERR: a problem)
 function readLines(proc, h) {
@@ -61,7 +61,13 @@ function readLines(proc, h) {
 function gotQuestion(raw, mode) {
   recording = false; clearTimeout(recTimer);
   raw = String(raw || "").trim();
-  const q = mode === "wake" ? wake.afterWake(raw, cfg.name) : (wake.detect(raw, cfg.name).question || raw);
+  let q;
+  if (mode === "wake") {
+    const h = wake.heardName(raw, cfg.name);
+    if (!h.hit) { notReallyWoken(); return; }      // it wasn't the name after all: carry on as if nothing happened
+    q = h.question;
+    if (paused || speaking) { paused = false; hushed = true; stopVoiceOnly(); }     // it was: go quiet
+  } else q = wake.detect(raw, cfg.name).question || raw;
   if (wake.isStop(q)) { stopTalking(); showDot(listening ? "listening" : "off"); return; }     // "Jarvis, stop"
   if (asking) return;          // still answering the last one: leave it be
   if (hushed && !wake.looksComplete(q)) { hushed = false; showDot(listening ? "listening" : "off"); return; }   // just "Jarvis" to quiet it: leave the answer up
@@ -72,6 +78,12 @@ function gotQuestion(raw, mode) {
     const heard = q ? "I only heard “" + q + "”. " : "I didn't catch that. ";
     toBubble("say", { text: heard + (listening ? "Say “" + cfg.name + "” and ask again." : "Press " + cfg.hotkey + " and ask again, or type below."), listening: listening });
   }
+}
+
+// Windows fired, but Whisper (which hears properly) didn't hear the name: undo the little that changed
+function notReallyWoken() {
+  if (paused) { paused = false; if (worker && worker.webContents) worker.webContents.send("resume-audio"); }
+  showDot(asking ? "busy" : listening ? "listening" : "off");
 }
 
 // the always-on wake word. With Whisper: Windows just spots "Jarvis", then Whisper hears the question (far better).
@@ -86,12 +98,13 @@ function setListening(on) {
         listenProc = spawn("powershell", psArgs("wake").concat(["-Wake", wakeWords()]), { windowsHide: true });
         readLines(listenProc, {
           wake: () => {
+            // Windows *thinks* it heard the name. Nothing shows yet: Whisper checks it really was the name first
+            // (Windows sometimes fires on other words), and only then does anything happen. The ball turns amber.
             if (!listening || recording) return;
             recording = true;
-            // saying the name while it's talking makes it go quiet at once and listen ("Jarvis, stop" - or a new question)
-            hushed = speaking || playing;
-            if (hushed) stopVoiceOnly();
-            if (!asking) { showBubble(false); showDot("busy"); toBubble("say", { text: "Yes? I'm listening…", listening: true }); }
+            // talking? hold the voice while we check ("Jarvis, stop" - or a new question); carry on if it wasn't the name
+            if (playing && worker && worker.webContents) { paused = true; worker.webContents.send("pause-audio"); }
+            showDot("busy");
             recordQuestion("wake");
           },
           err: () => { listening = false; showDot("off"); refreshTray(); }
@@ -170,7 +183,7 @@ function recordQuestion(mode) {
   if (worker && worker.webContents) worker.webContents.send("record", { mode, device: cfg.mic });
   // never get stuck "recording" if the worker doesn't answer
   clearTimeout(recTimer);
-  recTimer = setTimeout(() => { if (recording) { recording = false; showDot(listening ? "listening" : "off"); } }, 40000);
+  recTimer = setTimeout(() => { if (recording) { recording = false; notReallyWoken(); } }, 40000);
 }
 // keep the microphone open in the worker (while listening for the wake word), or close it
 function armMic(on) { if (worker && worker.webContents) worker.webContents.send("record", { mode: on ? "arm" : "disarm", device: cfg.mic }); }
@@ -441,12 +454,12 @@ async function ask(question) {
 /* ---------------------------------------------------------------- stopping him */
 // The bubble's Stop button (or the hotkey, or "Jarvis, stop"): stop reading aloud mid-sentence, and stop an answer
 // that's still coming in (what's already shown stays, so you can read it).
-let askCtl = null, speakCtl = null, speaking = false, playing = false, hushed = false;
+let askCtl = null, speakCtl = null, speaking = false, playing = false, hushed = false, paused = false;
 const isTalking = () => asking || speaking || playing;
 function busyChanged() { toBubble("busy", { on: isTalking() }); }
 function stopVoiceOnly() {
   if (speakCtl) { try { speakCtl.abort(); } catch (e) {} speakCtl = null; }
-  speaking = false; playing = false;
+  speaking = false; playing = false; paused = false;
   if (worker && worker.webContents) worker.webContents.send("stop-audio");
   busyChanged();
 }
@@ -522,6 +535,7 @@ ipcMain.handle("save-config", (e, next) => {
     if (listening) setListening(true);
   } else if (before.mic !== cfg.mic && listening && whisperOk) armMic(true);
   if (before.wakeEnabled !== cfg.wakeEnabled) setListening(cfg.wakeEnabled);
+  else if ((before.wakeSensitivity !== cfg.wakeSensitivity || before.name !== cfg.name) && listening) setListening(true);
   return cfg;
 });
 ipcMain.handle("test-server", async () => {
@@ -539,7 +553,8 @@ ipcMain.on("whisper-ready", () => {
 ipcMain.on("whisper-fail", () => { whisperOk = false; whisperLoading = false; refreshTray(); });
 ipcMain.on("transcript", (e, t) => { recording = false; gotQuestion(String(t || ""), recMode); });
 ipcMain.on("rec-state", (e, s) => {
-  if (s === "thinking") { showDot("busy"); if (!asking) toBubble("say", { text: "…", listening: false }); }
+  // (after the wake word nothing shows until Whisper has confirmed it was the name - see notReallyWoken)
+  if (s === "thinking") { showDot("busy"); if (!asking && recMode !== "wake") toBubble("say", { text: "…", listening: false }); }
   else if (s === "listening") { showDot("busy"); }
 });
 ipcMain.on("ask-text", (e, q) => { if (q && String(q).trim()) ask(String(q).trim()); });

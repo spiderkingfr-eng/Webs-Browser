@@ -9,7 +9,7 @@ const norm = s => String(s || "").toLowerCase().replace(/[^\p{L}\p{N}\s']/gu, " 
 
 // a few ways the model might hear common names, so the wake word is forgiving
 const ALSO = {
-  jarvis: ["jarvis", "jervis", "jarvais", "jar vis", "javis", "jarvus", "jarvas", "jarves", "service"],
+  jarvis: ["jarvis", "jervis", "jarvais", "jar vis", "javis", "jarvus", "jarvas", "jarves"],     // (not "service": too common)
   friday: ["friday", "fry day"],
   computer: ["computer", "computor"],
   alexa: ["alexa", "alexis"],
@@ -52,19 +52,25 @@ function distance(a, b) {
   return prev[n];
 }
 
-// Windows already heard the name, and Whisper heard everything from just before it: the question is what follows the
-// name. If Whisper spelled the name a little differently, a word close to it in the first few still counts.
-function afterWake(transcript, name) {
+// Did Whisper (which hears far better than Windows' quick wake-word spotter) actually hear the name? Windows only
+// gives the first hint - it sometimes fires on other words - so the name has to be in what Whisper heard too.
+// -> { hit, question } (the question is what follows the name). A word close to the name counts ("Jarvus").
+function heardName(transcript, name) {
   const d = detect(transcript, name);
-  if (d.hit) return d.question;
+  if (d.hit) return { hit: true, question: d.question };
   const words = norm(transcript).split(" ").filter(Boolean);
   const target = (norm(name) || "jarvis").replace(/\s+/g, "");
   const near = Math.max(1, Math.floor(target.length / 3));
-  for (let i = 0; i < Math.min(words.length, 4); i++) {
+  for (let i = 0; i < words.length; i++) {
     const w = words[i].replace(/'s$/, "");
-    if (w.length >= 3 && distance(w, target) <= near) return words.slice(i + 1).join(" ");
+    if (w.length >= 3 && distance(w, target) <= near) return { hit: true, question: words.slice(i + 1).join(" ") };
   }
-  return norm(transcript);
+  return { hit: false, question: "" };
+}
+// the question after the name (or everything, if the name wasn't heard)
+function afterWake(transcript, name) {
+  const h = heardName(transcript, name);
+  return h.hit ? h.question : norm(transcript);
 }
 
 // "stop", "shut up", "be quiet"... - what you'd say to make it stop talking
@@ -77,4 +83,4 @@ function looksComplete(question) {
   return words.length >= 2;
 }
 
-module.exports = { detect, afterWake, isStop, distance, variants, norm, looksComplete };
+module.exports = { detect, heardName, afterWake, isStop, distance, variants, norm, looksComplete };

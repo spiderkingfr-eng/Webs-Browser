@@ -145,5 +145,8 @@ window.jarvis.onPlay(buf => {
     a.play().then(() => { if (audio === a) window.jarvis.audioState(true); }).catch(done);
   } catch (e) { try { window.jarvis.audioState(false); } catch (x) {} }
 });
+// "Jarvis?" while it's talking: hold the voice while we check it really was the name, then carry on (or stop)
+window.jarvis.onPauseAudio(() => { if (audio) { try { audio.pause(); } catch (e) {} } });
+window.jarvis.onResumeAudio(() => { if (audio) audio.play().catch(() => {}); });
 // Stop: quiet at once, mid-sentence
 window.jarvis.onStopAudio(() => { stopAudio(); try { window.jarvis.audioState(false); } catch (e) {} });

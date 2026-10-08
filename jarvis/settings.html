@@ -51,6 +51,13 @@
   <label class="row"><input type="checkbox" id="overlay"> <span>Show the bubble (turn off for games with strict anti-cheat)</span></label>
   <label>Hotkey to ask from anywhere<input id="hotkey" maxlength="40" placeholder="Alt+Shift+J"></label>
   <label>Microphone<select id="mic"><option value="">Default microphone</option></select></label>
+  <label>Wake word
+    <select id="wakeSensitivity">
+      <option value="relaxed">Relaxed - catches the name even said quietly (may start by mistake now and then)</option>
+      <option value="normal">Normal</option>
+      <option value="strict">Strict - only when it clearly hears its name</option>
+    </select>
+  </label>
   <label>Hearing
     <select id="hearing">
       <option value="accurate">Accurate (recommended, ~75 MB one-time download)</option>

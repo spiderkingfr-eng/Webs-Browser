@@ -60,6 +60,11 @@ sent), so a question you've already started when Windows recognises the name isn
   *"Jarvis, how do I make a furnace?"* any time. A small **red ball** appears in the bottom-right corner so
   you can see it's listening; it glows amber while it's working on your question.
 
+It only starts when it really heard its name: Windows' quick listener gives the first hint, then Whisper (which
+hears far better) checks the name was actually said before anything happens - so other words that sound a bit like
+it don't set it off. Until then nothing pops up; the little ball just turns amber for a moment. If it still starts
+by mistake, or misses you, change **Settings → Wake word** (Relaxed / Normal / Strict).
+
 If Windows speech has never been used on your PC, Windows may ask to set it up the first time (Start →
 Settings → Time & language → Speech). It's only Windows itself — not us. On non-Windows PCs there's no
 built-in recogniser, so use the typed box.

@@ -8,6 +8,7 @@ const models = require("./models");
 const DEFAULTS = {
   name: "Jarvis",            // what you call it (also the wake word)
   wakeEnabled: true,          // listen for the wake word all the time (needs the speech model; see README)
+  wakeSensitivity: "normal",  // relaxed | normal | strict - how sure it must be that it heard its name
   callYou: "",                // what it calls you (sir, boss, your name) - optional
   style: "calm",              // calm | short | friendly | detailed
   server: "",                 // your Web AI server address, e.g. https://web-ai.you.workers.dev
@@ -29,6 +30,7 @@ const DEFAULTS = {
 
 const STYLES = ["calm", "short", "friendly", "detailed"];
 const HEARING = ["accurate", "fast"];
+const SENSITIVITY = { relaxed: 0.3, normal: 0.5, strict: 0.7 };     // how sure Windows must be it heard the name
 
 function file(dir) { return path.join(dir, "config.json"); }
 
@@ -42,6 +44,7 @@ function clean(cfg) {
   c.hotkey = String(c.hotkey || "").trim().slice(0, 40) || DEFAULTS.hotkey;
   c.mic = String(c.mic || "").slice(0, 200);
   c.hearing = HEARING.includes(c.hearing) ? c.hearing : "accurate";
+  c.wakeSensitivity = c.wakeSensitivity in SENSITIVITY ? c.wakeSensitivity : "normal";
   c.model = models.IDS.includes(c.model) ? c.model : "";
   c.maxWidth = Math.max(640, Math.min(2560, +c.maxWidth || DEFAULTS.maxWidth));
   c.watchSecs = Math.max(1, Math.min(10, +c.watchSecs || DEFAULTS.watchSecs));
@@ -68,4 +71,4 @@ function save(dir, cfg) {
 // the wake word the speech model listens for (the name, lowercased; "hey <name>" also works, handled in wake.js)
 const wakeWord = cfg => String((cfg && cfg.name) || "Jarvis").toLowerCase().trim();
 
-module.exports = { DEFAULTS, STYLES, HEARING, load, save, clean, wakeWord, file };
+module.exports = { DEFAULTS, STYLES, HEARING, SENSITIVITY, load, save, clean, wakeWord, file };

@@ -6,7 +6,7 @@
 #   continuous:  listen for the wake word followed by a question, print the whole thing, keep going.  (the "Jarvis…" mode)
 # Giving the recogniser the wake word up front (a grammar) makes it catch the name far more reliably than plain
 # dictation would. Each phrase is printed as:  TEXT:<the words>   Problems as:  ERR:<message>
-param([string]$Mode = "once", [string]$Wake = "jarvis")
+param([string]$Mode = "once", [string]$Wake = "jarvis", [double]$WakeConf = 0.5)
 
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
 
@@ -53,7 +53,8 @@ if ($Mode -eq "wake") {
   while ($true) {
     $w = $null
     try { $w = $rec.Recognize() } catch { Start-Sleep -Milliseconds 300; continue }
-    if ($w) { [Console]::Out.WriteLine("WAKE") } else { Start-Sleep -Milliseconds 80 }
+    # only when it's fairly sure it was the name (WakeConf, from Settings → Wake word) - other words can come close
+    if ($w -and $w.Confidence -ge $WakeConf) { [Console]::Out.WriteLine("WAKE") } elseif (-not $w) { Start-Sleep -Milliseconds 80 }
   }
 }
 elseif ($Mode -eq "continuous") {
@@ -80,6 +81,7 @@ elseif ($Mode -eq "continuous") {
     $w = $null
     try { $w = $rec.Recognize() } catch { Start-Sleep -Milliseconds 300; continue }
     if (-not $w) { Start-Sleep -Milliseconds 80; continue }
+    if ($w.Confidence -lt $WakeConf) { continue }      # not sure enough it was the name
     [Console]::Out.WriteLine("WAKE")
 
     # --- B) now capture the question, with a generous window ---
