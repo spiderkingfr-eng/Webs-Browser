@@ -417,7 +417,8 @@ async function ask(question) {
       }
     }
     reader.end().forEach(p => { if (p.text) answer += p.text; });
-    toBubble("answer", { done: true, text: ai.cleanForShow(answer) || "(no answer)" });
+    const shown = ai.cleanForShow(answer) || "(no answer)";
+    toBubble("answer", { done: true, text: shown, parts: ai.linkParts(shown) });     // links become buttons to click
     if (cfg.voice && answer && !ctl.signal.aborted) speak(ai.cleanForSpeech(answer));
   } catch (e) {
     if (ctl.signal.aborted) toBubble("answer", { done: true, text: answer ? ai.cleanForShow(answer) + " …" : "Stopped." });

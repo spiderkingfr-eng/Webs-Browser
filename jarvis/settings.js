@@ -4,7 +4,7 @@
 (function () {
 const $ = id => document.getElementById(id);
 const FIELDS = ["name", "callYou", "style", "server", "code", "hotkey", "mic", "hearing"];
-const CHECKS = ["wakeEnabled", "voice", "sendScreenshot", "watch", "overlay", "autostart"];
+const CHECKS = ["wakeEnabled", "voice", "sendScreenshot", "webSearch", "watch", "overlay", "autostart"];
 let cfg = {};
 
 async function fillMics(selected) {

@@ -16,6 +16,7 @@ const DEFAULTS = {
   voice: true,                // read answers aloud (Adam, through your server's /speak)
   overlay: true,              // show the little bubble (turn off for games with strict anti-cheat)
   sendScreenshot: true,       // send a screenshot with your question so it can see what you're doing
+  webSearch: true,            // let it search the web (real links, anything current) - a cent or so per search
   watch: true,                // keep an eye on the screen locally (every watchSecs), so the newest view is ready at once
   watchSecs: 2,               // how often it looks (kept on this PC; only the latest is sent, and only when you ask)
   mic: "",                    // which microphone (its id; empty = the default)
@@ -41,7 +42,7 @@ function clean(cfg) {
   c.hearing = HEARING.includes(c.hearing) ? c.hearing : "accurate";
   c.maxWidth = Math.max(640, Math.min(2560, +c.maxWidth || DEFAULTS.maxWidth));
   c.watchSecs = Math.max(1, Math.min(10, +c.watchSecs || DEFAULTS.watchSecs));
-  ["wakeEnabled", "voice", "overlay", "sendScreenshot", "watch", "autostart"].forEach(k => { c[k] = !!c[k]; });
+  ["wakeEnabled", "voice", "overlay", "sendScreenshot", "webSearch", "watch", "autostart"].forEach(k => { c[k] = !!c[k]; });
   if (!/^dev-[0-9a-f]{16}$/.test(c.device || "")) c.device = "dev-" + crypto.randomBytes(8).toString("hex");
   return c;
 }

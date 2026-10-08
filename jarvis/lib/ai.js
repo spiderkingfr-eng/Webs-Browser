@@ -21,6 +21,7 @@ function context(cfg, now, hasImage) {
   s += "Style: " + style + "\n</assistant>\n";
   s += "<now>\nThe time is " + (now || new Date()).toString() + ".\n";
   s += "This is the desktop overlay, not the browser: there are no tabs or browser commands here, so never use [[do: ...]] commands - just answer.\n";
+  s += "If they ask for a link, give it as a full https address on its own line: it shows as a button they can click." + (cfg && cfg.webSearch ? " Search the web to find the real page rather than guessing the address." : " Only give addresses you're sure of.") + "\n";
   s += (hasImage ? "A screenshot of their screen (the monitor their mouse is on) is attached: it is exactly what they're looking at right now, so look at it and answer from it.\n" : "No screenshot is attached this time.\n");
   s += "</now>";
   return s;
@@ -39,6 +40,7 @@ function buildBody(opt) {
     messages: [{ role: "user", content: text }]
   };
   if (cfg.code) body.code = cfg.code;
+  if (cfg.webSearch) body.search = true;      // it may look things up (real links, anything current)
   if (cfg.callYou || cfg.style) body.prefs = (cfg.callYou ? "Call me " + cfg.callYou + ". " : "") + (STYLE_TEXT[cfg.style] || "");
   if (image) body.image = { data: image };
   return body;
@@ -74,6 +76,8 @@ function streamReader() {
 function cleanForSpeech(text) {
   return String(text || "")
     .replace(/\[\[\s*do\s*:[^\]]*\]\]/gi, " ")
+    .replace(/\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g, "$1")     // links are shown, not read out
+    .replace(/<?https?:\/\/[^\s>]+>?/g, " ")
     .replace(/```[\s\S]*?```/g, " ")
     .replace(/`([^`]*)`/g, "$1")
     .replace(/\*\*([^*]*)\*\*/g, "$1").replace(/\*([^*]*)\*/g, "$1")
@@ -86,4 +90,36 @@ function cleanForShow(text) {
   return String(text || "").replace(/\[\[\s*do\s*:[^\]]*\]\]/gi, "").replace(/\n{3,}/g, "\n\n").trim();
 }
 
-module.exports = { buildBody, parseLine, streamReader, cleanForSpeech, cleanForShow, context, STYLE_TEXT };
+// The answer as pieces for the bubble: plain text, and links to click - [a label](https://...) or a bare address.
+// -> [{ text }, { text:"minecraft.wiki/w/Furnace", url:"https://minecraft.wiki/w/Furnace" }, ...]
+const LINK = /\[([^\]\n]{1,120})\]\((https?:\/\/[^\s)]+)\)|<?(https?:\/\/[^\s<>"'\]]+)>?/g;
+function linkLabel(url) {
+  try {
+    const u = new URL(url);
+    const rest = (u.pathname === "/" ? "" : decodeURIComponent(u.pathname)) + (u.search || "");
+    const s = u.hostname.replace(/^www\./, "") + rest;
+    return s.length > 48 ? s.slice(0, 46) + "…" : s;
+  } catch (e) { return url.slice(0, 48); }
+}
+function linkParts(text) {
+  text = String(text || "");
+  const out = [];
+  let last = 0, m;
+  LINK.lastIndex = 0;
+  while ((m = LINK.exec(text))) {
+    let url = m[2] || m[3], end = m.index + m[0].length, label = m[1] || "";
+    if (!m[2]) {          // a bare address: leave trailing punctuation (and an unmatched bracket) out of it
+      const trail = /[.,;:!?)]+$/.exec(url);
+      if (trail && !(trail[0].startsWith(")") && url.includes("("))) { url = url.slice(0, -trail[0].length); end -= trail[0].length; }
+    }
+    let ok = false; try { ok = /^https?:$/.test(new URL(url).protocol); } catch (e) {}
+    if (!ok) continue;
+    if (m.index > last) out.push({ text: text.slice(last, m.index) });
+    out.push({ text: label || linkLabel(url), url });
+    last = end;
+  }
+  if (last < text.length) out.push({ text: text.slice(last) });
+  return out;
+}
+
+module.exports = { buildBody, parseLine, streamReader, cleanForSpeech, cleanForShow, linkParts, context, STYLE_TEXT };

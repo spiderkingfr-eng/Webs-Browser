@@ -27,6 +27,8 @@ body.thinking .dot { background: #ffb020; animation: pulse 1s infinite; }
 .warn { -webkit-app-region: no-drag; font-size: 11.5px; color: #ffb020; padding: 0 12px 6px; }
 .a { -webkit-app-region: no-drag; flex: 1; overflow-y: auto; padding: 2px 13px 10px; font-size: 14px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
 .a:empty::before { content: ""; }
+.a .lnk { color: #ff8a80; text-decoration: none; border-bottom: 1px solid rgba(255,138,128,.45); cursor: pointer; overflow-wrap: anywhere; }
+.a .lnk:hover { color: #fff; border-bottom-color: #fff; }
 .a.thinking::after { content: "…"; color: #9a94a6; animation: dots 1.2s steps(4) infinite; }
 @keyframes dots { to { content: "…"; } }
 .a::-webkit-scrollbar { width: 7px; } .a::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); border-radius: 4px; }

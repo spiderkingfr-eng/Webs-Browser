@@ -33,6 +33,11 @@ r = await chat({ task:"jarvis", image:{ data:jpg }, messages:[{ role:"user", con
 m = sent[sent.length - 1].messages.slice(-1)[0];
 ok(r.s === 200 && m.content[0].source.media_type === "image/jpeg" && m.content[1].text === "What am I looking at?", "a Jarvis screenshot goes with the question");
 ok(/screenshot of their screen is attached, it IS what they're looking at/.test(sent[sent.length - 1].system) && /never say you can't see their screen/.test(sent[sent.length - 1].system), "and Jarvis is told to look at it");
+r = await chat({ task:"jarvis", search:true, messages:[{ role:"user", content:"send me a link to the minecraft wiki" }] });
+ok(r.s === 200 && sent[sent.length - 1].tools.length === 1 && sent[sent.length - 1].tools[0].type === "web_search_20250305" && sent[sent.length - 1].tools[0].max_uses === 2, "Jarvis can search the web (up to twice) for real links");
+ok(/ask for a link/.test(sent[sent.length - 1].system) && /never guess an address/.test(sent[sent.length - 1].system), "and is told how to give links");
+r = await chat({ task:"jarvis", messages:[{ role:"user", content:"hi" }] });
+ok(!sent[sent.length - 1].tools, "not unless it asks to search");
 const home = await (await worker.fetch(new Request("https://w.example/", { method:"GET" }), env, { waitUntil(){} })).json();
 ok(home.features.includes("see"), "GET / says this server can look at pictures");
 r = await chat({ task:"factcheck", search:true, messages:[{ role:"user", content:"The Great Wall is visible from space." }] });

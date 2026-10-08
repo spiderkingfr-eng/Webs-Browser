@@ -67,6 +67,13 @@ built-in recogniser, so use the typed box.
 The voice that reads answers aloud is **Adam**, through your server's `/speak` — it only works if your
 server has an ElevenLabs key (the browser's `setup.cmd` asks for one).
 
+## Links
+
+Ask for a link (*"Jarvis, send me a link to the furnace page on the Minecraft wiki"*) and it shows up in the bubble
+as a 🔗 link you can click; it opens in your normal browser. Links are never read aloud. With **Let it search the
+web** on (Settings, on by default), it looks the page up first, so the link is a real page rather than a guess, and
+answers about anything recent are up to date. Each search costs about a cent on your Claude bill.
+
 ## Making it stop talking
 
 - Click **■ Stop** on the bubble (it shows while it's talking or still answering). It goes quiet mid-sentence
@@ -83,7 +90,8 @@ server has an ElevenLabs key (the browser's `setup.cmd` asks for one).
 - **What it calls you** — sir, boss, your name… (optional).
 - **Style** — calm, short, friendly or detailed.
 - **Server address** and **code** — your Web AI server.
-- **Listen for the wake word**, **Read answers aloud**, **Let it see my screen**, **Show the bubble**.
+- **Listen for the wake word**, **Read answers aloud**, **Let it see my screen**, **Let it search the web**,
+  **Show the bubble**.
 - **Hotkey**, **Microphone**, **Hearing** (accurate or fast), **Start with Windows**.
 
 ## "It says it can't see my screen"

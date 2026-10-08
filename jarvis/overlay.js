@@ -45,7 +45,7 @@ window.jarvis.onBubble(d => {
       a.classList.toggle("thinking", !!d.thinking);
       if (!d.thinking) a.textContent = d.text || "";
       a.scrollTop = a.scrollHeight;
-      if (d.done) { body.classList.remove("thinking"); a.classList.remove("thinking"); if (!busy) armHide(30000); linkify(); }
+      if (d.done) { body.classList.remove("thinking"); a.classList.remove("thinking"); if (!busy) armHide(30000); if (d.parts) showParts(d.parts); }
       break;
     case "busy":
       // talking or still answering: show Stop, and don't tidy the bubble away mid-sentence
@@ -61,17 +61,17 @@ window.jarvis.onBubble(d => {
   }
 });
 
-// the few links an answer might contain open in the real browser, not in the bubble
-function linkify() {
-  const m = a.textContent.match(/https?:\/\/[^\s)]+/);
-  // (answers are read-aloud style, so links are rare; we just make the first one tappable if present)
-  if (!m) return;
-  const url = m[0];
-  if (!a.querySelector(".lnk")) {
-    const b = document.createElement("button"); b.className = "lnk x"; b.textContent = "Open link"; b.style.marginTop = "6px";
-    b.onclick = () => window.jarvis.openExternal(url);
-    a.appendChild(document.createElement("br")); a.appendChild(b);
-  }
+// the finished answer, with its links as things to click (they open in your normal browser, not in the bubble)
+function showParts(parts) {
+  if (!parts.some(p => p.url)) return;
+  a.textContent = "";
+  parts.forEach(p => {
+    if (!p.url) { a.appendChild(document.createTextNode(p.text)); return; }
+    const l = document.createElement("a");
+    l.className = "lnk"; l.href = "#"; l.textContent = "🔗 " + p.text; l.title = p.url;
+    l.onclick = e => { e.preventDefault(); keepOpen(); window.jarvis.openExternal(p.url); };
+    a.appendChild(l);
+  });
 }
 
 $("ask").addEventListener("submit", e => {
