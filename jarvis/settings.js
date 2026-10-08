@@ -6,6 +6,14 @@ const $ = id => document.getElementById(id);
 const FIELDS = ["name", "callYou", "style", "server", "code", "hotkey", "mic", "hearing", "model", "wakeSensitivity"];
 const CHECKS = ["wakeEnabled", "voice", "sendScreenshot", "webSearch", "watch", "overlay", "autostart"];
 let cfg = {};
+// only what you change here is saved - so a change made meanwhile from the tray, the bubble or by voice isn't undone
+const touched = new Set();
+FIELDS.concat(CHECKS).forEach(k => { const el = $(k); if (el) ["input", "change"].forEach(ev => el.addEventListener(ev, () => touched.add(k))); });
+function show(c, all) {
+  FIELDS.forEach(k => { if ($(k) && k !== "mic" && (all || !touched.has(k))) $(k).value = c[k] == null ? "" : c[k]; });
+  CHECKS.forEach(k => { if ($(k) && (all || !touched.has(k))) $(k).checked = !!c[k]; });
+}
+window.jarvis.onConfig(c => { cfg = c; show(c, false); });     // changed elsewhere while this window is open
 
 async function fillMics(selected) {
   try {
@@ -13,24 +21,25 @@ async function fillMics(selected) {
     try { const s = await navigator.mediaDevices.getUserMedia({ audio: true }); s.getTracks().forEach(t => t.stop()); } catch (e) {}
     const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "audioinput");
     const sel = $("mic");
-    sel.innerHTML = '<option value="">Default microphone</option>' + devs.map(d => '<option value="' + d.deviceId + '">' + (d.label || "Microphone") + "</option>").join("");
+    sel.textContent = "";
+    [{ deviceId: "", label: "Default microphone" }].concat(devs).forEach(d => { const o = document.createElement("option"); o.value = d.deviceId; o.textContent = d.label || "Microphone"; sel.appendChild(o); });
     sel.value = selected || "";
   } catch (e) {}
 }
 
 async function load() {
   cfg = await window.jarvis.getConfig();
-  FIELDS.forEach(k => { if ($(k) && k !== "mic") $(k).value = cfg[k] == null ? "" : cfg[k]; });
-  CHECKS.forEach(k => { if ($(k)) $(k).checked = !!cfg[k]; });
+  show(cfg, true);
   await fillMics(cfg.mic);
 }
 
 async function save() {
   const next = {};
-  FIELDS.forEach(k => { if ($(k)) next[k] = $(k).value; });
-  CHECKS.forEach(k => { if ($(k)) next[k] = $(k).checked; });
+  FIELDS.forEach(k => { if ($(k) && touched.has(k)) next[k] = $(k).value; });
+  CHECKS.forEach(k => { if ($(k) && touched.has(k)) next[k] = $(k).checked; });
   cfg = await window.jarvis.saveConfig(next);
-  FIELDS.forEach(k => { if ($(k) && k !== "mic") $(k).value = cfg[k] == null ? "" : cfg[k]; });
+  touched.clear();
+  show(cfg, true);
   $("saved").textContent = "Saved ✓";
   setTimeout(() => { $("saved").textContent = ""; }, 2000);
 }

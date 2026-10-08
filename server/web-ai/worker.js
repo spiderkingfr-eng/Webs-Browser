@@ -39,6 +39,7 @@
                    bar, a video's key moments, tidying tabs, comparing pages, study cards,
                    explaining a selection, finding a page in the history
                    -> one JSON object per line: { d:"text" } ... { end:1, stop, left } or { error, message }
+                      (and { s:"search" | "fetch" } while it looks something up - apps may show it or ignore it)
 
      POST /report  { code?, device, app, version, text, info, errors }   a problem report, for the owner
      POST /link/new  { code?, device }  -> { link, code }    a 6-digit code (10 minutes) to link another device
@@ -403,6 +404,9 @@ async function relay(src, dst, who, left, onUsage, extra) {
     if (!line.startsWith("data:")) return;
     let e; try { e = JSON.parse(line.slice(5)); } catch (x) { return; }
     if (e.type === "content_block_delta" && e.delta && e.delta.type === "text_delta" && e.delta.text) return out({ d:e.delta.text });
+    // what it's doing before it answers, for apps that show it (Jarvis: "Searching the web…"); the others ignore it
+    if (e.type === "content_block_start" && e.content_block && e.content_block.type === "server_tool_use")
+      return out({ s:e.content_block.name === "web_search" ? "search" : e.content_block.name === "web_fetch" ? "fetch" : "tool" });
     if (e.type === "message_start" && e.message && e.message.usage) Object.assign(usage, e.message.usage);
     if (e.type === "message_start" && e.message && typeof e.message.model === "string") served = e.message.model;     // (a backup model, if one stepped in)
     if (e.type === "message_delta") { if (e.delta && e.delta.stop_reason) stop = e.delta.stop_reason; if (e.usage) Object.assign(usage, e.usage); }

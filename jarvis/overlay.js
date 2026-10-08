@@ -4,7 +4,8 @@
 (function () {
 const $ = id => document.getElementById(id);
 const body = document.body, a = $("a"), q = $("q"), warn = $("warn"), stop = $("stop"), voice = $("voice");
-let busy = false;
+const status = $("status"), copy = $("copy"), newchat = $("newchat");
+let busy = false, answerText = "", typed = [], typedAt = -1;
 let hideTimer = 0;
 
 function armHide(ms) { clearTimeout(hideTimer); hideTimer = setTimeout(() => window.jarvis.hideBubble(), ms); }
@@ -25,7 +26,7 @@ window.jarvis.onBubble(d => {
     case "focus": setTimeout(() => $("in").focus(), 30); break;
     case "say":
       body.classList.toggle("listening", !!d.listening); body.classList.remove("thinking");
-      q.hidden = true; a.classList.remove("thinking"); a.textContent = d.text || "";
+      q.hidden = true; a.classList.remove("thinking"); a.textContent = d.text || ""; status.hidden = true; copy.hidden = true;
       if (!d.listening) armHide(9000);
       break;
     case "heard":
@@ -34,7 +35,15 @@ window.jarvis.onBubble(d => {
       break;
     case "question":
       body.classList.remove("listening");
-      q.hidden = false; q.textContent = "“" + (d.text || "") + "”"; a.textContent = ""; warn.hidden = true;
+      q.hidden = false; q.textContent = "“" + (d.text || "") + "”"; a.textContent = ""; warn.hidden = true; copy.hidden = true; answerText = "";
+      if (d.followUp) { const f = document.createElement("span"); f.className = "fu"; f.textContent = "↩"; f.title = "A follow-up: it remembers the conversation so far"; q.prepend(f); }
+      break;
+    case "status":
+      // what it's doing before the answer starts: looking at your screen, thinking, searching the web…
+      status.hidden = !d.text; status.textContent = d.text || "";
+      break;
+    case "memory":
+      newchat.hidden = !(d.count > 0);
       break;
     case "warn":
       warn.hidden = false; warn.textContent = "⚠ " + (d.text || "");
@@ -43,7 +52,8 @@ window.jarvis.onBubble(d => {
     case "answer":
       body.classList.toggle("thinking", !!d.thinking);
       a.classList.toggle("thinking", !!d.thinking);
-      if (!d.thinking) a.textContent = d.text || "";
+      if (!d.thinking) { a.textContent = d.text || ""; if (d.text) status.hidden = true; }
+      if (d.done) { answerText = d.copy ? (d.text || "") : ""; copy.hidden = !answerText; }
       a.scrollTop = a.scrollHeight;
       if (d.done) { body.classList.remove("thinking"); a.classList.remove("thinking"); if (!busy) armHide(30000); if (d.parts) showParts(d.parts); }
       break;
@@ -78,8 +88,25 @@ $("ask").addEventListener("submit", e => {
   e.preventDefault();
   const v = $("in").value.trim(); if (!v) return;
   $("in").value = ""; keepOpen();
+  if (typed[typed.length - 1] !== v) typed.push(v);
+  if (typed.length > 30) typed.shift();
+  typedAt = -1;
   window.jarvis.askText(v);
 });
+// ↑ / ↓ bring back what you typed before
+$("in").addEventListener("keydown", e => {
+  if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+  if (!typed.length) return;
+  e.preventDefault();
+  if (e.key === "ArrowUp") typedAt = typedAt < 0 ? typed.length - 1 : Math.max(0, typedAt - 1);
+  else typedAt = typedAt < 0 ? -1 : typedAt + 1 >= typed.length ? -1 : typedAt + 1;
+  $("in").value = typedAt < 0 ? "" : typed[typedAt];
+});
+copy.onclick = () => {
+  keepOpen(); window.jarvis.copyText(answerText);
+  copy.textContent = "✓ Copied"; setTimeout(() => { copy.textContent = "📋 Copy"; }, 1500);
+};
+newchat.onclick = () => { keepOpen(); window.jarvis.newChat(); };
 $("in").addEventListener("focus", keepOpen);
 $("in").addEventListener("input", keepOpen);
 $("mic").onclick = () => { keepOpen(); window.jarvis.startVoice(); };

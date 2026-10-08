@@ -9,12 +9,15 @@ contextBridge.exposeInMainWorld("jarvis", {
   saveConfig: next => ipcRenderer.invoke("save-config", next),
   testServer: () => ipcRenderer.invoke("test-server"),
   openExternal: u => ipcRenderer.send("open-external", u),
+  onConfig: fn => ipcRenderer.on("config", (e, c) => fn(c)),
   // the bubble
   onBubble: fn => ipcRenderer.on("bubble", (e, d) => fn(d)),
   askText: q => ipcRenderer.send("ask-text", q),
   startVoice: () => ipcRenderer.send("start-voice"),
   hideBubble: () => ipcRenderer.send("hide-bubble"),
   stopTalking: () => ipcRenderer.send("stop-talking"),
+  newChat: () => ipcRenderer.send("new-chat"),
+  copyText: t => ipcRenderer.send("copy-text", t),
   toggleVoice: () => ipcRenderer.send("toggle-voice"),
   // the little "listening" ball
   onDot: fn => ipcRenderer.on("dot", (e, d) => fn(d)),

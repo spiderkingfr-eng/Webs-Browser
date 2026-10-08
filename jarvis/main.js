@@ -8,7 +8,7 @@
    is done by Windows' own built-in speech recognition (lib/stt-win.ps1) - no download, no extra install. Without it
    (non-Windows, or speech turned off in Windows) the hotkey opens a box you can type into, and typing always works. */
 "use strict";
-const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, desktopCapturer, screen, nativeImage, shell } = require("electron");
+const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, desktopCapturer, screen, nativeImage, shell, clipboard } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const { spawn } = require("child_process");
@@ -158,7 +158,7 @@ function startVoiceAsk() {
 /* ---------------------------------------------------------------- windows */
 function overlayBounds() {
   const d = screen.getPrimaryDisplay().workArea;
-  const w = 380, h = 260, m = 18;
+  const w = 390, h = 300, m = 18;
   return { x: d.x + d.width - w - m, y: d.y + d.height - h - m, width: w, height: h };
 }
 function makeOverlay() {
@@ -241,7 +241,8 @@ function refreshTray() {
     { label: "Listen for \"" + cfg.name + "\"", type: "checkbox", checked: listening && speechOk, enabled: speechOk, click: m => setListening(m.checked) },
     { label: "Read answers aloud", type: "checkbox", checked: !!cfg.voice, click: m => setVoice(m.checked) },
     { label: "Model: " + models.nameOf(cfg.model), submenu: models.MODELS.map(m => ({ label: m.name + "  -  " + m.note, type: "radio", checked: cfg.model === m.id, click: () => setModel(m.id, false) })) },
-    { label: "Show the bubble", type: "checkbox", checked: cfg.overlay, click: m => { cfg = config.save(DIR, Object.assign({}, cfg, { overlay: m.checked })); } },
+    { label: "Show the bubble", type: "checkbox", checked: cfg.overlay, click: m => { cfg = config.save(DIR, Object.assign({}, cfg, { overlay: m.checked })); configChanged(); } },
+    { label: "New chat (forget this conversation)", click: () => newChat(true) },
     { type: "separator" },
     { label: "Show what I can see", enabled: !!cfg.sendScreenshot, click: () => showWhatISee() },
     { label: "Settings…", click: openSettings },
@@ -392,34 +393,46 @@ async function checkServer() {
 }
 
 /* ---------------------------------------------------------------- asking the server */
+// the conversation so far (memory only), so follow-up questions work; "New chat" or "Jarvis, new chat" forgets it
+const memory = ai.createMemory();
+function newChat(say) {
+  memory.clear();
+  toBubble("memory", { count: 0 });
+  if (say) { showBubble(false); toBubble("say", { text: "Okay - new conversation.", listening: false }); }
+}
+const STATUS = { look: "Looking at your screen…", think: "Thinking…", search: "Searching the web…", fetch: "Reading the page…", tool: "Looking that up…" };
+
 async function ask(question) {
   if (asking) return;
   // "switch to Opus", "use the smartest model"... - change the model instead of asking
   const pick = models.parseSwitch(question);
   if (pick !== null) { setModel(pick, true); return; }
+  if (wake.isReset(question)) { newChat(true); return; }      // "new chat", "forget that"
   if (!cfg.server) { showBubble(true); toBubble("answer", { done: true, text: "Open Settings and paste your Web AI server address first." }); openSettings(); return; }
   asking = true;
   const ctl = askCtl = new AbortController();
   stopVoiceOnly();          // a new question cuts off an answer still being read out
   showBubble(false);
   showDot("busy");
-  toBubble("question", { text: question });
+  toBubble("question", { text: question, followUp: memory.size() > 0 });
   toBubble("answer", { text: "", thinking: true });
   busyChanged();
-  let answer = "";
+  let answer = "", spokenTo = 0, failed = false;
   try {
     // use the freshest watched frame if we have one (instant); otherwise grab one right now
     // (and, until we know the server can look at pictures, ask it - at the same time, so it costs no extra wait)
+    if (cfg.sendScreenshot) toBubble("status", { text: STATUS.look });
     const sees = cfg.sendScreenshot && serverSees !== true ? checkServer() : null;
     let image = (cfg.watch && lastFrame && Date.now() - lastFrameAt < 4000) ? lastFrame : await grabScreen();
     if (cfg.sendScreenshot && !image) toBubble("warn", { text: "Couldn't capture the screen (" + lastShotNote + ") — answering from your words. Tray icon → \"Show what I can see\" to check." });
     if (image && sees) { await sees; if (serverSees === false) toBubble("warn", { text: OLD_SERVER }); }
-    const body = ai.buildBody({ question, cfg, imageDataUrl: image, now: new Date() });
+    toBubble("status", { text: STATUS.think });
+    const body = ai.buildBody({ question, cfg, imageDataUrl: image, now: new Date(), history: memory.list() });
     const res = await fetch(cfg.server + "/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), signal: ctl.signal });
     if (!res.ok || !res.body) {
       let msg = "The server didn't answer (" + res.status + ").";
       try { const j = await res.json(); if (j && j.message) msg = j.message; } catch (e) {}
-      toBubble("answer", { done: true, text: msg });
+      failed = true; toBubble("answer", { done: true, text: msg });
       return;
     }
     const reader = ai.streamReader(), dec = new TextDecoder();
@@ -428,24 +441,32 @@ async function ask(question) {
       const { value, done } = await r.read();
       if (done) break;
       for (const part of reader.push(dec.decode(value, { stream: true }))) {
-        if (part.error) { toBubble("answer", { done: true, text: part.error }); return; }
-        if (part.text) { answer += part.text; toBubble("answer", { text: ai.cleanForShow(answer) }); }
+        if (part.error) { failed = true; stopVoiceOnly(); toBubble("answer", { done: true, text: part.error }); return; }
+        if (part.status) toBubble("status", { text: STATUS[part.status] || STATUS.tool });
+        if (part.text) {
+          answer += part.text; toBubble("answer", { text: ai.cleanForShow(answer) });
+          // read the first sentence out as soon as it's written (the rest follows when the answer's done)
+          if (cfg.voice && !spokenTo) { const cut = ai.speakCut(answer); if (cut > 0) { spokenTo = cut; say(ai.cleanForSpeech(answer.slice(0, cut))); } }
+        }
         if (part.end) toBubble("left", { left: part.left, unlimited: part.unlimited, model: models.short(part.model) });
         // you picked a model, but the server answered with its own: your code can't pick (only the unlimited one can)
         if (part.end && cfg.model && !part.chose) toBubble("warn", { text: "The server answered with its own model, not " + models.nameOf(cfg.model) + ". Only your unlimited code can pick (Settings → Your code), and the server needs its latest update." });
-        if (part.end && part.stop === "refusal") { toBubble("answer", { done: true, text: "Sorry, I can't help with that one." }); return; }
+        if (part.end && part.stop === "refusal") { failed = true; stopVoiceOnly(); toBubble("answer", { done: true, text: "Sorry, I can't help with that one." }); return; }
       }
     }
     reader.end().forEach(p => { if (p.text) answer += p.text; });
     const shown = ai.cleanForShow(answer) || "(no answer)";
-    toBubble("answer", { done: true, text: shown, parts: ai.linkParts(shown) });     // links become buttons to click
-    if (cfg.voice && answer && !ctl.signal.aborted) speak(ai.cleanForSpeech(answer));
+    toBubble("answer", { done: true, text: shown, parts: ai.linkParts(shown), copy: !!answer });     // links become buttons to click
+    if (cfg.voice && answer && !ctl.signal.aborted) say(ai.cleanForSpeech(answer.slice(spokenTo)));
   } catch (e) {
-    if (ctl.signal.aborted) toBubble("answer", { done: true, text: answer ? ai.cleanForShow(answer) + " …" : "Stopped." });
-    else toBubble("answer", { done: true, text: "Couldn't reach your Web AI server. Check it's on, and the address in Settings." });
+    if (ctl.signal.aborted) toBubble("answer", { done: true, text: answer ? ai.cleanForShow(answer) + " …" : "Stopped.", copy: !!answer });
+    else { failed = true; stopVoiceOnly(); toBubble("answer", { done: true, text: "Couldn't reach your Web AI server. Check it's on, and the address in Settings." }); }
   } finally {
     asking = false;
     if (askCtl === ctl) askCtl = null;
+    // remember it for follow-ups (a stopped answer too - "go on" then works)
+    if (!failed && answer) { memory.add(question, ai.cleanForShow(answer)); toBubble("memory", { count: memory.size() }); }
+    toBubble("status", { text: "" });
     showDot(listening ? "listening" : "off");
     busyChanged();
   }
@@ -458,6 +479,7 @@ let askCtl = null, speakCtl = null, speaking = false, playing = false, hushed = 
 const isTalking = () => asking || speaking || playing;
 function busyChanged() { toBubble("busy", { on: isTalking() }); }
 function stopVoiceOnly() {
+  voiceGen++; pieces = 0;
   if (speakCtl) { try { speakCtl.abort(); } catch (e) {} speakCtl = null; }
   speaking = false; playing = false; paused = false;
   if (worker && worker.webContents) worker.webContents.send("stop-audio");
@@ -468,37 +490,52 @@ function stopTalking() {
   stopVoiceOnly();
 }
 // which model answers (Settings, the tray's Model menu, or "Jarvis, switch to Opus")
-function setModel(id, say) {
+function setModel(id, sayIt) {
   cfg = config.save(DIR, Object.assign({}, cfg, { model: id }));
-  refreshTray();
-  if (say) {
+  refreshTray(); configChanged();
+  if (sayIt) {
     const text = id ? "Okay, I'll use " + models.nameOf(id) + " from now on." : "Okay, back to your server's choice of model.";
     showBubble(false); toBubble("say", { text, listening: false });
-    if (cfg.voice) speak(text);
+    if (cfg.voice) { stopVoiceOnly(); say(text); }
   }
 }
 // voice on/off (the bubble's speaker button, the tray, or Settings). Off = it just writes the answer for you to read.
 function setVoice(on) {
   cfg = config.save(DIR, Object.assign({}, cfg, { voice: !!on }));
   if (!cfg.voice) stopVoiceOnly();
-  refreshTray();
+  refreshTray(); configChanged();
   toBubble("voice", {});
 }
+// the Settings window (if open) shows changes made elsewhere - the tray, the bubble, by voice - so its Save can't undo them
+function configChanged() { if (settingsWin && !settingsWin.isDestroyed()) { try { settingsWin.webContents.send("config", cfg); } catch (e) {} } }
 
 /* ---------------------------------------------------------------- the voice (Adam, through /speak) */
-async function speak(text) {
-  if (!text || !cfg.server || !worker || !worker.webContents) return;
-  const ctl = speakCtl = new AbortController();
-  speaking = true; busyChanged();
-  try {
-    const res = await fetch(cfg.server + "/speak", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ device: cfg.device, code: cfg.code || undefined, text: text.slice(0, 1200) }), signal: ctl.signal });
-    if (!res.ok) return;
-    const buf = Buffer.from(await res.arrayBuffer());
-    if (ctl.signal.aborted || !cfg.voice) return;      // stopped (or voice turned off) while it was on its way
-    playing = true;
-    worker.webContents.send("play", buf);
-  } catch (e) {}
-  finally { if (speakCtl === ctl) { speakCtl = null; speaking = false; busyChanged(); } }
+// Pieces are fetched in order and handed to the worker, which plays them one after another. Stop (or a new
+// question) bumps voiceGen, so anything still on its way is dropped.
+let voiceGen = 0, voiceChain = Promise.resolve(), pieces = 0;
+function say(text) {
+  if (!text || !cfg.voice || !cfg.server || !worker || !worker.webContents) return;
+  const gen = voiceGen;
+  for (const piece of ai.speechPieces(text)) {
+    pieces++; speaking = true;
+    voiceChain = voiceChain.then(async () => {
+      if (gen !== voiceGen) return;
+      const ctl = speakCtl = new AbortController();
+      try {
+        const res = await fetch(cfg.server + "/speak", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ device: cfg.device, code: cfg.code || undefined, text: piece }), signal: ctl.signal });
+        if (!res.ok) return;
+        const buf = Buffer.from(await res.arrayBuffer());
+        if (gen !== voiceGen || !cfg.voice) return;      // stopped (or voice turned off) while it was on its way
+        playing = true;
+        worker.webContents.send("play", buf);
+      } catch (e) {}
+      finally {
+        if (speakCtl === ctl) speakCtl = null;
+        if (gen === voiceGen) { pieces = Math.max(0, pieces - 1); speaking = pieces > 0; busyChanged(); }
+      }
+    });
+  }
+  busyChanged();
 }
 
 /* ---------------------------------------------------------------- the bubble */
@@ -562,6 +599,8 @@ ipcMain.on("open-external", (e, u) => { if (/^https?:\/\//.test(u)) shell.openEx
 ipcMain.on("hide-bubble", () => { if (overlay) overlay.hide(); });
 ipcMain.on("start-voice", () => startVoiceAsk());
 ipcMain.on("stop-talking", () => stopTalking());
+ipcMain.on("new-chat", () => newChat(false));
+ipcMain.on("copy-text", (e, t) => { try { clipboard.writeText(String(t || "").slice(0, 20000)); } catch (x) {} });
 ipcMain.on("toggle-voice", () => setVoice(!cfg.voice));
 ipcMain.on("audio-state", (e, on) => { playing = !!on; busyChanged(); });
 
@@ -571,7 +610,13 @@ function applyHotkey() {
   if (cfg.hotkey) { try { globalShortcut.register(cfg.hotkey, () => startVoiceAsk()); } catch (e) {} }
 }
 function applyAutostart() {
-  try { app.setLoginItemSettings({ openAtLogin: !!cfg.autostart, args: ["--hidden"] }); } catch (e) {}
+  try {
+    const opts = { openAtLogin: !!cfg.autostart, args: ["--hidden"] };
+    // run from this folder (npm start, or "Start Jarvis.vbs") rather than installed: Windows must start Electron *with
+    // this folder*, or it would open an empty Electron instead of Jarvis
+    if (process.defaultApp) { opts.path = process.execPath; opts.args = [path.resolve(__dirname), "--hidden"]; }
+    app.setLoginItemSettings(opts);
+  } catch (e) {}
 }
 
 /* ---------------------------------------------------------------- start up */

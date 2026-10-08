@@ -104,6 +104,32 @@ const ok = (c, w) => { if (c) pass++; else { fail++; console.log("  FAIL:", w); 
   ok(ai.cleanForShow("Line one [[do: x]]\n\n\n\nLine two") === "Line one \n\nLine two", "shown text drops [[do:]] and extra blank lines");
 })();
 
+/* follow-up questions, faster voice, and what it's doing */
+(() => {
+  const m = ai.createMemory({ maxTurns: 2, maxAgeMs: 1000 });
+  m.add("how do i make a furnace", "Eight cobblestone in a ring.", 0);
+  m.add("and a chest", "Eight planks in a ring.", 100);
+  m.add("what about a bed", "Three wool on three planks.", 200);
+  ok(m.size(300) === 2 && m.list(300)[0].q === "and a chest", "it remembers the last few exchanges");
+  ok(m.size(5000) === 0, "and forgets after a quiet spell");
+  m.add("x", "y", 6000); m.clear(); ok(m.size(6000) === 0, "or when you start a new chat");
+  m.add("", "y", 7000); m.add("q", "", 7000); ok(m.size(7000) === 0, "half an exchange isn't kept");
+  const cfg = { name: "Jarvis", device: "dev-0123456789abcdef", sendScreenshot: true };
+  const b = ai.buildBody({ question: "and how do i make it faster", cfg, imageDataUrl: "data:image/jpeg;base64,AAAA", history: [{ q: "how do i make a furnace", a: "Eight cobblestone in a ring." }] });
+  ok(b.messages.length === 3 && b.messages[0].content === "how do i make a furnace" && b.messages[1].role === "assistant" && /<now>[\s\S]*and how do i make it faster$/.test(b.messages[2].content), "follow-ups send the conversation so far (the latest question last, with the context)");
+  ok(!/<now>/.test(b.messages[0].content) && b.image, "earlier turns are just the words; the screenshot goes with the latest");
+  // the voice starts after the first sentence
+  ok(ai.speakCut("Sure. You need eight cobblestone") === -1, "not after a tiny first sentence");
+  ok(ai.speakCut("Place eight cobblestone in a ring. Then put fuel") === 35, "after the first proper sentence");
+  ok(ai.speakCut("It is 3.5 degrees outside right now") === -1 && ai.speakCut("Open it [[do: open youtube. now]] then") === -1, "not inside a number or a command");
+  const long = ("This is a sentence that goes on for a while. ").repeat(30);
+  const parts = ai.speechPieces(long);
+  ok(parts.length > 1 && parts.every(p => p.length <= 550) && parts.join(" ") === long.trim(), "long answers are read in pieces the server accepts (it says at most 600 characters at once)");
+  ok(ai.speechPieces("Short one.").length === 1 && ai.speechPieces("").length === 0, "short ones in one go");
+  ok(ai.parseLine('{"s":"search"}').status === "search", "it says when it's searching the web");
+  ok(["new chat", "New conversation.", "forget that", "start over please", "change the subject"].every(wake.isReset) && !wake.isReset("forget my password") && !wake.isReset("new chat apps for windows"), "\"new chat\" / \"forget that\" starts fresh");
+})();
+
 /* picking the model */
 (() => {
   ok(config.clean({}).model === "" && config.clean({ model: "claude-opus-5-5" }).model === "claude-opus-5-5" && config.clean({ model: "gpt-9" }).model === "", "model: the server's choice by default; only known models");

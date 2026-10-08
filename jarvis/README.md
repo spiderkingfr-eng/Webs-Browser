@@ -25,11 +25,11 @@ download, no account, no extra install. The hotkey and the typed box also work o
 
 ## Run it
 
-```
-cd jarvis
-npm install
-npm start
-```
+Double-click **Start Jarvis.vbs** in the `jarvis` folder. The first time it sets itself up (a window shows
+`npm install` working - give it a minute); after that it just starts, with no terminal window to keep open. To
+have it start by itself when you log in, tick **Settings → Start with Windows**.
+
+(Or the old way, from a terminal: `cd jarvis`, `npm install`, `npm start`.)
 
 On first run the Settings window opens. Paste your server address, press **Test the connection**, pick a
 name, and close it. The tray icon (bottom‑right of Windows) is where everything lives:
@@ -42,7 +42,18 @@ name, and close it. The tray icon (bottom‑right of Windows) is where everythin
 - **Show what I can see**: takes a screenshot now and opens it, so you can check exactly what it sees.
 - **Settings…**, **Show the bubble**, **Quit**.
 
-## The wake word / talking to it
+## Talking to it
+
+- **Follow-up questions work.** It remembers the last few questions and answers, so *"Jarvis, how do I make a
+  furnace?"* then *"and how do I make it faster?"* makes sense. A ↩ by your question means it's a follow-up. It
+  forgets after 15 quiet minutes, or when you click **✨ New chat** (or say *"Jarvis, new chat"* / *"forget
+  that"*). Nothing is saved to disk.
+- **It shows what it's doing**: *Looking at your screen…*, *Thinking…*, *Searching the web…*.
+- **It starts talking sooner**: the first sentence is read out as soon as it's written, while the rest is still
+  coming. Long answers are read in full (they used to go silent past a certain length).
+- **📋 Copy** copies the answer. In the typing box, **↑** brings back what you typed before.
+
+## The wake word
 
 Turning your speech into text is done **on your PC by Whisper** (an accurate speech model that runs locally in
 the app). The model (~75 MB, or ~40 MB if you pick **Hearing: Fast** in Settings for a slower PC) is fetched once
@@ -160,6 +171,8 @@ produces an installer under `dist/`.
 | `dot.html/.css/.js` | the little red "I'm listening" ball |
 | `lib/config.js` | your settings, in one JSON file on this PC |
 | `lib/wake.js` | hearing the wake word and pulling out the question |
+| `Start Jarvis.vbs` | double-click to start it (sets itself up the first time) |
+| `lib/models.js` | the models you can pick, and "switch to Opus" |
 | `lib/listen.mjs` | telling your voice from quiet, keeping the last few seconds, knowing when you've finished |
 | `lib/ai.js` | the request to `/chat` and reading the streamed answer |
 | `lib/shot.js` | keeping the screenshot small |

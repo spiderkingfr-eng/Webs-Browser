@@ -125,28 +125,33 @@ window.jarvis.onRecord(d => {
 });
 
 /* ---------------------------------------------------------------- playing the spoken answer */
-let audio = null;
-function stopAudio() {
+// The answer arrives in pieces (the first sentence as soon as it's written, then the rest), so they queue up and play
+// one after another. The app is told when it starts and stops talking, so the bubble can show Stop.
+let audio = null, queue = [], held = false, talking = false;
+function setTalking(on) { if (talking !== on) { talking = on; try { window.jarvis.audioState(on); } catch (e) {} } }
+function dropAudio() {
   if (!audio) return;
   const a = audio; audio = null;
-  a.onended = a.onerror = a.onpause = null;
+  a.onended = a.onerror = null;
   try { a.pause(); } catch (e) {}
   try { URL.revokeObjectURL(a.src); a.removeAttribute("src"); a.load(); } catch (e) {}
 }
-window.jarvis.onPlay(buf => {
+function playNext() {
+  if (audio || held) return;
+  const buf = queue.shift();
+  if (!buf) { setTalking(false); return; }
   try {
-    stopAudio();
     const u8 = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
-    const url = URL.createObjectURL(new Blob([u8], { type: "audio/mpeg" }));
-    const a = audio = new Audio(url);
-    // tell the app when it's talking, so the bubble can show Stop
-    const done = () => { if (audio === a) { audio = null; URL.revokeObjectURL(url); window.jarvis.audioState(false); } };
-    a.onended = done; a.onerror = done;
-    a.play().then(() => { if (audio === a) window.jarvis.audioState(true); }).catch(done);
-  } catch (e) { try { window.jarvis.audioState(false); } catch (x) {} }
-});
+    const a = audio = new Audio(URL.createObjectURL(new Blob([u8], { type: "audio/mpeg" })));
+    const next = () => { if (audio === a) { dropAudio(); playNext(); } };
+    a.onended = next; a.onerror = next;
+    setTalking(true);
+    a.play().catch(next);
+  } catch (e) { audio = null; playNext(); }
+}
+window.jarvis.onPlay(buf => { queue.push(buf); playNext(); });
 // "Jarvis?" while it's talking: hold the voice while we check it really was the name, then carry on (or stop)
-window.jarvis.onPauseAudio(() => { if (audio) { try { audio.pause(); } catch (e) {} } });
-window.jarvis.onResumeAudio(() => { if (audio) audio.play().catch(() => {}); });
-// Stop: quiet at once, mid-sentence
-window.jarvis.onStopAudio(() => { stopAudio(); try { window.jarvis.audioState(false); } catch (e) {} });
+window.jarvis.onPauseAudio(() => { held = true; if (audio) { try { audio.pause(); } catch (e) {} } });
+window.jarvis.onResumeAudio(() => { held = false; if (audio) audio.play().catch(() => {}); else playNext(); });
+// Stop: quiet at once, mid-sentence, and forget what was still to come
+window.jarvis.onStopAudio(() => { queue = []; held = false; dropAudio(); setTalking(false); });

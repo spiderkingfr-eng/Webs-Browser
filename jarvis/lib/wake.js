@@ -76,6 +76,9 @@ function afterWake(transcript, name) {
 // "stop", "shut up", "be quiet"... - what you'd say to make it stop talking
 const STOP = /^(?:ok |okay )?(?:stop|stop it|stop talking|shut up|be quiet|quiet|enough|that's enough|thats enough|hush|silence|cancel|never ?mind)(?: please)?$/;
 const isStop = text => STOP.test(norm(text));
+// "new chat", "forget that", "start over"... - forget the conversation so far
+const RESET = /^(?:ok |okay )?(?:new (?:chat|conversation|topic)|start (?:over|again|a new (?:chat|conversation))|forget (?:that|this|it|everything|the conversation)|clear (?:the )?(?:chat|conversation)|change (?:the )?subject)(?: please)?$/;
+const isReset = text => RESET.test(norm(text));
 
 // a spoken question is "ready" once it has a few words and the person has paused (handled by vosk's final result)
 function looksComplete(question) {
@@ -83,4 +86,4 @@ function looksComplete(question) {
   return words.length >= 2;
 }
 
-module.exports = { detect, heardName, afterWake, isStop, distance, variants, norm, looksComplete };
+module.exports = { detect, heardName, afterWake, isStop, isReset, distance, variants, norm, looksComplete };

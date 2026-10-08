@@ -38,6 +38,14 @@ ok(r.s === 200 && sent[sent.length - 1].tools.length === 1 && sent[sent.length -
 ok(/ask for a link/.test(sent[sent.length - 1].system) && /never guess an address/.test(sent[sent.length - 1].system), "and is told how to give links");
 r = await chat({ task:"jarvis", messages:[{ role:"user", content:"hi" }] });
 ok(!sent[sent.length - 1].tools, "not unless it asks to search");
+{ // while it searches, the stream says so (Jarvis shows "Searching the web…"); the text still arrives as before
+  const keep = globalThis.fetch;
+  globalThis.fetch = async u => String(u) === "https://api.anthropic.com/v1/messages" ? new Response('event: content_block_start\ndata: {"type":"content_block_start","index":0,"content_block":{"type":"server_tool_use","id":"s1","name":"web_search","input":{}}}\n\nevent: content_block_delta\ndata: {"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Found it"}}\n\nevent: message_delta\ndata: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":1}}\n\n', { status:200 }) : keep(u);
+  r = await chat({ task:"jarvis", search:true });
+  const lines = r.text.trim().split("\n").map(l => JSON.parse(l));
+  ok(lines[0].s === "search" && lines[1].d === "Found it" && lines[2].end === 1, "a search shows up in the stream: " + r.text);
+  globalThis.fetch = keep;
+}
 const home = await (await worker.fetch(new Request("https://w.example/", { method:"GET" }), env, { waitUntil(){} })).json();
 ok(home.features.includes("see"), "GET / says this server can look at pictures");
 r = await chat({ task:"factcheck", search:true, messages:[{ role:"user", content:"The Great Wall is visible from space." }] });

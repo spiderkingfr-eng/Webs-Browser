@@ -28,16 +28,19 @@ function context(cfg, now, hasImage) {
 }
 
 // question: the words after the wake word. imageDataUrl: "data:image/jpeg;base64,..." or null.
+// history: the conversation so far ([{ q, a }], from createMemory) so follow-up questions make sense.
 function buildBody(opt) {
   opt = opt || {};
   const cfg = opt.cfg || {};
   const q = String(opt.question || "").trim().slice(0, 2000);
+  const earlier = (opt.history || []).filter(h => h && h.q && h.a)
+    .flatMap(h => [{ role: "user", content: String(h.q).slice(0, 2000) }, { role: "assistant", content: String(h.a).slice(0, 3000) }]);
   const image = cfg.sendScreenshot && typeof opt.imageDataUrl === "string" && /^data:image\/(png|jpeg|webp|gif);base64,/.test(opt.imageDataUrl) ? opt.imageDataUrl : null;
   const text = context(cfg, opt.now, !!image) + "\n\n" + q;
   const body = {
     task: "jarvis",
     device: cfg.device || "",
-    messages: [{ role: "user", content: text }]
+    messages: earlier.concat([{ role: "user", content: text }])     // the screenshot (if any) goes with this last one
   };
   if (cfg.code) body.code = cfg.code;
   if (cfg.webSearch) body.search = true;      // it may look things up (real links, anything current)
@@ -47,7 +50,8 @@ function buildBody(opt) {
   return body;
 }
 
-// one NDJSON line from the stream -> { text } (a piece of the answer), { end, left } (done), or { error }
+// one NDJSON line from the stream -> { text } (a piece of the answer), { end, left } (done), { status } (what it's
+// doing first: "search" / "fetch"), or { error }
 function parseLine(line) {
   line = String(line || "").trim();
   if (!line) return null;
@@ -55,6 +59,7 @@ function parseLine(line) {
   if (j.error) return { error: j.message || j.error };
   if (j.end) return { end: true, left: j.unlimited ? null : typeof j.left === "number" ? j.left : null, unlimited: !!j.unlimited, stop: j.stop || "", model: j.model || "", chose: !!j.chose };
   if (typeof j.d === "string") return { text: j.d };
+  if (typeof j.s === "string") return { status: j.s };
   return null;
 }
 
@@ -91,6 +96,60 @@ function cleanForShow(text) {
   return String(text || "").replace(/\[\[\s*do\s*:[^\]]*\]\]/gi, "").replace(/\n{3,}/g, "\n\n").trim();
 }
 
+// The conversation so far, so you can ask follow-ups ("and how do I make it faster?"). Kept in memory only (never
+// saved), the last few exchanges, and forgotten after a quiet spell or when you start a new chat.
+function createMemory(opt) {
+  opt = opt || {};
+  const maxTurns = opt.maxTurns || 6, maxAgeMs = opt.maxAgeMs || 15 * 60 * 1000;
+  let turns = [], last = 0;
+  const fresh = now => { if (turns.length && now - last > maxAgeMs) turns = []; };
+  return {
+    add(q, a, now) {
+      now = now || Date.now(); fresh(now);
+      q = String(q || "").trim(); a = String(a || "").trim();
+      if (!q || !a) return;
+      turns.push({ q, a }); last = now;
+      if (turns.length > maxTurns) turns = turns.slice(-maxTurns);
+    },
+    list(now) { fresh(now || Date.now()); return turns.slice(); },
+    size(now) { fresh(now || Date.now()); return turns.length; },
+    clear() { turns = []; }
+  };
+}
+
+// The voice starts as soon as the first sentence is written (the rest follows when the answer's done), so you hear it
+// sooner. -> where the first whole sentence ends in the answer so far (after its space), or -1 if not yet.
+function speakCut(text) {
+  text = String(text || "");
+  const re = /[.!?]["')\]]*\s+/g;
+  let m;
+  while ((m = re.exec(text))) {
+    const end = m.index + m[0].length;
+    if (end < 20) continue;                                       // too short to be worth it on its own ("Sure. ")
+    const head = text.slice(0, end);
+    if (/\[\[[^\]]*$/.test(head) || (head.match(/```/g) || []).length % 2) return -1;     // not inside a command or code
+    return end;
+  }
+  return -1;
+}
+
+// What's read aloud, in pieces the server will take (it says at most 600 characters at once): whole sentences where
+// possible, else at a space.
+function speechPieces(text, max) {
+  max = max || 550;
+  const out = [];
+  let rest = String(text || "").trim();
+  while (rest.length > max) {
+    const head = rest.slice(0, max);
+    let cut = -1, m; const re = /[.!?]["')\]]*\s/g;
+    while ((m = re.exec(head))) cut = m.index + m[0].length;
+    if (cut < max / 3) cut = head.lastIndexOf(" ") > 0 ? head.lastIndexOf(" ") + 1 : max;
+    out.push(rest.slice(0, cut).trim()); rest = rest.slice(cut).trim();
+  }
+  if (rest) out.push(rest);
+  return out;
+}
+
 // The answer as pieces for the bubble: plain text, and links to click - [a label](https://...) or a bare address.
 // -> [{ text }, { text:"minecraft.wiki/w/Furnace", url:"https://minecraft.wiki/w/Furnace" }, ...]
 const LINK = /\[([^\]\n]{1,120})\]\((https?:\/\/[^\s)]+)\)|<?(https?:\/\/[^\s<>"'\]]+)>?/g;
@@ -123,4 +182,4 @@ function linkParts(text) {
   return out;
 }
 
-module.exports = { buildBody, parseLine, streamReader, cleanForSpeech, cleanForShow, linkParts, context, STYLE_TEXT };
+module.exports = { buildBody, parseLine, streamReader, cleanForSpeech, cleanForShow, linkParts, createMemory, speakCut, speechPieces, context, STYLE_TEXT };
