@@ -3,7 +3,8 @@
 "use strict";
 (function () {
 const $ = id => document.getElementById(id);
-const body = document.body, a = $("a"), q = $("q"), warn = $("warn");
+const body = document.body, a = $("a"), q = $("q"), warn = $("warn"), stop = $("stop"), voice = $("voice");
+let busy = false;
 let hideTimer = 0;
 
 function armHide(ms) { clearTimeout(hideTimer); hideTimer = setTimeout(() => window.jarvis.hideBubble(), ms); }
@@ -14,6 +15,10 @@ requestAnimationFrame(() => body.classList.add("show"));
 window.jarvis.onBubble(d => {
   if (!d) return;
   if (d.name) { $("who").textContent = d.name; $("in").placeholder = "Ask " + d.name + "…"; }
+  if (typeof d.voice === "boolean") {
+    voice.textContent = d.voice ? "🔊" : "🔇"; voice.classList.toggle("off", !d.voice);
+    voice.title = d.voice ? "Voice on - click to just read the answers" : "Voice off (just reading) - click to hear answers again";
+  }
   keepOpen();
   body.classList.add("show");
   switch (d.kind) {
@@ -40,7 +45,15 @@ window.jarvis.onBubble(d => {
       a.classList.toggle("thinking", !!d.thinking);
       if (!d.thinking) a.textContent = d.text || "";
       a.scrollTop = a.scrollHeight;
-      if (d.done) { body.classList.remove("thinking"); a.classList.remove("thinking"); armHide(30000); linkify(); }
+      if (d.done) { body.classList.remove("thinking"); a.classList.remove("thinking"); if (!busy) armHide(30000); linkify(); }
+      break;
+    case "busy":
+      // talking or still answering: show Stop, and don't tidy the bubble away mid-sentence
+      busy = !!d.on; stop.hidden = !busy;
+      if (!busy && !body.classList.contains("thinking")) armHide(30000);
+      break;
+    case "voice":
+      if (!busy) armHide(30000);
       break;
     case "left":
       $("left").textContent = d.unlimited ? "no daily limit" : d.left != null ? d.left + " left today" : "";
@@ -71,5 +84,7 @@ $("in").addEventListener("focus", keepOpen);
 $("in").addEventListener("input", keepOpen);
 $("mic").onclick = () => { keepOpen(); window.jarvis.startVoice(); };
 $("close").onclick = () => window.jarvis.hideBubble();
+stop.onclick = () => { keepOpen(); window.jarvis.stopTalking(); };
+voice.onclick = () => { keepOpen(); window.jarvis.toggleVoice(); };
 document.addEventListener("keydown", e => { if (e.key === "Escape") window.jarvis.hideBubble(); });
 })();

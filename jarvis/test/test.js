@@ -42,6 +42,8 @@ const ok = (c, w) => { if (c) pass++; else { fail++; console.log("  FAIL:", w); 
   ok(wake.afterWake("What am I looking at?", "Jarvis") === "what am i looking at", "no name heard: the whole thing is the question");
   ok(wake.afterWake("Jarvis.", "Jarvis") === "", "just the name: no question yet");
   ok(wake.afterWake("Javascript tutorials please", "Jarvis") === "javascript tutorials please", "a word that only starts like the name isn't cut");
+  ok(["stop", "Stop.", "shut up", "Be quiet!", "okay stop", "stop talking please", "That's enough"].every(wake.isStop), "\"Jarvis, stop\" (and friends) stops it talking");
+  ok(!wake.isStop("stop the music in spotify") && !wake.isStop("how do i stop a creeper"), "but a question with \"stop\" in it is still a question");
 })();
 
 /* ai request */

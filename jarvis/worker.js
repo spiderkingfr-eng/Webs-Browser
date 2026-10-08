@@ -126,13 +126,24 @@ window.jarvis.onRecord(d => {
 
 /* ---------------------------------------------------------------- playing the spoken answer */
 let audio = null;
+function stopAudio() {
+  if (!audio) return;
+  const a = audio; audio = null;
+  a.onended = a.onerror = a.onpause = null;
+  try { a.pause(); } catch (e) {}
+  try { URL.revokeObjectURL(a.src); a.removeAttribute("src"); a.load(); } catch (e) {}
+}
 window.jarvis.onPlay(buf => {
   try {
+    stopAudio();
     const u8 = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
     const url = URL.createObjectURL(new Blob([u8], { type: "audio/mpeg" }));
-    if (audio) { try { audio.pause(); } catch (e) {} }
-    audio = new Audio(url);
-    audio.onended = () => URL.revokeObjectURL(url);
-    audio.play().catch(() => {});
-  } catch (e) {}
+    const a = audio = new Audio(url);
+    // tell the app when it's talking, so the bubble can show Stop
+    const done = () => { if (audio === a) { audio = null; URL.revokeObjectURL(url); window.jarvis.audioState(false); } };
+    a.onended = done; a.onerror = done;
+    a.play().then(() => { if (audio === a) window.jarvis.audioState(true); }).catch(done);
+  } catch (e) { try { window.jarvis.audioState(false); } catch (x) {} }
 });
+// Stop: quiet at once, mid-sentence
+window.jarvis.onStopAudio(() => { stopAudio(); try { window.jarvis.audioState(false); } catch (e) {} });

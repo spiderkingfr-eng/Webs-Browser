@@ -61,6 +61,10 @@ function gotQuestion(raw, mode) {
   recording = false; clearTimeout(recTimer);
   raw = String(raw || "").trim();
   const q = mode === "wake" ? wake.afterWake(raw, cfg.name) : (wake.detect(raw, cfg.name).question || raw);
+  if (wake.isStop(q)) { stopTalking(); showDot(listening ? "listening" : "off"); return; }     // "Jarvis, stop"
+  if (asking) return;          // still answering the last one: leave it be
+  if (hushed && !wake.looksComplete(q)) { hushed = false; showDot(listening ? "listening" : "off"); return; }   // just "Jarvis" to quiet it: leave the answer up
+  hushed = false;
   if (wake.looksComplete(q)) ask(q);
   else {
     showDot(listening ? "listening" : "off");
@@ -80,7 +84,15 @@ function setListening(on) {
         armMic(true);      // the worker keeps the last few seconds, so a question said right after the name isn't lost
         listenProc = spawn("powershell", psArgs("wake").concat(["-Wake", wakeWords()]), { windowsHide: true });
         readLines(listenProc, {
-          wake: () => { if (!listening || asking || recording) return; recording = true; showBubble(false); showDot("busy"); toBubble("say", { text: "Yes? I'm listening…", listening: true }); recordQuestion("wake"); },
+          wake: () => {
+            if (!listening || recording) return;
+            recording = true;
+            // saying the name while it's talking makes it go quiet at once and listen ("Jarvis, stop" - or a new question)
+            hushed = speaking || playing;
+            if (hushed) stopVoiceOnly();
+            if (!asking) { showBubble(false); showDot("busy"); toBubble("say", { text: "Yes? I'm listening…", listening: true }); }
+            recordQuestion("wake");
+          },
           err: () => { listening = false; showDot("off"); refreshTray(); }
         });
       } else {
@@ -102,6 +114,7 @@ function setListening(on) {
 
 // the hotkey / tray "Ask": listen for one question (no wake word needed), then answer
 function startVoiceAsk() {
+  if (isTalking()) { stopTalking(); return; }      // the hotkey while it's talking: be quiet (press again to ask)
   if (!speechOk && !whisperOk) { showBubble(true); toBubble("say", { text: "Type your question below.", listening: false }); return; }
   if (recording || onceProc) return;
   showBubble(false);
@@ -212,6 +225,7 @@ function refreshTray() {
     { label: "Type a question", click: () => showBubble(true) },
     { type: "separator" },
     { label: "Listen for \"" + cfg.name + "\"", type: "checkbox", checked: listening && speechOk, enabled: speechOk, click: m => setListening(m.checked) },
+    { label: "Read answers aloud", type: "checkbox", checked: !!cfg.voice, click: m => setVoice(m.checked) },
     { label: "Show the bubble", type: "checkbox", checked: cfg.overlay, click: m => { cfg = config.save(DIR, Object.assign({}, cfg, { overlay: m.checked })); } },
     { type: "separator" },
     { label: "Show what I can see", enabled: !!cfg.sendScreenshot, click: () => showWhatISee() },
@@ -367,10 +381,13 @@ async function ask(question) {
   if (asking) return;
   if (!cfg.server) { showBubble(true); toBubble("answer", { done: true, text: "Open Settings and paste your Web AI server address first." }); openSettings(); return; }
   asking = true;
+  const ctl = askCtl = new AbortController();
+  stopVoiceOnly();          // a new question cuts off an answer still being read out
   showBubble(false);
   showDot("busy");
   toBubble("question", { text: question });
   toBubble("answer", { text: "", thinking: true });
+  busyChanged();
   let answer = "";
   try {
     // use the freshest watched frame if we have one (instant); otherwise grab one right now
@@ -380,12 +397,12 @@ async function ask(question) {
     if (cfg.sendScreenshot && !image) toBubble("warn", { text: "Couldn't capture the screen (" + lastShotNote + ") — answering from your words. Tray icon → \"Show what I can see\" to check." });
     if (image && sees) { await sees; if (serverSees === false) toBubble("warn", { text: OLD_SERVER }); }
     const body = ai.buildBody({ question, cfg, imageDataUrl: image, now: new Date() });
-    const res = await fetch(cfg.server + "/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    const res = await fetch(cfg.server + "/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), signal: ctl.signal });
     if (!res.ok || !res.body) {
       let msg = "The server didn't answer (" + res.status + ").";
       try { const j = await res.json(); if (j && j.message) msg = j.message; } catch (e) {}
       toBubble("answer", { done: true, text: msg });
-      asking = false; return;
+      return;
     }
     const reader = ai.streamReader(), dec = new TextDecoder();
     const r = res.body.getReader();
@@ -393,30 +410,63 @@ async function ask(question) {
       const { value, done } = await r.read();
       if (done) break;
       for (const part of reader.push(dec.decode(value, { stream: true }))) {
-        if (part.error) { toBubble("answer", { done: true, text: part.error }); asking = false; return; }
+        if (part.error) { toBubble("answer", { done: true, text: part.error }); return; }
         if (part.text) { answer += part.text; toBubble("answer", { text: ai.cleanForShow(answer) }); }
         if (part.end && (part.unlimited || typeof part.left === "number")) toBubble("left", { left: part.left, unlimited: part.unlimited });
       }
     }
     reader.end().forEach(p => { if (p.text) answer += p.text; });
     toBubble("answer", { done: true, text: ai.cleanForShow(answer) || "(no answer)" });
-    if (cfg.voice && answer) speak(ai.cleanForSpeech(answer));
+    if (cfg.voice && answer && !ctl.signal.aborted) speak(ai.cleanForSpeech(answer));
   } catch (e) {
-    toBubble("answer", { done: true, text: "Couldn't reach your Web AI server. Check it's on, and the address in Settings." });
+    if (ctl.signal.aborted) toBubble("answer", { done: true, text: answer ? ai.cleanForShow(answer) + " …" : "Stopped." });
+    else toBubble("answer", { done: true, text: "Couldn't reach your Web AI server. Check it's on, and the address in Settings." });
+  } finally {
+    asking = false;
+    if (askCtl === ctl) askCtl = null;
+    showDot(listening ? "listening" : "off");
+    busyChanged();
   }
-  asking = false;
-  showDot(listening ? "listening" : "off");
+}
+
+/* ---------------------------------------------------------------- stopping him */
+// The bubble's Stop button (or the hotkey, or "Jarvis, stop"): stop reading aloud mid-sentence, and stop an answer
+// that's still coming in (what's already shown stays, so you can read it).
+let askCtl = null, speakCtl = null, speaking = false, playing = false, hushed = false;
+const isTalking = () => asking || speaking || playing;
+function busyChanged() { toBubble("busy", { on: isTalking() }); }
+function stopVoiceOnly() {
+  if (speakCtl) { try { speakCtl.abort(); } catch (e) {} speakCtl = null; }
+  speaking = false; playing = false;
+  if (worker && worker.webContents) worker.webContents.send("stop-audio");
+  busyChanged();
+}
+function stopTalking() {
+  if (askCtl) { try { askCtl.abort(); } catch (e) {} }
+  stopVoiceOnly();
+}
+// voice on/off (the bubble's speaker button, the tray, or Settings). Off = it just writes the answer for you to read.
+function setVoice(on) {
+  cfg = config.save(DIR, Object.assign({}, cfg, { voice: !!on }));
+  if (!cfg.voice) stopVoiceOnly();
+  refreshTray();
+  toBubble("voice", {});
 }
 
 /* ---------------------------------------------------------------- the voice (Adam, through /speak) */
 async function speak(text) {
   if (!text || !cfg.server || !worker || !worker.webContents) return;
+  const ctl = speakCtl = new AbortController();
+  speaking = true; busyChanged();
   try {
-    const res = await fetch(cfg.server + "/speak", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ device: cfg.device, code: cfg.code || undefined, text: text.slice(0, 1200) }) });
+    const res = await fetch(cfg.server + "/speak", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ device: cfg.device, code: cfg.code || undefined, text: text.slice(0, 1200) }), signal: ctl.signal });
     if (!res.ok) return;
     const buf = Buffer.from(await res.arrayBuffer());
+    if (ctl.signal.aborted || !cfg.voice) return;      // stopped (or voice turned off) while it was on its way
+    playing = true;
     worker.webContents.send("play", buf);
   } catch (e) {}
+  finally { if (speakCtl === ctl) { speakCtl = null; speaking = false; busyChanged(); } }
 }
 
 /* ---------------------------------------------------------------- the bubble */
@@ -429,7 +479,7 @@ function showBubble(focus) {
 function toBubble(kind, data) {
   if (!cfg.overlay && !overlay) return;
   if (!overlay) makeOverlay();
-  const msg = Object.assign({ kind: kind, name: cfg.name }, data);
+  const msg = Object.assign({ kind: kind, name: cfg.name, voice: cfg.voice }, data);
   const send = () => { try { overlay.webContents.send("bubble", msg); } catch (e) {} };
   if (overlay.webContents.isLoading()) overlay.webContents.once("did-finish-load", send); else send();
 }
@@ -470,13 +520,16 @@ ipcMain.on("whisper-ready", () => {
 ipcMain.on("whisper-fail", () => { whisperOk = false; whisperLoading = false; refreshTray(); });
 ipcMain.on("transcript", (e, t) => { recording = false; gotQuestion(String(t || ""), recMode); });
 ipcMain.on("rec-state", (e, s) => {
-  if (s === "thinking") { showDot("busy"); toBubble("say", { text: "…", listening: false }); }
+  if (s === "thinking") { showDot("busy"); if (!asking) toBubble("say", { text: "…", listening: false }); }
   else if (s === "listening") { showDot("busy"); }
 });
 ipcMain.on("ask-text", (e, q) => { if (q && String(q).trim()) ask(String(q).trim()); });
 ipcMain.on("open-external", (e, u) => { if (/^https?:\/\//.test(u)) shell.openExternal(u); });
 ipcMain.on("hide-bubble", () => { if (overlay) overlay.hide(); });
 ipcMain.on("start-voice", () => startVoiceAsk());
+ipcMain.on("stop-talking", () => stopTalking());
+ipcMain.on("toggle-voice", () => setVoice(!cfg.voice));
+ipcMain.on("audio-state", (e, on) => { playing = !!on; busyChanged(); });
 
 /* ---------------------------------------------------------------- hotkey & autostart */
 function applyHotkey() {

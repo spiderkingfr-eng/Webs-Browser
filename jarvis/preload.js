@@ -14,6 +14,8 @@ contextBridge.exposeInMainWorld("jarvis", {
   askText: q => ipcRenderer.send("ask-text", q),
   startVoice: () => ipcRenderer.send("start-voice"),
   hideBubble: () => ipcRenderer.send("hide-bubble"),
+  stopTalking: () => ipcRenderer.send("stop-talking"),
+  toggleVoice: () => ipcRenderer.send("toggle-voice"),
   // the little "listening" ball
   onDot: fn => ipcRenderer.on("dot", (e, d) => fn(d)),
   // the hidden worker (hearing via Whisper, and playing the spoken answer)
@@ -23,5 +25,7 @@ contextBridge.exposeInMainWorld("jarvis", {
   whisperLoading: () => ipcRenderer.send("whisper-loading"),
   transcript: t => ipcRenderer.send("transcript", t),
   recState: s => ipcRenderer.send("rec-state", s),
-  onPlay: fn => ipcRenderer.on("play", (e, buf) => fn(buf))
+  onPlay: fn => ipcRenderer.on("play", (e, buf) => fn(buf)),
+  onStopAudio: fn => ipcRenderer.on("stop-audio", () => fn()),
+  audioState: on => ipcRenderer.send("audio-state", !!on)
 });

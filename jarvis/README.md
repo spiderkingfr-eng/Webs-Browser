@@ -37,6 +37,8 @@ name, and close it. The tray icon (bottom‑right of Windows) is where everythin
 - **Ask Jarvis** (or press the hotkey, default **Alt+Shift+J**) — listen for one question and answer.
 - **Type a question** — opens the bubble with a text box (always works).
 - **Listen for "Jarvis"** — always‑on wake word (Windows speech).
+- **Read answers aloud**: tick it off to just read the answers (no voice). The 🔊 button on the bubble does
+  the same.
 - **Show what I can see**: takes a screenshot now and opens it, so you can check exactly what it sees.
 - **Settings…**, **Show the bubble**, **Quit**.
 
@@ -64,6 +66,16 @@ built-in recogniser, so use the typed box.
 
 The voice that reads answers aloud is **Adam**, through your server's `/speak` — it only works if your
 server has an ElevenLabs key (the browser's `setup.cmd` asks for one).
+
+## Making it stop talking
+
+- Click **■ Stop** on the bubble (it shows while it's talking or still answering). It goes quiet mid-sentence
+  and keeps the answer on screen for you to read.
+- Or press the hotkey (**Alt+Shift+J**) while it's talking. Press it again to ask something new.
+- Or just say its name: *"Jarvis"* makes it go quiet straight away and listen. *"Jarvis, stop"* (or "shut up",
+  "be quiet") stops it; *"Jarvis, <a new question>"* asks that instead.
+- To never hear the voice, click **🔊** on the bubble (it turns to 🔇) and answers are only written out. Click it
+  again to hear them.
 
 ## Settings (tray → Settings…)
 
