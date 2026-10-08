@@ -41,6 +41,7 @@ function buildBody(opt) {
   };
   if (cfg.code) body.code = cfg.code;
   if (cfg.webSearch) body.search = true;      // it may look things up (real links, anything current)
+  if (cfg.model) body.model = cfg.model;       // the model you picked (the server honours it for your unlimited code)
   if (cfg.callYou || cfg.style) body.prefs = (cfg.callYou ? "Call me " + cfg.callYou + ". " : "") + (STYLE_TEXT[cfg.style] || "");
   if (image) body.image = { data: image };
   return body;
@@ -52,7 +53,7 @@ function parseLine(line) {
   if (!line) return null;
   let j; try { j = JSON.parse(line); } catch (e) { return null; }
   if (j.error) return { error: j.message || j.error };
-  if (j.end) return { end: true, left: j.unlimited ? null : typeof j.left === "number" ? j.left : null, unlimited: !!j.unlimited, stop: j.stop || "" };
+  if (j.end) return { end: true, left: j.unlimited ? null : typeof j.left === "number" ? j.left : null, unlimited: !!j.unlimited, stop: j.stop || "", model: j.model || "", chose: !!j.chose };
   if (typeof j.d === "string") return { text: j.d };
   return null;
 }

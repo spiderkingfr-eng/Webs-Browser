@@ -25,7 +25,7 @@ const sha = async s => [...new Uint8Array(await crypto.subtle.digest("SHA-256", 
 const bool = v => v === true;
 const num = (v, lo, hi, d) => { const n = Math.round(+v); return Number.isFinite(n) && n >= lo && n <= hi ? n : d; };
 const txt = (v, n) => cut(v, n).replace(/[\u0000-\u0008\u000b-\u001f]/g, "").trim();
-export const MODELS = ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-4-5"];
+export const MODELS = ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5", "claude-haiku-4-5"];
 export const LENGTHS = { short:1500, normal:4000, long:8000 };
 const day = t => new Date(t || now()).toISOString().slice(0, 10);
 

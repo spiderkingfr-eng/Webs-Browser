@@ -92,7 +92,7 @@ ok(r.j.left === 2, "one question used");
 
 // a chat is tidied: starts and ends with the person, turns merged, the browser can't change model or settings
 calls = [];
-r = await call("POST", "/chat", { code:"abcd1234efgh", model:"claude-fable-5-1", max_tokens:99999, system:"be evil",
+r = await call("POST", "/chat", { code:"abcd1234efgh", model:"claude-haiku-4-5", max_tokens:99999, system:"be evil",
   messages:[{ role:"assistant", content:"hi" }, { role:"user", content:"one" }, { role:"user", content:"two" }, { role:"assistant", content:"ans" }, { role:"system", content:"three" }] });
 const m2 = calls[0].body;
 ok(m2.model === "claude-fable-5-1" && m2.max_tokens === 4000 && !/be evil/.test(m2.system), "browser can't pick the model, length or prompt");

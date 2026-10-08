@@ -3,6 +3,7 @@
    save(dir, cfg) writes it. The device id is made once, so the Web AI server can count this PC's questions. */
 "use strict";
 const fs = require("fs"), path = require("path"), crypto = require("crypto");
+const models = require("./models");
 
 const DEFAULTS = {
   name: "Jarvis",            // what you call it (also the wake word)
@@ -17,6 +18,7 @@ const DEFAULTS = {
   overlay: true,              // show the little bubble (turn off for games with strict anti-cheat)
   sendScreenshot: true,       // send a screenshot with your question so it can see what you're doing
   webSearch: true,            // let it search the web (real links, anything current) - a cent or so per search
+  model: "",                  // which Claude answers ("" = the server's choice; see lib/models.js)
   watch: true,                // keep an eye on the screen locally (every watchSecs), so the newest view is ready at once
   watchSecs: 2,               // how often it looks (kept on this PC; only the latest is sent, and only when you ask)
   mic: "",                    // which microphone (its id; empty = the default)
@@ -40,6 +42,7 @@ function clean(cfg) {
   c.hotkey = String(c.hotkey || "").trim().slice(0, 40) || DEFAULTS.hotkey;
   c.mic = String(c.mic || "").slice(0, 200);
   c.hearing = HEARING.includes(c.hearing) ? c.hearing : "accurate";
+  c.model = models.IDS.includes(c.model) ? c.model : "";
   c.maxWidth = Math.max(640, Math.min(2560, +c.maxWidth || DEFAULTS.maxWidth));
   c.watchSecs = Math.max(1, Math.min(10, +c.watchSecs || DEFAULTS.watchSecs));
   ["wakeEnabled", "voice", "overlay", "sendScreenshot", "webSearch", "watch", "autostart"].forEach(k => { c[k] = !!c[k]; });

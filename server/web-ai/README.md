@@ -142,7 +142,7 @@ Add these to `"vars"` in `wrangler.jsonc` (for example `"vars": { "DAILY_LIMIT":
 | `DAILY_LIMIT` | `25` | Questions per device (or per code) per day |
 | `NETWORK_DAILY_LIMIT` | `100` | Questions per internet connection per day, without a code |
 | `TOTAL_DAILY_LIMIT` | `150` | Questions for everyone together per day |
-| `MODEL` | `claude-sonnet-5-5` | A cheaper model: `claude-opus-5-5` (less than half the price), `claude-sonnet-5-5` (a fifth), `claude-haiku-4-5` (a tenth). Default `claude-fable-5-1`, the smartest |
+| `MODEL` | `claude-sonnet-5-5` | A cheaper model: `claude-opus-5-5` (less than half the price), `claude-sonnet-5-5` (a fifth), `claude-haiku-5-5` (a fiftieth or less), `claude-haiku-4-5`. Default `claude-fable-5-1`, the smartest. You can also change it on the owner's dashboard (Model), and Jarvis can pick one per question with your unlimited code |
 
 ## Notifications on iPhones
 

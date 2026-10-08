@@ -46,6 +46,19 @@ ok(r.s === 429, "but is for others");
 const codes = (await import("./worker.js")).envCodes({ WEB_AI_CODES:"A=aaaaaaaa1=infinite,B=bbbbbbbb1=no limit,C=cccccccc1=5,D=dddddddd1" }, 25);
 ok(codes[0].unlimited && codes[1].unlimited && !codes[2].unlimited && codes[2].limit === 5 && codes[3].limit === 25, "ways to write it in WEB_AI_CODES");
 
+// picking the model (Jarvis's Model setting): only the unlimited code can, and only from the dashboard's list
+let seen = [];
+const realFetch = globalThis.fetch;
+globalThis.fetch = async (u, init) => { if (String(u) === "https://api.anthropic.com/v1/messages") seen.push(JSON.parse(init.body)); return realFetch(u, init); };
+r = await call("/chat", { code:"ownercode123", model:"claude-haiku-5-5", messages:[{ role:"user", content:"hi" }] });
+e = endOf(r.text);
+ok(seen[0].model === "claude-haiku-5-5" && e.chose === 1, "the unlimited code picks Haiku 5.5 for this question (and is told it did)");
+ok(seen[0].output_config && seen[0].output_config.effort === "low" && !("fallbacks" in seen[0]), "Haiku 5.5 takes an effort setting, but not the backup-model one");
+r = await call("/chat", { code:"ownercode123", model:"gpt-9", messages:[{ role:"user", content:"hi" }] });
+ok(seen[1].model === "claude-fable-5-1" && !endOf(r.text).chose, "a model that isn't on the list: the server's choice");
+// (other codes can't pick: test.mjs, "browser can't pick the model")
+globalThis.fetch = realFetch;
+
 // the owner's dashboard: a "No daily limit" switch on each code
 let h = await call("/admin", { code:"ownercode123", op:"hello" });
 const trust = h.j && h.j.trust;

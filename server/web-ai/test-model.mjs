@@ -58,6 +58,13 @@ r = await chat();
 const last = r.lines[r.lines.length - 1];
 ok(last.end === 1 && last.stop === "refusal", "a refusal is passed on in the end line");
 
+// the end line says which model answered (a backup model, if Anthropic's stepped in)
+kv.clear(); sent = [];
+replies = [{ status:200, text:sse([{ type:"message_start", message:{ model:"claude-opus-4-8", usage:{ input_tokens:1000000 } } }, { type:"content_block_delta", index:0, delta:{ type:"text_delta", text:"Hi" } }, { type:"message_delta", delta:{ stop_reason:"end_turn" }, usage:{ output_tokens:0 } }]) }];
+r = await chat();
+ok(r.lines[r.lines.length - 1].model === "claude-opus-4-8" && JSON.parse(kv.get("u:" + day)).m["claude-opus-4-8"] === 1, "the model that actually answered is reported and costed");
+ok(Math.abs(cost({ input_tokens:1e6, output_tokens:1e6 }, "claude-haiku-5-5") - 0.6) < 1e-9, "Haiku 5.5's price ($0.10/$0.50)");
+
 // the owner can still pick a cheaper model on the dashboard or with MODEL
 kv.clear(); sent = [];
 await chat({}, { ...env, MODEL:"claude-sonnet-5-5" });

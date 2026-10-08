@@ -16,6 +16,7 @@ const config = require("./lib/config");
 const ai = require("./lib/ai");
 const shot = require("./lib/shot");
 const wake = require("./lib/wake");
+const models = require("./lib/models");
 
 const DIR = app.getPath("userData");
 let cfg = config.load(DIR);
@@ -226,6 +227,7 @@ function refreshTray() {
     { type: "separator" },
     { label: "Listen for \"" + cfg.name + "\"", type: "checkbox", checked: listening && speechOk, enabled: speechOk, click: m => setListening(m.checked) },
     { label: "Read answers aloud", type: "checkbox", checked: !!cfg.voice, click: m => setVoice(m.checked) },
+    { label: "Model: " + models.nameOf(cfg.model), submenu: models.MODELS.map(m => ({ label: m.name + "  -  " + m.note, type: "radio", checked: cfg.model === m.id, click: () => setModel(m.id, false) })) },
     { label: "Show the bubble", type: "checkbox", checked: cfg.overlay, click: m => { cfg = config.save(DIR, Object.assign({}, cfg, { overlay: m.checked })); } },
     { type: "separator" },
     { label: "Show what I can see", enabled: !!cfg.sendScreenshot, click: () => showWhatISee() },
@@ -379,6 +381,9 @@ async function checkServer() {
 /* ---------------------------------------------------------------- asking the server */
 async function ask(question) {
   if (asking) return;
+  // "switch to Opus", "use the smartest model"... - change the model instead of asking
+  const pick = models.parseSwitch(question);
+  if (pick !== null) { setModel(pick, true); return; }
   if (!cfg.server) { showBubble(true); toBubble("answer", { done: true, text: "Open Settings and paste your Web AI server address first." }); openSettings(); return; }
   asking = true;
   const ctl = askCtl = new AbortController();
@@ -412,7 +417,9 @@ async function ask(question) {
       for (const part of reader.push(dec.decode(value, { stream: true }))) {
         if (part.error) { toBubble("answer", { done: true, text: part.error }); return; }
         if (part.text) { answer += part.text; toBubble("answer", { text: ai.cleanForShow(answer) }); }
-        if (part.end && (part.unlimited || typeof part.left === "number")) toBubble("left", { left: part.left, unlimited: part.unlimited });
+        if (part.end) toBubble("left", { left: part.left, unlimited: part.unlimited, model: models.short(part.model) });
+        // you picked a model, but the server answered with its own: your code can't pick (only the unlimited one can)
+        if (part.end && cfg.model && !part.chose) toBubble("warn", { text: "The server answered with its own model, not " + models.nameOf(cfg.model) + ". Only your unlimited code can pick (Settings → Your code), and the server needs its latest update." });
         if (part.end && part.stop === "refusal") { toBubble("answer", { done: true, text: "Sorry, I can't help with that one." }); return; }
       }
     }
@@ -446,6 +453,16 @@ function stopVoiceOnly() {
 function stopTalking() {
   if (askCtl) { try { askCtl.abort(); } catch (e) {} }
   stopVoiceOnly();
+}
+// which model answers (Settings, the tray's Model menu, or "Jarvis, switch to Opus")
+function setModel(id, say) {
+  cfg = config.save(DIR, Object.assign({}, cfg, { model: id }));
+  refreshTray();
+  if (say) {
+    const text = id ? "Okay, I'll use " + models.nameOf(id) + " from now on." : "Okay, back to your server's choice of model.";
+    showBubble(false); toBubble("say", { text, listening: false });
+    if (cfg.voice) speak(text);
+  }
 }
 // voice on/off (the bubble's speaker button, the tray, or Settings). Off = it just writes the answer for you to read.
 function setVoice(on) {

@@ -1,7 +1,7 @@
 // Jarvis for Webs - tests for the parts that don't need a screen, a microphone or Electron: node test/test.js
 "use strict";
 const assert = require("assert"), fs = require("fs"), os = require("os"), path = require("path");
-const config = require("../lib/config"), wake = require("../lib/wake"), ai = require("../lib/ai"), shot = require("../lib/shot");
+const config = require("../lib/config"), wake = require("../lib/wake"), ai = require("../lib/ai"), shot = require("../lib/shot"), models = require("../lib/models");
 let pass = 0, fail = 0;
 const ok = (c, w) => { if (c) pass++; else { fail++; console.log("  FAIL:", w); } };
 
@@ -96,6 +96,23 @@ const ok = (c, w) => { if (c) pass++; else { fail++; console.log("  FAIL:", w); 
 (() => {
   ok(ai.cleanForSpeech("Sure **thing**. [[do: open youtube]] Here `you` go.") === "Sure thing.  Here you go.".replace(/\s+/g, " "), "speech text drops markdown and [[do:]]");
   ok(ai.cleanForShow("Line one [[do: x]]\n\n\n\nLine two") === "Line one \n\nLine two", "shown text drops [[do:]] and extra blank lines");
+})();
+
+/* picking the model */
+(() => {
+  ok(config.clean({}).model === "" && config.clean({ model: "claude-opus-5-5" }).model === "claude-opus-5-5" && config.clean({ model: "gpt-9" }).model === "", "model: the server's choice by default; only known models");
+  const cfg = { device: "dev-0123456789abcdef", model: "claude-haiku-5-5" };
+  ok(ai.buildBody({ question: "hi", cfg }).model === "claude-haiku-5-5" && !("model" in ai.buildBody({ question: "hi", cfg: { device: "d" } })), "the picked model is sent (and nothing when it's the server's choice)");
+  const e = ai.parseLine('{"end":1,"left":999,"unlimited":1,"model":"claude-haiku-5-5","chose":1}');
+  ok(e.model === "claude-haiku-5-5" && e.chose === true && ai.parseLine('{"end":1}').chose === false, "the answer says which model answered, and whether the pick was used");
+  ok(models.short("claude-opus-5-5") === "Opus 5.5" && models.short("claude-fable-5-1") === "Fable 5.1" && models.short("claude-opus-4-8") === "Opus 4.8" && models.short("nope") === "", "short model names");
+  const said = {
+    "switch to opus": "claude-opus-5-5", "Switch to Claude Fable 5.1.": "claude-fable-5-1", "use the smartest model": "claude-fable-5-1",
+    "change the model to haiku please": "claude-haiku-5-5", "use sonnet from now on": "claude-sonnet-5-5", "go back to default": "",
+    "use the cheapest one": "claude-haiku-5-5"
+  };
+  ok(Object.keys(said).every(k => models.parseSwitch(k) === said[k]), "switching by voice: " + JSON.stringify(Object.keys(said).map(k => [k, models.parseSwitch(k)])));
+  ok(["use opus to write a poem", "what is sonnet 18 about", "how do i make a furnace", "switch to dark mode"].every(k => models.parseSwitch(k) === null), "but a normal question is still a question");
 })();
 
 /* screenshot size */

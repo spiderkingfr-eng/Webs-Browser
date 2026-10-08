@@ -22,7 +22,7 @@
      TWITCH_CLIENT_SECRET secret  (streams.js): a free app at dev.twitch.tv/console
      SPEAK_DAILY         text     characters the voice may say per person per day (20000)
      MODEL               text     claude-fable-5-1, the smartest (or claude-opus-5-5, claude-sonnet-5-5,
-                                  claude-haiku-4-5 - each cheaper than the one before)
+                                  claude-haiku-5-5, claude-haiku-4-5 - cheaper ones)
 
    The browser talks to it as:
      GET  /        is it running?
@@ -30,7 +30,8 @@
      GET  /filler?s=<show>   which episodes of a long anime are filler (filler.js)
      GET  /streams?u=a,b     Twitch streamers: who's live, and their schedules (streams.js)
      POST /speak   { code?, device?, text, voice? }   -> audio/mpeg in the assistant's voice (speak.js)
-     POST /chat    { code?, device?, messages:[{role, content}], web?, prefs?, task? }
+     POST /chat    { code?, device?, messages:[{role, content}], web?, prefs?, task?, model? }
+                   model: one of the dashboard's models - only for an unlimited code (yours); others get the server's
                    web:true (the iPhone app, which can't read pages itself) lets Claude
                    fetch the page's address once, at most about 6,000 tokens of it
                    prefs: how the person likes answers (Web AI's settings, "Your instructions")
@@ -89,7 +90,7 @@
      GET  /near[?lat=…&lon=…&name=…]  happening near you: events, weather alerts, earthquakes, local news, your local posts (near.js)
 
    setup.cmd sends this folder to Cloudflare (wrangler puts the files together). */
-import { ownerCfg, ownerGate, ownerAdmin, ownerCron, ownerChosen, allCodes, aiSettings, isBlocked, pushOwner, logA, addHist, dueScheduled } from "./owner.js";
+import { ownerCfg, ownerGate, ownerAdmin, ownerCron, ownerChosen, allCodes, aiSettings, isBlocked, pushOwner, logA, addHist, dueScheduled, MODELS } from "./owner.js";
 import { liveApi, liveAdmin, liveCron, liveNews } from "./live.js";
 import { privacyApi } from "./privacy.js";
 import { roomApi, Room } from "./rooms.js";
@@ -252,7 +253,7 @@ export default {
           messages,
           // how hard it thinks: low for quick chat; medium for Jarvis, which looks at your screen and works things out
           // (Haiku 4.5 has no effort setting)
-          ...(/haiku/i.test(m) ? {} : { output_config:{ effort:body.task === "jarvis" ? "medium" : "low" } }),
+          ...(/haiku-4/i.test(m) ? {} : { output_config:{ effort:body.task === "jarvis" ? "medium" : "low" } }),
           // a question this model declines goes to Anthropic's recommended backup model instead of coming back empty
           ...(FALLBACK_OK.test(m) ? { fallbacks:"default" } : {}),
           ...(tools.length ? { tools } : {}),     // comparing tabs on the iPhone: up to four pages
@@ -260,7 +261,9 @@ export default {
           stream:true
         })
       });
-      let usedModel = ai.model, up = await claude(usedModel), errText = null;
+      // the owner (an unlimited code) can pick the model for this question, e.g. from Jarvis; everyone else gets the server's
+      const chose = !!who.unlimited && typeof body.model === "string" && MODELS.includes(body.model);
+      let usedModel = chose ? body.model : ai.model, up = await claude(usedModel), errText = null;
       if (!up.ok && (up.status === 400 || up.status === 404) && usedModel !== BACKUP_MODEL) {
         errText = await up.text().catch(() => "");
         if (/model|retention|fallback|tool|web_/i.test(errText)) {
@@ -276,7 +279,7 @@ export default {
       // counted once Claude has taken the question
       ctx.waitUntil(Promise.all([bump(env, who.id, day, used), bump(env, "everyone", day, all), who.net ? bump(env, who.net, day, net) : null, who.unlimited ? count(env, "unl", day).then(n => bump(env, "unl", day, n)) : null]));
       const pipe = new TransformStream();
-      ctx.waitUntil(relay(up.body, pipe.writable, who, who.unlimited ? UNLIMITED_SHOWN : Math.max(0, who.limit - used - 1), u => addUsage(env, day, { ...u, model:usedModel })));
+      ctx.waitUntil(relay(up.body, pipe.writable, who, who.unlimited ? UNLIMITED_SHOWN : Math.max(0, who.limit - used - 1), (u, served) => addUsage(env, day, { ...u, model:served || usedModel }), chose ? { chose:1 } : {}));
       return new Response(pipe.readable, { headers:{ ...cors, "content-type":"application/x-ndjson; charset=utf-8", "cache-control":"no-store" } });
     } catch (e) {
       console.log("Web AI server error", e && e.stack || e);
@@ -392,15 +395,16 @@ function apiError(status, text) {
 }
 
 /* Claude's stream (server-sent events) becomes one small JSON object per line for the browser. */
-async function relay(src, dst, who, left, onUsage) {
+async function relay(src, dst, who, left, onUsage, extra) {
   const w = dst.getWriter(), enc = new TextEncoder(), dec = new TextDecoder();
   const out = o => w.write(enc.encode(JSON.stringify(o) + "\n"));
-  let buf = "", stop = "", usage = {}, failed = false;
+  let buf = "", stop = "", usage = {}, failed = false, served = "";
   const take = line => {
     if (!line.startsWith("data:")) return;
     let e; try { e = JSON.parse(line.slice(5)); } catch (x) { return; }
     if (e.type === "content_block_delta" && e.delta && e.delta.type === "text_delta" && e.delta.text) return out({ d:e.delta.text });
     if (e.type === "message_start" && e.message && e.message.usage) Object.assign(usage, e.message.usage);
+    if (e.type === "message_start" && e.message && typeof e.message.model === "string") served = e.message.model;     // (a backup model, if one stepped in)
     if (e.type === "message_delta") { if (e.delta && e.delta.stop_reason) stop = e.delta.stop_reason; if (e.usage) Object.assign(usage, e.usage); }
     if (e.type === "error") {
       failed = true;
@@ -418,8 +422,8 @@ async function relay(src, dst, who, left, onUsage) {
       while ((i = buf.indexOf("\n")) >= 0) { const line = buf.slice(0, i).replace(/\r$/, ""); buf = buf.slice(i + 1); await take(line); }
     }
     if (buf) await take(buf.trim());
-    if (!failed) await out({ end:1, stop:stop || "end_turn", left, ...(who && who.unlimited ? { unlimited:1 } : {}) });
-    if (onUsage) await onUsage(usage).catch(() => {});
+    if (!failed) await out({ end:1, stop:stop || "end_turn", left, ...(who && who.unlimited ? { unlimited:1 } : {}), ...(served ? { model:served } : {}), ...(extra || {}) });
+    if (onUsage) await onUsage(usage, served).catch(() => {});
     console.log("Web AI", who.name || "(no code)", "stop", stop, "tokens in", (usage.input_tokens || 0) + (usage.cache_read_input_tokens || 0) + (usage.cache_creation_input_tokens || 0),
       "(cached " + (usage.cache_read_input_tokens || 0) + ")", "out", usage.output_tokens || 0);
   } catch (e) {
@@ -439,10 +443,10 @@ async function addUsage(env, day, u) {
   await env.LIMITS.put(k, JSON.stringify(t), { expirationTtl:400 * 86400 });
 }
 // dollars per million tokens: input, output, cache read, cache write (5 minutes)
-const PRICES = { sonnet:[2, 10, 0.2, 2.5], haiku:[1, 5, 0.1, 1.25], opus:[4, 20, 0.2, 5], fable:[10, 50, 0.25, 12.5] };
+const PRICES = { sonnet:[2, 10, 0.2, 2.5], haiku:[1, 5, 0.1, 1.25], haiku5:[0.1, 0.5, 0.01, 0.125], opus:[4, 20, 0.2, 5], fable:[10, 50, 0.25, 12.5] };
 function cost(t, m) {
   if (typeof t.c === "number" && t.m) return t.c;          // added up as it went, at each answer's own model's price
-  const p = /haiku/i.test(m) ? PRICES.haiku : /opus/i.test(m) ? PRICES.opus : /fable|mythos/i.test(m) ? PRICES.fable : PRICES.sonnet;
+  const p = /haiku-5/i.test(m) ? PRICES.haiku5 : /haiku/i.test(m) ? PRICES.haiku : /opus/i.test(m) ? PRICES.opus : /fable|mythos/i.test(m) ? PRICES.fable : PRICES.sonnet;
   return ((t.input_tokens || 0) * p[0] + (t.output_tokens || 0) * p[1] + (t.cache_read_input_tokens || 0) * p[2] + (t.cache_creation_input_tokens || 0) * p[3]) / 1e6;
 }
 

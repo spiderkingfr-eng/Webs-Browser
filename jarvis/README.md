@@ -67,6 +67,26 @@ built-in recogniser, so use the typed box.
 The voice that reads answers aloud is **Adam**, through your server's `/speak` — it only works if your
 server has an ElevenLabs key (the browser's `setup.cmd` asks for one).
 
+## Changing the model
+
+Pick which Claude answers, whenever you like:
+
+- **Tray icon → Model** - a list to pick from.
+- **Settings → Model**.
+- Or just say it: *"Jarvis, switch to Opus"*, *"use the smartest model"*, *"use the cheapest one"*, *"go back to
+  default"*.
+
+| Model | |
+|---|---|
+| Claude Fable 5.1 | the smartest, the most expensive |
+| Claude Opus 5.5 | very smart, less than half Fable's price |
+| Claude Sonnet 5.5 | smart and quick, a fifth of Fable's price |
+| Claude Haiku 5.5 | the fastest and cheapest |
+| Server's choice | whatever the owner's dashboard says (Model) - the default |
+
+The bubble shows which model answered. Only your **unlimited code** can pick (so nobody else can run up your bill
+with the expensive one); with any other code the server's choice answers, and the bubble says so.
+
 ## Links
 
 Ask for a link (*"Jarvis, send me a link to the furnace page on the Minecraft wiki"*) and it shows up in the bubble

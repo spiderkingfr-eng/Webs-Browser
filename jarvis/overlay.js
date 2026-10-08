@@ -56,7 +56,7 @@ window.jarvis.onBubble(d => {
       if (!busy) armHide(30000);
       break;
     case "left":
-      $("left").textContent = d.unlimited ? "no daily limit" : d.left != null ? d.left + " left today" : "";
+      $("left").textContent = [d.model, d.unlimited ? "no daily limit" : d.left != null ? d.left + " left today" : ""].filter(Boolean).join(" · ");
       break;
   }
 });
