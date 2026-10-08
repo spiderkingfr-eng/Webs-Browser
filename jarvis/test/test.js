@@ -196,6 +196,13 @@ async function listening() {
   r = run([[40000, 0.02], [2000, 0.15], [5000, 0.02]], "once", 40000);
   ok(r && r.voiced && r.at > 2000 && r.at < 2000 + 1800, "a noisy room: learned, and your voice is still picked out");
   ok(L.to16k(new Float32Array(4800), 48000).length === 1600, "48 kHz is mixed down to 16 kHz");
+  // the microphone stops sending sound mid-question: the capture still finishes (it used to wait forever)
+  const l = L.createListener();
+  for (let t = 0; t < 1000; t += STEP) l.push(tone(voice), t);
+  l.start("wake", 1000);
+  ok(l.tick(2500) === null && l.capturing, "a question in progress keeps going while it should");
+  const late = l.tick(5000);
+  ok(late && late.voiced && !l.capturing, "but if no sound comes in at all, it's finished anyway (not left waiting forever)");
 }
 
 listening().catch(e => ok(false, "listening tests crashed: " + e)).then(() => {

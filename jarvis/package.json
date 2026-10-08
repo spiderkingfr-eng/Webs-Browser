@@ -1,11 +1,11 @@
 {
   "name": "jarvis-for-webs",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "A background screen assistant for your PC: say your wake word, ask anything, and it answers in a little bubble - seeing your screen if you let it. Uses your own Web AI server.",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "test": "node test/test.js",
+    "test": "node test/test.js && node test/test-app.js",
     "dist": "electron-builder"
   },
   "author": "Webs",

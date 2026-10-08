@@ -137,6 +137,16 @@ answers about anything recent are up to date. Each search costs about a cent on 
    `web-ai-server` zip → `setup.cmd`). The bubble also shows an orange ⚠ line when this is the problem.
 3. If the capture itself fails, the orange ⚠ line in the bubble says why.
 
+## If it ever seems stuck
+
+It shouldn't any more: every step has a time limit, so if your server or the internet is slow or drops out, it gives
+up after a while and tells you ("That took too long…") instead of going quiet forever. Asking something new while it's
+still working on the last question simply takes over. If its hearing or its Windows listener stops (a microphone
+unplugged, Windows hiccups), it restarts them by itself.
+
+If something still goes wrong: tray icon → **Restart Jarvis**. And tray icon → **Open the log** shows a short diary of
+what went wrong (it never contains your questions or answers) - send it to whoever is fixing it.
+
 ## Honest notes
 
 - **Your screen is sent only when you ask**, and only to *your* Web AI server. Turn off **"Let it see my

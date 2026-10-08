@@ -50,9 +50,11 @@ if ($Mode -eq "wake") {
   $rec.BabbleTimeout = [TimeSpan]::FromHours(24)
   $rec.EndSilenceTimeout = [TimeSpan]::FromMilliseconds(250)
   try { $rec.EndSilenceTimeoutAmbiguous = [TimeSpan]::FromMilliseconds(500) } catch {}
+  $fails = 0
   while ($true) {
     $w = $null
-    try { $w = $rec.Recognize() } catch { Start-Sleep -Milliseconds 300; continue }
+    # if it keeps failing (the microphone changed or went away), stop - the app starts a fresh listener
+    try { $w = $rec.Recognize(); $fails = 0 } catch { $fails++; if ($fails -gt 20) { exit 3 }; Start-Sleep -Milliseconds 300; continue }
     # only when it's fairly sure it was the name (WakeConf, from Settings → Wake word) - other words can come close
     if ($w -and $w.Confidence -ge $WakeConf) { [Console]::Out.WriteLine("WAKE") } elseif (-not $w) { Start-Sleep -Milliseconds 80 }
   }
@@ -70,6 +72,7 @@ elseif ($Mode -eq "continuous") {
   $wakeGb.Append($choices)
   $wakeGrammar = New-Object System.Speech.Recognition.Grammar $wakeGb
   $dictation = New-Object System.Speech.Recognition.DictationGrammar
+  $fails = 0
 
   while ($true) {
     # --- A) listen for the wake word (wait as long as it takes) ---
@@ -79,7 +82,7 @@ elseif ($Mode -eq "continuous") {
     $rec.BabbleTimeout = [TimeSpan]::FromHours(24)
     $rec.EndSilenceTimeout = [TimeSpan]::FromMilliseconds(250)
     $w = $null
-    try { $w = $rec.Recognize() } catch { Start-Sleep -Milliseconds 300; continue }
+    try { $w = $rec.Recognize(); $fails = 0 } catch { $fails++; if ($fails -gt 20) { exit 3 }; Start-Sleep -Milliseconds 300; continue }
     if (-not $w) { Start-Sleep -Milliseconds 80; continue }
     if ($w.Confidence -lt $WakeConf) { continue }      # not sure enough it was the name
     [Console]::Out.WriteLine("WAKE")

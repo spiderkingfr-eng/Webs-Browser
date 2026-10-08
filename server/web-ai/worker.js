@@ -39,7 +39,8 @@
                    bar, a video's key moments, tidying tabs, comparing pages, study cards,
                    explaining a selection, finding a page in the history
                    -> one JSON object per line: { d:"text" } ... { end:1, stop, left } or { error, message }
-                      (and { s:"search" | "fetch" } while it looks something up - apps may show it or ignore it)
+                      (and { s:"search" | "fetch" } while it looks something up, and { k:1 } every ten
+                      seconds of quiet while it thinks - apps may use them or ignore them)
 
      POST /report  { code?, device, app, version, text, info, errors }   a problem report, for the owner
      POST /link/new  { code?, device }  -> { link, code }    a 6-digit code (10 minutes) to link another device
@@ -398,7 +399,11 @@ function apiError(status, text) {
 /* Claude's stream (server-sent events) becomes one small JSON object per line for the browser. */
 async function relay(src, dst, who, left, onUsage, extra) {
   const w = dst.getWriter(), enc = new TextEncoder(), dec = new TextDecoder();
-  const out = o => w.write(enc.encode(JSON.stringify(o) + "\n"));
+  let lastOut = Date.now();
+  const out = o => { lastOut = Date.now(); return w.write(enc.encode(JSON.stringify(o) + "\n")); };
+  // while it thinks (or looks something up) nothing else is sent for a while: a small "still working" line every
+  // ten seconds lets apps tell a slow answer from a dropped connection. Apps that don't know it ignore it.
+  const alive = setInterval(() => { if (Date.now() - lastOut >= 10000) out({ k:1 }).catch(() => {}); }, 5000);
   let buf = "", stop = "", usage = {}, failed = false, served = "";
   const take = line => {
     if (!line.startsWith("data:")) return;
@@ -433,6 +438,7 @@ async function relay(src, dst, who, left, onUsage, extra) {
   } catch (e) {
     try { await out({ error:"cut", message:"The answer was cut off. Try again." }); } catch (x) {}
   } finally {
+    clearInterval(alive);
     try { await w.close(); } catch (e) {}
   }
 }

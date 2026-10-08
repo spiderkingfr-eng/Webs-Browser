@@ -20,6 +20,30 @@ const models = require("./lib/models");
 
 const DIR = app.getPath("userData");
 let cfg = config.load(DIR);
+
+/* ---------------------------------------------------------------- never wait forever */
+// Every step that waits on something outside (the server, the screen, the voice) has a time limit, so one slow or
+// dropped connection can't leave Jarvis stuck and ignoring you until it's restarted.
+const LIMIT = { shot: 8000, check: 5000, connect: 45000, quiet: 90000, speak: 20000 };
+function withTimeout(promise, ms, fallback) {
+  let t; return Promise.race([promise, new Promise(r => { t = setTimeout(() => r(fallback), ms); })]).finally(() => clearTimeout(t));
+}
+// fetch that gives up if no reply has started within ms. `outer` (e.g. the Stop button) still stops it at any
+// point - including while the answer is streaming in, which is why that link is kept for the whole response.
+function fetchFor(url, init, ms, outer) {
+  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), ms);
+  if (outer) { if (outer.aborted) ctl.abort(); else outer.addEventListener("abort", () => ctl.abort(), { once: true }); }
+  return fetch(url, Object.assign({}, init, { signal: ctl.signal })).finally(() => clearTimeout(t));
+}
+// a small diary of what went wrong (no questions or answers in it), for when you tell me "it just didn't work":
+// tray → "Open the log"
+const LOG = path.join(DIR, "jarvis.log");
+function log(msg) {
+  try {
+    if (fs.existsSync(LOG) && fs.statSync(LOG).size > 200000) fs.renameSync(LOG, LOG + ".old");
+    fs.appendFileSync(LOG, new Date().toISOString() + "  " + msg + "\n");
+  } catch (e) {}
+}
 const speechOk = process.platform === "win32";     // Windows' built-in recognition
 
 let tray = null, overlay = null, settingsWin = null, worker = null, indicator = null;
@@ -69,7 +93,7 @@ function gotQuestion(raw, mode) {
     if (paused || speaking) { paused = false; hushed = true; stopVoiceOnly(); }     // it was: go quiet
   } else q = wake.detect(raw, cfg.name).question || raw;
   if (wake.isStop(q)) { stopTalking(); showDot(listening ? "listening" : "off"); return; }     // "Jarvis, stop"
-  if (asking) return;          // still answering the last one: leave it be
+  if (asking && !wake.looksComplete(q)) return;     // just its name while it's answering: leave the answer be
   if (hushed && !wake.looksComplete(q)) { hushed = false; showDot(listening ? "listening" : "off"); return; }   // just "Jarvis" to quiet it: leave the answer up
   hushed = false;
   if (wake.looksComplete(q)) ask(q);
@@ -86,6 +110,7 @@ function notReallyWoken() {
   showDot(asking ? "busy" : listening ? "listening" : "off");
 }
 
+let restarts = [];
 // the always-on wake word. With Whisper: Windows just spots "Jarvis", then Whisper hears the question (far better).
 // Without Whisper (still loading, or it failed): Windows does the whole thing (the older, rougher way).
 function setListening(on) {
@@ -107,7 +132,7 @@ function setListening(on) {
             showDot("busy");
             recordQuestion("wake");
           },
-          err: () => { listening = false; showDot("off"); refreshTray(); }
+          err: m => { log("wake listener: " + m); listening = false; showDot("off"); refreshTray(); }
         });
       } else {
         listenProc = spawn("powershell", psArgs("continuous").concat(["-Wake", wakeWords()]), { windowsHide: true });
@@ -115,10 +140,19 @@ function setListening(on) {
           wake: () => { if (!listening || asking) return; showBubble(false); showDot("busy"); toBubble("say", { text: "Yes? I'm listening…", listening: true }); },
           text: t => { if (listening) gotQuestion(t); },
           none: () => { if (listening && !asking) { showDot("listening"); toBubble("say", { text: "Listening for “" + cfg.name + "”…", listening: true }); } },
-          err: () => { listening = false; showDot("off"); refreshTray(); }
+          err: m => { log("wake listener: " + m); listening = false; showDot("off"); refreshTray(); }
         });
       }
-      listenProc.on("close", () => { listenProc = null; });
+      // if the listener stops by itself (Windows speech hiccup, the microphone changed...), start it again
+      const p = listenProc;
+      p.on("close", code => {
+        if (listenProc !== p) return;            // replaced or turned off on purpose
+        listenProc = null;
+        if (!listening) return;
+        const now = Date.now(); restarts = restarts.filter(t => now - t < 60000); restarts.push(now);
+        log("wake listener stopped (" + code + "), restarting" + (restarts.length > 5 ? " in a minute" : ""));
+        setTimeout(() => { if (listening && !listenProc) setListening(true); }, restarts.length > 5 ? 60000 : 2000);
+      });
     } catch (e) { listening = false; }
   }
   if (!listening || !whisperOk) armMic(false);
@@ -173,9 +207,24 @@ function makeOverlay() {
   overlay.on("closed", () => { overlay = null; });
 }
 function makeWorker() {
-  worker = new BrowserWindow({ show: false, webPreferences: { preload: path.join(__dirname, "preload.js"), backgroundThrottling: false } });
-  worker.loadFile("worker.html");
-  worker.on("closed", () => { worker = null; });
+  const w = worker = new BrowserWindow({ show: false, webPreferences: { preload: path.join(__dirname, "preload.js"), backgroundThrottling: false } });
+  w.loadFile("worker.html");
+  w.on("closed", () => { if (worker === w) worker = null; });
+  // the hidden window that hears you (Whisper) and plays the voice crashed or froze: start a fresh one, so hearing
+  // and the voice come back by themselves instead of staying dead until Jarvis is restarted
+  const redo = why => {
+    if (worker !== w) return;
+    log("hearing/voice window " + why + " - starting a new one");
+    worker = null; try { w.destroy(); } catch (e) {}
+    whisperOk = false; whisperLoading = false; recording = false; playing = false; speaking = false; paused = false;
+    refreshTray(); busyChanged();
+    setTimeout(() => { makeWorker(); if (listening) setListening(true); }, 1000);
+  };
+  w.webContents.on("render-process-gone", (e, d) => redo("stopped (" + (d && d.reason) + ")"));
+  // (Whisper keeps it busy for a few seconds at a time - only a long freeze counts)
+  let hung = false;
+  w.on("responsive", () => { hung = false; });
+  w.on("unresponsive", () => { hung = true; setTimeout(() => { if (hung && worker === w && !w.isDestroyed()) redo("froze"); }, 25000); });
 }
 let recMode = "", recTimer = 0;
 function recordQuestion(mode) {
@@ -183,7 +232,7 @@ function recordQuestion(mode) {
   if (worker && worker.webContents) worker.webContents.send("record", { mode, device: cfg.mic });
   // never get stuck "recording" if the worker doesn't answer
   clearTimeout(recTimer);
-  recTimer = setTimeout(() => { if (recording) { recording = false; notReallyWoken(); } }, 40000);
+  recTimer = setTimeout(() => { if (recording) { log("no words back from the hearing window in time"); recording = false; notReallyWoken(); } }, 30000);
 }
 // keep the microphone open in the worker (while listening for the wake word), or close it
 function armMic(on) { if (worker && worker.webContents) worker.webContents.send("record", { mode: on ? "arm" : "disarm", device: cfg.mic }); }
@@ -248,6 +297,8 @@ function refreshTray() {
     { label: "Settings…", click: openSettings },
     { label: whisperOk ? "Voice: Whisper (accurate)" : whisperLoading ? "Voice: downloading Whisper…" : speechOk ? "Voice: Windows speech" : "Voice: type only", enabled: false },
     { type: "separator" },
+    { label: "Restart Jarvis", click: () => { app.relaunch(); app.exit(0); } },
+    { label: "Open the log (if something went wrong)", click: () => { log("log opened"); shell.openPath(LOG); } },
     { label: "Quit", click: () => app.quit() }
   ]);
   tray.setContextMenu(menu);
@@ -344,7 +395,7 @@ async function grabScreen() {
     const d = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()) || screen.getPrimaryDisplay();
     // capture straight at the small size we want (asking for the full 4K can come back blank on some PCs)
     const want = shot.fitSize(d.size.width, d.size.height, cfg.maxWidth);
-    const sources = await desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width: want.w, height: want.h } });
+    const sources = await withTimeout(desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width: want.w, height: want.h } }), 6000, []);
     if (!sources.length) { lastShotNote = "nosrc"; return null; }
     // the display under the cursor; else whichever source actually came back with a picture
     let src = sources.find(s => String(s.display_id) === String(d.id) && !s.thumbnail.isEmpty());
@@ -385,7 +436,7 @@ const OLD_SERVER = "Your Web AI server is an older version that can't look at pi
 async function checkServer() {
   if (!cfg.server) { serverSees = null; return null; }
   try {
-    const r = await fetch(cfg.server + "/", { method: "GET" });
+    const r = await fetchFor(cfg.server + "/", { method: "GET" }, LIMIT.check);
     const j = await r.json();
     serverSees = Array.isArray(j.features) && j.features.includes("see");
     return j;
@@ -403,7 +454,8 @@ function newChat(say) {
 const STATUS = { look: "Looking at your screen…", think: "Thinking…", search: "Searching the web…", fetch: "Reading the page…", tool: "Looking that up…" };
 
 async function ask(question) {
-  if (asking) return;
+  // already answering something? a new question takes over (it used to be quietly ignored)
+  if (asking) { stopTalking(); for (let i = 0; i < 30 && asking; i++) await new Promise(r => setTimeout(r, 100)); if (asking) return; }
   // "switch to Opus", "use the smartest model"... - change the model instead of asking
   const pick = models.parseSwitch(question);
   if (pick !== null) { setModel(pick, true); return; }
@@ -417,29 +469,38 @@ async function ask(question) {
   toBubble("question", { text: question, followUp: memory.size() > 0 });
   toBubble("answer", { text: "", thinking: true });
   busyChanged();
-  let answer = "", spokenTo = 0, failed = false;
+  let answer = "", spokenTo = 0, failed = false, timedOut = false, quietTimer = 0;
+  const started = Date.now();
+  // no word from the server for a long while (it sends a "still working" line every ten seconds): give up, and say so
+  const stillThere = () => { clearTimeout(quietTimer); quietTimer = setTimeout(() => { timedOut = true; log("no reply from the server for " + LIMIT.quiet / 1000 + "s"); ctl.abort(); }, LIMIT.quiet); };
   try {
     // use the freshest watched frame if we have one (instant); otherwise grab one right now
     // (and, until we know the server can look at pictures, ask it - at the same time, so it costs no extra wait)
     if (cfg.sendScreenshot) toBubble("status", { text: STATUS.look });
     const sees = cfg.sendScreenshot && serverSees !== true ? checkServer() : null;
-    let image = (cfg.watch && lastFrame && Date.now() - lastFrameAt < 4000) ? lastFrame : await grabScreen();
+    let image = (cfg.watch && lastFrame && Date.now() - lastFrameAt < 4000) ? lastFrame : await withTimeout(grabScreen(), LIMIT.shot, null);
     if (cfg.sendScreenshot && !image) toBubble("warn", { text: "Couldn't capture the screen (" + lastShotNote + ") — answering from your words. Tray icon → \"Show what I can see\" to check." });
-    if (image && sees) { await sees; if (serverSees === false) toBubble("warn", { text: OLD_SERVER }); }
+    if (image && sees) { await withTimeout(sees, LIMIT.check, null); if (serverSees === false) toBubble("warn", { text: OLD_SERVER }); }
+    if (ctl.signal.aborted) throw new Error("stopped");
     toBubble("status", { text: STATUS.think });
     const body = ai.buildBody({ question, cfg, imageDataUrl: image, now: new Date(), history: memory.list() });
-    const res = await fetch(cfg.server + "/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), signal: ctl.signal });
+    let res;
+    try { res = await fetchFor(cfg.server + "/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }, LIMIT.connect, ctl.signal); }
+    catch (e) { if (!ctl.signal.aborted) timedOut = true; throw e; }
     if (!res.ok || !res.body) {
       let msg = "The server didn't answer (" + res.status + ").";
       try { const j = await res.json(); if (j && j.message) msg = j.message; } catch (e) {}
+      log("server said " + res.status + (msg ? ": " + msg.slice(0, 120) : ""));
       failed = true; toBubble("answer", { done: true, text: msg });
       return;
     }
+    stillThere();
     const reader = ai.streamReader(), dec = new TextDecoder();
     const r = res.body.getReader();
     for (;;) {
       const { value, done } = await r.read();
       if (done) break;
+      stillThere();
       for (const part of reader.push(dec.decode(value, { stream: true }))) {
         if (part.error) { failed = true; stopVoiceOnly(); toBubble("answer", { done: true, text: part.error }); return; }
         if (part.status) toBubble("status", { text: STATUS[part.status] || STATUS.tool });
@@ -459,9 +520,15 @@ async function ask(question) {
     toBubble("answer", { done: true, text: shown, parts: ai.linkParts(shown), copy: !!answer });     // links become buttons to click
     if (cfg.voice && answer && !ctl.signal.aborted) say(ai.cleanForSpeech(answer.slice(spokenTo)));
   } catch (e) {
-    if (ctl.signal.aborted) toBubble("answer", { done: true, text: answer ? ai.cleanForShow(answer) + " …" : "Stopped.", copy: !!answer });
-    else { failed = true; stopVoiceOnly(); toBubble("answer", { done: true, text: "Couldn't reach your Web AI server. Check it's on, and the address in Settings." }); }
+    if (timedOut) {
+      failed = !answer; stopVoiceOnly();
+      log("gave up waiting after " + Math.round((Date.now() - started) / 1000) + "s");
+      toBubble("answer", { done: true, text: (answer ? ai.cleanForShow(answer) + " …\n\n" : "") + "That took too long, so I stopped waiting. Ask again - it usually works the second time.", copy: !!answer });
+    }
+    else if (ctl.signal.aborted) toBubble("answer", { done: true, text: answer ? ai.cleanForShow(answer) + " …" : "Stopped.", copy: !!answer });
+    else { failed = true; stopVoiceOnly(); log("couldn't reach the server: " + (e && e.message || e)); toBubble("answer", { done: true, text: "Couldn't reach your Web AI server. Check your internet, and the address in Settings." }); }
   } finally {
+    clearTimeout(quietTimer);
     asking = false;
     if (askCtl === ctl) askCtl = null;
     // remember it for follow-ups (a stopped answer too - "go on" then works)
@@ -522,8 +589,8 @@ function say(text) {
       if (gen !== voiceGen) return;
       const ctl = speakCtl = new AbortController();
       try {
-        const res = await fetch(cfg.server + "/speak", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ device: cfg.device, code: cfg.code || undefined, text: piece }), signal: ctl.signal });
-        if (!res.ok) return;
+        const res = await fetchFor(cfg.server + "/speak", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ device: cfg.device, code: cfg.code || undefined, text: piece }) }, LIMIT.speak, ctl.signal);
+        if (!res.ok) { log("voice: server said " + res.status); return; }
         const buf = Buffer.from(await res.arrayBuffer());
         if (gen !== voiceGen || !cfg.voice) return;      // stopped (or voice turned off) while it was on its way
         playing = true;
@@ -587,7 +654,8 @@ ipcMain.on("whisper-ready", () => {
   whisperOk = true; whisperLoading = false; refreshTray();
   if (listening) setListening(true);      // switch the wake listener over to the accurate mode
 });
-ipcMain.on("whisper-fail", () => { whisperOk = false; whisperLoading = false; refreshTray(); });
+ipcMain.on("whisper-fail", (e, m) => { log("Whisper couldn't load: " + String(m || "").slice(0, 200)); whisperOk = false; whisperLoading = false; refreshTray(); });
+ipcMain.on("log", (e, m) => log(String(m || "").slice(0, 300)));
 ipcMain.on("transcript", (e, t) => { recording = false; gotQuestion(String(t || ""), recMode); });
 ipcMain.on("rec-state", (e, s) => {
   // (after the wake word nothing shows until Whisper has confirmed it was the name - see notReallyWoken)
@@ -645,3 +713,6 @@ else {
     if (indicator) try { indicator.destroy(); } catch (e) {}
   });
 }
+
+// for test/test-app.js: drive the real app logic with a pretend Electron, server and clock limits
+if (process.env.JARVIS_TEST) module.exports = { LIMIT, ask, gotQuestion, state: () => ({ asking, speaking, playing, recording }) };

@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld("jarvis", {
   whisperLoading: () => ipcRenderer.send("whisper-loading"),
   transcript: t => ipcRenderer.send("transcript", t),
   recState: s => ipcRenderer.send("rec-state", s),
+  log: m => ipcRenderer.send("log", m),
   onPlay: fn => ipcRenderer.on("play", (e, buf) => fn(buf)),
   onStopAudio: fn => ipcRenderer.on("stop-audio", () => fn()),
   onPauseAudio: fn => ipcRenderer.on("pause-audio", () => fn()),

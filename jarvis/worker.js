@@ -56,7 +56,7 @@ async function hear(audio) {
 // While "Listen for Jarvis" is on, the microphone stays open and the last few seconds are kept in memory (see
 // lib/listen.mjs) so a question said straight after "Jarvis" isn't missed. Turn listening off and it's closed.
 const listener = createListener();
-let mic = null, micDevice = "", armed = false, busy = false, opening = null;
+let mic = null, micDevice = "", armed = false, busy = false, opening = null, lastSound = 0, graceUntil = 0;
 
 async function openMic(device) {
   device = device || "";
@@ -75,10 +75,14 @@ async function reallyOpen(device) {
     const node = actx.createScriptProcessor(2048, 1, 1);
     src.connect(node); node.connect(actx.destination);
     node.onaudioprocess = ev => {
+      lastSound = Date.now();
       const done = listener.push(to16k(ev.inputBuffer.getChannelData(0), actx.sampleRate), Date.now());
       if (done) heard(done);
     };
-    mic = { stream, actx, src, node }; micDevice = device || "";
+    mic = { stream, actx, src, node }; micDevice = device || ""; lastSound = Date.now();
+    // Windows can pause the sound system (sleep, another app, a device change): wake it back up
+    actx.onstatechange = () => { if (actx.state === "suspended") actx.resume().catch(() => {}); };
+    stream.getTracks().forEach(t => { t.onended = () => { try { window.jarvis.log("microphone went away - reopening"); } catch (e) {} if (mic && mic.stream === stream) { closeMic(); if (armed) setTimeout(() => openMic(micDevice), 1000); } }; });
     return true;
   } catch (e) { mic = null; return false; }
 }
@@ -99,12 +103,25 @@ async function heard(c) {
     try { window.jarvis.recState("thinking"); } catch (e) {}
     try { text = await hear(c.audio); } catch (e) { text = ""; }
   }
-  busy = false;
+  busy = false; graceUntil = Date.now() + 3000;     // (Whisper held everything up for a moment: sound catches up now)
   try { window.jarvis.transcript(text); } catch (e) {}
 }
 
+// every second: a question that's stuck (no sound coming in) is finished anyway, and a microphone that's gone quiet
+// for good (not even silence arriving) is reopened - so hearing recovers by itself
+setInterval(() => {
+  const now = Date.now();
+  const done = listener.tick(now);
+  if (done) { try { window.jarvis.log("finished a question the microphone stopped sending"); } catch (e) {} heard(done); }
+  if (mic && !busy && now > graceUntil && now - lastSound > 4000 && !opening) {
+    try { window.jarvis.log("no sound from the microphone for 4s - reopening it"); } catch (e) {}
+    const dev = micDevice; closeMic();
+    if (armed || listener.capturing) openMic(dev);
+  }
+}, 1000);
+
 async function capture(mode, device) {
-  if (busy || listener.capturing) return;
+  if (busy || listener.capturing) { try { window.jarvis.transcript(""); } catch (e) {} return; }    // never leave the app waiting
   if (!(await ensureModel())) { try { window.jarvis.transcript(""); } catch (e) {} return; }
   if (!(await openMic(device))) { try { window.jarvis.transcript(""); } catch (e) {} return; }
   listener.start(mode === "wake" ? "wake" : "once", Date.now());
@@ -143,8 +160,11 @@ function playNext() {
   try {
     const u8 = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
     const a = audio = new Audio(URL.createObjectURL(new Blob([u8], { type: "audio/mpeg" })));
-    const next = () => { if (audio === a) { dropAudio(); playNext(); } };
+    const next = () => { clearTimeout(guard); if (audio === a) { dropAudio(); playNext(); } };
     a.onended = next; a.onerror = next;
+    // if a piece never plays through (a sound-device hiccup), move on rather than hang "talking" forever
+    let guard = setTimeout(next, 15000);
+    a.onloadedmetadata = () => { if (isFinite(a.duration)) { clearTimeout(guard); guard = setTimeout(() => { if (!held) next(); }, a.duration * 1000 + 5000); } };
     setTalking(true);
     a.play().catch(next);
   } catch (e) { audio = null; playNext(); }

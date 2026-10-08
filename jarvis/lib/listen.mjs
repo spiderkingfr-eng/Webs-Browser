@@ -92,6 +92,9 @@ export function createListener() {
       };
     },
     cancel() { cap = null; },
+    // called every second or so: if the microphone stopped sending sound mid-question (unplugged, Windows switched
+    // devices...), finish the capture anyway instead of waiting forever
+    tick(now) { return cap && shouldStop(cap, now) ? finish() : null; },
     get capturing() { return !!cap; },
     // for the tests
     get noise() { return noise; }
