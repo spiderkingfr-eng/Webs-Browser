@@ -31,7 +31,8 @@
      GET  /streams?u=a,b     Twitch streamers: who's live, and their schedules (streams.js)
      POST /speak   { code?, device?, text, voice? }   -> audio/mpeg in the assistant's voice (speak.js)
      POST /chat    { code?, device?, messages:[{role, content}], web?, prefs?, task?, model? }
-                   model: one of the dashboard's models - only for an unlimited code (yours); others get the server's
+                   model: one of the dashboard's models; effort: low | medium | high - both only for an
+                   unlimited code (yours); others get the server's model, thinking quickly
                    web:true (the iPhone app, which can't read pages itself) lets Claude
                    fetch the page's address once, at most about 6,000 tokens of it
                    prefs: how the person likes answers (Web AI's settings, "Your instructions")
@@ -253,9 +254,9 @@ export default {
           max_tokens:body.task === "answer" ? Math.min(ai.maxTokens, 1500) : body.task === "jarvis" ? Math.min(ai.maxTokens, 3000) : ai.maxTokens,
           system:sys,
           messages,
-          // how hard it thinks: low for quick chat; medium for Jarvis, which looks at your screen and works things out
-          // (Haiku 4.5 has no effort setting)
-          ...(/haiku-4/i.test(m) ? {} : { output_config:{ effort:body.task === "jarvis" ? "medium" : "low" } }),
+          // how hard it thinks: low (quick - and on the newest models still very clever) unless the owner picked more
+          // in Jarvis ("Thinking: Balanced / Deep"). Haiku 4.5 has no effort setting.
+          ...(/haiku-4/i.test(m) ? {} : { output_config:{ effort:effort } }),
           // a question this model declines goes to Anthropic's recommended backup model instead of coming back empty
           ...(FALLBACK_OK.test(m) ? { fallbacks:"default" } : {}),
           ...(tools.length ? { tools } : {}),     // comparing tabs on the iPhone: up to four pages
@@ -265,11 +266,17 @@ export default {
       });
       // the owner (an unlimited code) can pick the model for this question, e.g. from Jarvis; everyone else gets the server's
       const chose = !!who.unlimited && typeof body.model === "string" && MODELS.includes(body.model);
+      // ...and how hard it thinks (more = smarter on hard questions, but slower and dearer)
+      const effort = who.unlimited && ["low", "medium", "high"].includes(body.effort) ? body.effort : "low";
       let usedModel = chose ? body.model : ai.model, up = await claude(usedModel), errText = null;
-      if (!up.ok && (up.status === 400 || up.status === 404) && usedModel !== BACKUP_MODEL) {
+      if (!up.ok && usedModel !== BACKUP_MODEL) {
         errText = await up.text().catch(() => "");
-        if (/model|retention|fallback|tool|web_/i.test(errText)) {
-          console.log("Claude API: " + usedModel + " can't be used (" + up.status + "), answering with " + BACKUP_MODEL, errText.slice(0, 300));
+        // can't be used on this account (not offered, data retention, a tool it doesn't take), or it's overloaded /
+        // rate-limited right now (the smartest model has the least room): answer with the backup instead of failing
+        const cantUse = (up.status === 400 || up.status === 404) && /model|retention|fallback|tool|web_/i.test(errText);
+        const busyNow = up.status === 429 || up.status === 529 || up.status === 503 || up.status === 500;
+        if (cantUse || busyNow) {
+          console.log("Claude API: " + usedModel + (busyNow ? " is busy" : " can't be used") + " (" + up.status + "), answering with " + BACKUP_MODEL, errText.slice(0, 300));
           usedModel = BACKUP_MODEL; up = await claude(usedModel); errText = null;
         }
       }

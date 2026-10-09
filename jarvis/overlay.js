@@ -4,7 +4,8 @@
 (function () {
 const $ = id => document.getElementById(id);
 const body = document.body, a = $("a"), q = $("q"), warn = $("warn"), stop = $("stop"), voice = $("voice");
-const status = $("status"), copy = $("copy"), newchat = $("newchat");
+const status = $("status"), copy = $("copy"), newchat = $("newchat"), again = $("again");
+let voiceOn = true;
 let busy = false, answerText = "", typed = [], typedAt = -1;
 let hideTimer = 0;
 
@@ -17,6 +18,7 @@ window.jarvis.onBubble(d => {
   if (!d) return;
   if (d.name) { $("who").textContent = d.name; $("in").placeholder = "Ask " + d.name + "…"; }
   if (typeof d.voice === "boolean") {
+    voiceOn = d.voice; again.hidden = !(voiceOn && answerText);
     voice.textContent = d.voice ? "🔊" : "🔇"; voice.classList.toggle("off", !d.voice);
     voice.title = d.voice ? "Voice on - click to just read the answers" : "Voice off (just reading) - click to hear answers again";
   }
@@ -35,7 +37,7 @@ window.jarvis.onBubble(d => {
       break;
     case "question":
       body.classList.remove("listening");
-      q.hidden = false; q.textContent = "“" + (d.text || "") + "”"; a.textContent = ""; warn.hidden = true; copy.hidden = true; answerText = "";
+      q.hidden = false; q.textContent = "“" + (d.text || "") + "”"; a.textContent = ""; warn.hidden = true; copy.hidden = true; again.hidden = true; answerText = "";
       if (d.followUp) { const f = document.createElement("span"); f.className = "fu"; f.textContent = "↩"; f.title = "A follow-up: it remembers the conversation so far"; q.prepend(f); }
       break;
     case "status":
@@ -53,7 +55,7 @@ window.jarvis.onBubble(d => {
       body.classList.toggle("thinking", !!d.thinking);
       a.classList.toggle("thinking", !!d.thinking);
       if (!d.thinking) { a.textContent = d.text || ""; if (d.text) status.hidden = true; }
-      if (d.done) { answerText = d.copy ? (d.text || "") : ""; copy.hidden = !answerText; }
+      if (d.done) { answerText = d.copy ? (d.text || "") : ""; copy.hidden = !answerText; again.hidden = !(voiceOn && d.text); }
       a.scrollTop = a.scrollHeight;
       if (d.done) { body.classList.remove("thinking"); a.classList.remove("thinking"); if (!busy) armHide(30000); if (d.parts) showParts(d.parts); }
       break;
@@ -107,6 +109,7 @@ copy.onclick = () => {
   copy.textContent = "✓ Copied"; setTimeout(() => { copy.textContent = "📋 Copy"; }, 1500);
 };
 newchat.onclick = () => { keepOpen(); window.jarvis.newChat(); };
+again.onclick = () => { keepOpen(); window.jarvis.readAgain(); };
 $("in").addEventListener("focus", keepOpen);
 $("in").addEventListener("input", keepOpen);
 $("mic").onclick = () => { keepOpen(); window.jarvis.startVoice(); };

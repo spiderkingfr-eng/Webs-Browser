@@ -3,7 +3,7 @@
 "use strict";
 (function () {
 const $ = id => document.getElementById(id);
-const FIELDS = ["name", "callYou", "style", "server", "code", "hotkey", "mic", "hearing", "model", "wakeSensitivity"];
+const FIELDS = ["name", "callYou", "style", "server", "code", "hotkey", "typeHotkey", "mic", "hearing", "model", "wakeSensitivity", "thinking"];
 const CHECKS = ["wakeEnabled", "voice", "sendScreenshot", "webSearch", "watch", "overlay", "autostart"];
 let cfg = {};
 // only what you change here is saved - so a change made meanwhile from the tray, the bubble or by voice isn't undone

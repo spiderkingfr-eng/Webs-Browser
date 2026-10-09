@@ -56,6 +56,10 @@ ok(seen[0].model === "claude-haiku-5-5" && e.chose === 1, "the unlimited code pi
 ok(seen[0].output_config && seen[0].output_config.effort === "low" && !("fallbacks" in seen[0]), "Haiku 5.5 takes an effort setting, but not the backup-model one");
 r = await call("/chat", { code:"ownercode123", model:"gpt-9", messages:[{ role:"user", content:"hi" }] });
 ok(seen[1].model === "claude-fable-5-1" && !endOf(r.text).chose, "a model that isn't on the list: the server's choice");
+r = await call("/chat", { code:"ownercode123", effort:"high", messages:[{ role:"user", content:"hi" }] });
+ok(seen[2].output_config.effort === "high", "the unlimited code can ask it to think harder (Jarvis: Thinking → Deep)");
+r = await call("/chat", { code:"ownercode123", effort:"max", messages:[{ role:"user", content:"hi" }] });
+ok(seen[3].output_config.effort === "low", "only low / medium / high");
 // (other codes can't pick: test.mjs, "browser can't pick the model")
 globalThis.fetch = realFetch;
 

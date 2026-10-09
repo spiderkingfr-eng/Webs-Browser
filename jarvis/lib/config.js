@@ -15,6 +15,9 @@ const DEFAULTS = {
   code: "",                   // your Web AI code (optional, for a higher daily limit)
   device: "",                 // made once, below
   hotkey: "Alt+Shift+J",      // push to talk / ask, from anywhere
+  typeHotkey: "Alt+Shift+K",  // open the bubble with the typing box ready, from anywhere
+  thinking: "quick",          // quick | balanced | deep - how hard it thinks (your unlimited code only; see the server)
+  bubble: null,               // where you last dragged the bubble ({ x, y }), or null for the bottom-right corner
   voice: true,                // read answers aloud (Adam, through your server's /speak)
   overlay: true,              // show the little bubble (turn off for games with strict anti-cheat)
   sendScreenshot: true,       // send a screenshot with your question so it can see what you're doing
@@ -42,6 +45,9 @@ function clean(cfg) {
   c.server = String(c.server || "").trim().replace(/\/+$/, "");
   c.code = String(c.code || "").trim().slice(0, 200);
   c.hotkey = String(c.hotkey || "").trim().slice(0, 40) || DEFAULTS.hotkey;
+  c.typeHotkey = String(c.typeHotkey == null ? DEFAULTS.typeHotkey : c.typeHotkey).trim().slice(0, 40);
+  c.thinking = ["quick", "balanced", "deep"].includes(c.thinking) ? c.thinking : "quick";
+  c.bubble = c.bubble && isFinite(c.bubble.x) && isFinite(c.bubble.y) ? { x: Math.round(+c.bubble.x), y: Math.round(+c.bubble.y) } : null;
   c.mic = String(c.mic || "").slice(0, 200);
   c.hearing = HEARING.includes(c.hearing) ? c.hearing : "accurate";
   c.wakeSensitivity = c.wakeSensitivity in SENSITIVITY ? c.wakeSensitivity : "normal";

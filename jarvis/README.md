@@ -53,6 +53,26 @@ name, and close it. The tray icon (bottom‑right of Windows) is where everythin
   coming. Long answers are read in full (they used to go silent past a certain length).
 - **📋 Copy** copies the answer. In the typing box, **↑** brings back what you typed before.
 
+## Done right here, instantly (no server, free)
+
+- **Timers and reminders**: *"set a timer for 10 minutes"*, *"remind me in 20 minutes to take the pizza out"*,
+  *"remind me to stretch in an hour"*, *"what timers do I have?"*, *"cancel my timers"*. When one goes off you get a
+  Windows notification, the bubble, and (voice on) it tells you. They're also in the tray menu. (They're kept while
+  Jarvis is running - restarting it clears them.)
+- **Open websites**: *"open YouTube"*, *"go to the Minecraft wiki"*, *"open minecraft.net"*.
+- **The time and date**: *"what time is it?"*, *"what day is it?"*.
+
+## Other handy things
+
+- **"Explain what I copied"** (or *"summarise my clipboard"*): it reads what you copied - only when you ask like
+  that, never otherwise.
+- **Thinking** (tray or Settings): *Quick* (the default - fast, and still very clever), *Balanced*, or *Deep* for
+  hard questions (slower, costs more). While it thinks the bubble counts the seconds, and if no answer has started
+  after 2 minutes it stops and suggests a quicker setting. (Like the model, only your unlimited code can change it.)
+- **🔁 Read again** reads the last answer out again.
+- **Typing hotkey** (default **Alt+Shift+K**): opens the bubble ready to type - for when you can't talk.
+- **The bubble stays where you drag it**. Tray → *Put the bubble back in the corner* to reset it.
+
 ## The wake word
 
 Turning your speech into text is done **on your PC by Whisper** (an accurate speech model that runs locally in
@@ -182,6 +202,7 @@ produces an installer under `dist/`.
 | `lib/config.js` | your settings, in one JSON file on this PC |
 | `lib/wake.js` | hearing the wake word and pulling out the question |
 | `Start Jarvis.vbs` | double-click to start it (sets itself up the first time) |
+| `lib/commands.js` | timers, reminders, "open YouTube", the time - done right here |
 | `lib/models.js` | the models you can pick, and "switch to Opus" |
 | `lib/listen.mjs` | telling your voice from quiet, keeping the last few seconds, knowing when you've finished |
 | `lib/ai.js` | the request to `/chat` and reading the streamed answer |

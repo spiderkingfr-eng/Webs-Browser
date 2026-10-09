@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld("jarvis", {
   hideBubble: () => ipcRenderer.send("hide-bubble"),
   stopTalking: () => ipcRenderer.send("stop-talking"),
   newChat: () => ipcRenderer.send("new-chat"),
+  readAgain: () => ipcRenderer.send("read-again"),
   copyText: t => ipcRenderer.send("copy-text", t),
   toggleVoice: () => ipcRenderer.send("toggle-voice"),
   // the little "listening" ball

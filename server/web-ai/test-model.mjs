@@ -30,7 +30,7 @@ const day = new Date().toISOString().slice(0, 10);
 let r = await chat({ task:"jarvis" });
 let b = sent[0].body;
 ok(r.s === 200 && b.model === "claude-fable-5-1", "Claude Fable 5.1 by default");
-ok(b.output_config.effort === "medium" && b.max_tokens === 3000 && !("thinking" in b) && !("temperature" in b), "Jarvis: medium effort, room to think, no thinking or sampling settings");
+ok(b.output_config.effort === "low" && b.max_tokens === 3000 && !("thinking" in b) && !("temperature" in b), "Jarvis: quick thinking by default, room to think, no thinking or sampling settings");
 ok(b.fallbacks === "default" && sent[0].headers["anthropic-beta"] === "server-side-fallback-2026-07-01", "declined questions go to Anthropic's recommended backup");
 ok(Math.abs(cost(JSON.parse(kv.get("u:" + day)), "claude-fable-5-1") - 10) < 1e-9, "its cost is counted at Fable's price (a million tokens in = $10)");
 ok(Math.abs(cost({ input_tokens:1e6, output_tokens:1e6 }, "claude-fable-5-1") - 60) < 1e-9 && Math.abs(cost({ input_tokens:1e6, output_tokens:1e6 }, "claude-opus-5-5") - 24) < 1e-9, "prices: Fable $10/$50, Opus $4/$20");
@@ -45,6 +45,18 @@ kv.clear(); sent = [];
 replies = [{ status:400, text:JSON.stringify({ type:"error", error:{ type:"invalid_request_error", message:"This model requires 30-day data retention." } }) }];
 r = await chat();
 ok(r.s === 200 && sent.length === 2 && sent[1].body.model === "claude-opus-5-5", "data-retention settings don't allow it: Opus 5.5 answers");
+// Fable is overloaded or rate-limited right now: Opus 5.5 answers instead of "busy"
+for (const st of [529, 429]) {
+  kv.clear(); sent = [];
+  replies = [{ status:st, text:JSON.stringify({ type:"error", error:{ type:st === 529 ? "overloaded_error" : "rate_limit_error", message:"busy" } }) }];
+  r = await chat();
+  ok(r.s === 200 && sent.length === 2 && sent[1].body.model === "claude-opus-5-5" && r.lines.some(l => l.d === "Hi"), "Fable busy (" + st + "): Opus 5.5 answers instead");
+}
+// both busy: says so
+kv.clear(); sent = [];
+replies = [{ status:529, text:"{}" }, { status:529, text:"{}" }];
+r = await chat();
+ok(r.s === 503 && sent.length === 2, "both busy: 'try again in a minute'");
 // a 400 for some other reason isn't retried
 kv.clear(); sent = [];
 replies = [{ status:400, text:JSON.stringify({ type:"error", error:{ type:"invalid_request_error", message:"messages: text content blocks must be non-empty" } }) }];

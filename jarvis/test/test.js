@@ -1,7 +1,7 @@
 // Jarvis for Webs - tests for the parts that don't need a screen, a microphone or Electron: node test/test.js
 "use strict";
 const assert = require("assert"), fs = require("fs"), os = require("os"), path = require("path");
-const config = require("../lib/config"), wake = require("../lib/wake"), ai = require("../lib/ai"), shot = require("../lib/shot"), models = require("../lib/models");
+const config = require("../lib/config"), wake = require("../lib/wake"), ai = require("../lib/ai"), shot = require("../lib/shot"), models = require("../lib/models"), commands = require("../lib/commands");
 let pass = 0, fail = 0;
 const ok = (c, w) => { if (c) pass++; else { fail++; console.log("  FAIL:", w); } };
 
@@ -128,6 +128,27 @@ const ok = (c, w) => { if (c) pass++; else { fail++; console.log("  FAIL:", w); 
   ok(ai.speechPieces("Short one.").length === 1 && ai.speechPieces("").length === 0, "short ones in one go");
   ok(ai.parseLine('{"s":"search"}').status === "search", "it says when it's searching the web");
   ok(["new chat", "New conversation.", "forget that", "start over please", "change the subject"].every(wake.isReset) && !wake.isReset("forget my password") && !wake.isReset("new chat apps for windows"), "\"new chat\" / \"forget that\" starts fresh");
+})();
+
+/* done right here, no server: timers, reminders, websites, the time */
+(() => {
+  const P = commands.parse;
+  ok(P("Set a timer for 10 minutes.").ms === 600000 && P("set a 5 minute timer").ms === 300000 && P("timer for an hour and a half").ms === 5400000 && P("Set a timer for ten seconds").ms === 10000, "timers, said different ways");
+  let r = P("Remind me in 10 minutes to take the pizza out.");
+  ok(r.kind === "remind" && r.ms === 600000 && r.text === "take the pizza out", "a reminder: when, and what");
+  r = P("remind me to call my mom in 2 hours and 15 minutes please");
+  ok(r.kind === "remind" && r.ms === 8100000 && commands.you(r.text) === "call your mom", "the other way round (and said back as 'your mom')");
+  ok(P("cancel my timers").kind === "cancel" && P("what timers do I have").kind === "list" && P("how long left on the timer").kind === "list", "cancelling and checking timers");
+  ok(P("What time is it?").kind === "time" && P("what day is it today").kind === "date", "the time and the date");
+  ok(P("Open YouTube.").url === "https://www.youtube.com" && P("go to the minecraft wiki").url === "https://minecraft.wiki" && P("open minecraft.net").url === "https://minecraft.net", "opening websites by name or address");
+  ok(["open the furnace recipe", "how do i make a timer in redstone", "remind me how furnaces work", "what is the time zone in japan", "open my eyes", "set the table"].every(t => P(t) === null), "normal questions still go to the AI");
+  ok(P("set a timer for 0 minutes") === null && P("set a timer for 30 hours") === null, "silly lengths are left alone");
+  ok(commands.say(90000) === "1 minute 30 seconds" && commands.say(5400000) === "1 hour 30 minutes" && commands.say(1000) === "1 second", "lengths read nicely");
+  ok(commands.wantsClipboard("explain what I copied") && commands.wantsClipboard("summarise my clipboard") && !commands.wantsClipboard("copy that down") && !commands.wantsClipboard("how do I make a furnace"), "the clipboard only when you ask about it");
+  const b = ai.buildBody({ question: "explain what I copied", cfg: { device: "d" }, clipboard: "E = mc^2" });
+  ok(/<clipboard>\nE = mc\^2\n<\/clipboard>/.test(b.messages[0].content) && !/<clipboard>/.test(ai.buildBody({ question: "hi", cfg: { device: "d" } }).messages[0].content), "what you copied goes with that question only");
+  ok(ai.buildBody({ question: "hi", cfg: { device: "d", thinking: "deep" } }).effort === "high" && ai.buildBody({ question: "hi", cfg: { device: "d", thinking: "quick" } }).effort === "low", "Thinking: Quick / Balanced / Deep");
+  ok(config.clean({}).thinking === "quick" && config.clean({}).typeHotkey === "Alt+Shift+K" && config.clean({ bubble: { x: 10, y: "20" } }).bubble.y === 20 && config.clean({ bubble: { x: "a" } }).bubble === null, "new settings: thinking, typing hotkey, where the bubble was");
 })();
 
 /* picking the model */

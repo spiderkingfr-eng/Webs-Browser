@@ -12,7 +12,7 @@ const STYLE_TEXT = {
 };
 
 // the <assistant> and <now> blocks the server's jarvis prompt expects, adapted for the desktop overlay
-function context(cfg, now, hasImage) {
+function context(cfg, now, hasImage, clip) {
   const name = (cfg && cfg.name) || "Jarvis";
   const call = cfg && cfg.callYou ? cfg.callYou : "";
   const style = STYLE_TEXT[cfg && cfg.style] || STYLE_TEXT.calm;
@@ -22,8 +22,10 @@ function context(cfg, now, hasImage) {
   s += "<now>\nThe time is " + (now || new Date()).toString() + ".\n";
   s += "This is the desktop overlay, not the browser: there are no tabs or browser commands here, so never use [[do: ...]] commands - just answer.\n";
   s += "If they ask for a link, give it as a full https address on its own line: it shows as a button they can click." + (cfg && cfg.webSearch ? " Search the web to find the real page rather than guessing the address." : " Only give addresses you're sure of.") + "\n";
+  if (clip) s += "What they copied (their clipboard) is in the <clipboard> block below - that's what \"what I copied\" means.\n";
   s += (hasImage ? "A screenshot of their screen (the monitor their mouse is on) is attached: it is exactly what they're looking at right now, so look at it and answer from it.\n" : "No screenshot is attached this time.\n");
   s += "</now>";
+  if (clip) s += "\n<clipboard>\n" + clip + "\n</clipboard>";
   return s;
 }
 
@@ -36,7 +38,9 @@ function buildBody(opt) {
   const earlier = (opt.history || []).filter(h => h && h.q && h.a)
     .flatMap(h => [{ role: "user", content: String(h.q).slice(0, 2000) }, { role: "assistant", content: String(h.a).slice(0, 3000) }]);
   const image = cfg.sendScreenshot && typeof opt.imageDataUrl === "string" && /^data:image\/(png|jpeg|webp|gif);base64,/.test(opt.imageDataUrl) ? opt.imageDataUrl : null;
-  const text = context(cfg, opt.now, !!image) + "\n\n" + q;
+  // what you copied - only when you asked about it ("explain what I copied"), and at most 6000 characters
+  const clip = typeof opt.clipboard === "string" && opt.clipboard.trim() ? opt.clipboard.trim().slice(0, 6000) : "";
+  const text = context(cfg, opt.now, !!image, clip) + "\n\n" + q;
   const body = {
     task: "jarvis",
     device: cfg.device || "",
@@ -45,6 +49,8 @@ function buildBody(opt) {
   if (cfg.code) body.code = cfg.code;
   if (cfg.webSearch) body.search = true;      // it may look things up (real links, anything current)
   if (cfg.model) body.model = cfg.model;       // the model you picked (the server honours it for your unlimited code)
+  const effort = { quick: "low", balanced: "medium", deep: "high" }[cfg.thinking];
+  if (effort) body.effort = effort;            // how hard it thinks (likewise)
   if (cfg.callYou || cfg.style) body.prefs = (cfg.callYou ? "Call me " + cfg.callYou + ". " : "") + (STYLE_TEXT[cfg.style] || "");
   if (image) body.image = { data: image };
   return body;

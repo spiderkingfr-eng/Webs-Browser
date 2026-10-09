@@ -55,6 +55,6 @@ ok(r.status === 401, "a wrong code");
 // the jarvis job
 r = await call("/chat", { device:D, task:"jarvis", messages:[{ role:"user", content:"<assistant>name: Jarvis</assistant>\nopen youtube" }] });
 await r.text();
-ok(r.status === 200 && /JARVIS/.test(claude[0].system) && /\[\[do: command\]\]/.test(claude[0].system) && claude[0].max_tokens <= 3000 && claude[0].output_config.effort === "medium", "the assistant's job: spoken, short, how to do things, and thinking a bit harder");
+ok(r.status === 200 && /JARVIS/.test(claude[0].system) && /\[\[do: command\]\]/.test(claude[0].system) && claude[0].max_tokens <= 3000 && claude[0].output_config.effort === "low", "the assistant's job: spoken, short, how to do things, thinking quickly");
 console.log(`speak: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -8,7 +8,7 @@
    is done by Windows' own built-in speech recognition (lib/stt-win.ps1) - no download, no extra install. Without it
    (non-Windows, or speech turned off in Windows) the hotkey opens a box you can type into, and typing always works. */
 "use strict";
-const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, desktopCapturer, screen, nativeImage, shell, clipboard } = require("electron");
+const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, desktopCapturer, screen, nativeImage, shell, clipboard, Notification } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const { spawn } = require("child_process");
@@ -17,6 +17,7 @@ const ai = require("./lib/ai");
 const shot = require("./lib/shot");
 const wake = require("./lib/wake");
 const models = require("./lib/models");
+const commands = require("./lib/commands");
 
 const DIR = app.getPath("userData");
 let cfg = config.load(DIR);
@@ -24,7 +25,7 @@ let cfg = config.load(DIR);
 /* ---------------------------------------------------------------- never wait forever */
 // Every step that waits on something outside (the server, the screen, the voice) has a time limit, so one slow or
 // dropped connection can't leave Jarvis stuck and ignoring you until it's restarted.
-const LIMIT = { shot: 8000, check: 5000, connect: 45000, quiet: 90000, speak: 20000 };
+const LIMIT = { shot: 8000, check: 5000, connect: 45000, quiet: 90000, speak: 20000, think: 120000 };
 function withTimeout(promise, ms, fallback) {
   let t; return Promise.race([promise, new Promise(r => { t = setTimeout(() => r(fallback), ms); })]).finally(() => clearTimeout(t));
 }
@@ -191,10 +192,17 @@ function startVoiceAsk() {
 
 /* ---------------------------------------------------------------- windows */
 function overlayBounds() {
-  const d = screen.getPrimaryDisplay().workArea;
   const w = 390, h = 300, m = 18;
+  // where you last dragged it, if that's still on one of your screens; else the bottom-right corner
+  const b = cfg.bubble;
+  if (b) {
+    const fits = screen.getAllDisplays().some(d => { const a = d.workArea; return b.x >= a.x - 40 && b.y >= a.y && b.x + w <= a.x + a.width + 40 && b.y + h <= a.y + a.height + 40; });
+    if (fits) return { x: b.x, y: b.y, width: w, height: h };
+  }
+  const d = screen.getPrimaryDisplay().workArea;
   return { x: d.x + d.width - w - m, y: d.y + d.height - h - m, width: w, height: h };
 }
+let movedTimer = 0;
 function makeOverlay() {
   overlay = new BrowserWindow(Object.assign(overlayBounds(), {
     frame: false, transparent: true, resizable: false, movable: true, skipTaskbar: true,
@@ -205,6 +213,8 @@ function makeOverlay() {
   overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   overlay.loadFile("overlay.html");
   overlay.on("closed", () => { overlay = null; });
+  // remember where you drag it
+  overlay.on("moved", () => { clearTimeout(movedTimer); movedTimer = setTimeout(() => { if (!overlay) return; const [x, y] = overlay.getPosition(); cfg = config.save(DIR, Object.assign({}, cfg, { bubble: { x, y } })); }, 400); });
 }
 function makeWorker() {
   const w = worker = new BrowserWindow({ show: false, webPreferences: { preload: path.join(__dirname, "preload.js"), backgroundThrottling: false } });
@@ -289,9 +299,12 @@ function refreshTray() {
     { type: "separator" },
     { label: "Listen for \"" + cfg.name + "\"", type: "checkbox", checked: listening && speechOk, enabled: speechOk, click: m => setListening(m.checked) },
     { label: "Read answers aloud", type: "checkbox", checked: !!cfg.voice, click: m => setVoice(m.checked) },
+    { label: "Thinking: " + ({ quick: "Quick", balanced: "Balanced", deep: "Deep" })[cfg.thinking], submenu: [["quick", "Quick - fast answers (still very clever)"], ["balanced", "Balanced - thinks a bit more"], ["deep", "Deep - for hard questions (slower)"]].map(([id, label]) => ({ label, type: "radio", checked: cfg.thinking === id, click: () => { cfg = config.save(DIR, Object.assign({}, cfg, { thinking: id })); refreshTray(); configChanged(); } })) },
+    ...(timers.length ? [{ label: "Timers and reminders (" + timers.length + ")", submenu: timers.map(t => ({ label: (t.text ? "Remind me to " + t.text : "Timer") + " - at " + new Date(t.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }), enabled: false })).concat([{ type: "separator" }, { label: "Cancel them all", click: () => { timers.forEach(t => clearTimeout(t.handle)); timers = []; refreshTray(); } }]) }] : []),
     { label: "Model: " + models.nameOf(cfg.model), submenu: models.MODELS.map(m => ({ label: m.name + "  -  " + m.note, type: "radio", checked: cfg.model === m.id, click: () => setModel(m.id, false) })) },
     { label: "Show the bubble", type: "checkbox", checked: cfg.overlay, click: m => { cfg = config.save(DIR, Object.assign({}, cfg, { overlay: m.checked })); configChanged(); } },
     { label: "New chat (forget this conversation)", click: () => newChat(true) },
+    { label: "Put the bubble back in the corner", click: () => { cfg = config.save(DIR, Object.assign({}, cfg, { bubble: null })); if (overlay) overlay.setBounds(overlayBounds()); } },
     { type: "separator" },
     { label: "Show what I can see", enabled: !!cfg.sendScreenshot, click: () => showWhatISee() },
     { label: "Settings…", click: openSettings },
@@ -443,6 +456,48 @@ async function checkServer() {
   } catch (e) { return null; }
 }
 
+/* ---------------------------------------------------------------- right here, no server */
+// Timers, reminders, opening websites and the time are done on your PC - instantly, and they cost nothing.
+let timers = [], timerId = 0, lastSpoken = "";
+function reply(question, text) {
+  showBubble(false);
+  toBubble("question", { text: question });
+  toBubble("status", { text: "" });
+  toBubble("answer", { done: true, text, parts: ai.linkParts(text), copy: false });
+  lastSpoken = text;
+  if (cfg.voice) { stopVoiceOnly(); say(text); }
+  showDot(listening ? "listening" : "off");
+}
+const niceName = n => commands.SITES[n] ? n.replace(/\b\w/g, c => c.toUpperCase()).replace(/^Youtube$/, "YouTube").replace(/^Github$/, "GitHub").replace(/^Tiktok$/, "TikTok") : n;
+function local(question) {
+  const c = commands.parse(question);
+  if (!c) return false;
+  const now = new Date();
+  if (c.kind === "timer" || c.kind === "remind") {
+    const t = { id: ++timerId, at: Date.now() + c.ms, text: c.kind === "remind" ? commands.you(c.text) : "" };
+    t.handle = setTimeout(() => ring(t), c.ms);
+    timers.push(t); refreshTray();
+    reply(question, t.text ? "Okay, I'll remind you in " + commands.say(c.ms) + " to " + t.text + "." : "Timer set for " + commands.say(c.ms) + ".");
+  } else if (c.kind === "cancel") {
+    const n = timers.length; timers.forEach(t => clearTimeout(t.handle)); timers = []; refreshTray();
+    reply(question, n ? (n === 1 ? "Done - cancelled it." : "Done - cancelled all " + n + ".") : "You don't have any timers or reminders running.");
+  } else if (c.kind === "list") {
+    reply(question, timers.length ? timers.map(t => (t.text ? "Reminder to " + t.text : "A timer") + ": " + commands.say(t.at - Date.now()) + " left.").join("\n") : "No timers or reminders running.");
+  } else if (c.kind === "time") reply(question, "It's " + now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) + ".");
+  else if (c.kind === "date") reply(question, "It's " + now.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" }) + ".");
+  else if (c.kind === "open") { shell.openExternal(c.url); reply(question, "Opening " + niceName(c.name) + "."); }
+  log("done here, no server: " + c.kind);
+  return true;
+}
+// a timer or reminder is up: a Windows notification, the bubble, and (if the voice is on) it says so
+function ring(t) {
+  timers = timers.filter(x => x !== t); refreshTray();
+  const text = t.text ? "Reminder: " + t.text + "." : "Time's up!";
+  try { if (Notification && Notification.isSupported()) new Notification({ title: cfg.name, body: text }).show(); } catch (e) {}
+  showBubble(false); toBubble("say", { text: "⏰ " + text, listening: false });
+  if (cfg.voice) { stopVoiceOnly(); say(text); }
+}
+
 /* ---------------------------------------------------------------- asking the server */
 // the conversation so far (memory only), so follow-up questions work; "New chat" or "Jarvis, new chat" forgets it
 const memory = ai.createMemory();
@@ -460,6 +515,7 @@ async function ask(question) {
   const pick = models.parseSwitch(question);
   if (pick !== null) { setModel(pick, true); return; }
   if (wake.isReset(question)) { newChat(true); return; }      // "new chat", "forget that"
+  if (local(question)) return;                                // timers, reminders, "open YouTube", the time - done right here
   if (!cfg.server) { showBubble(true); toBubble("answer", { done: true, text: "Open Settings and paste your Web AI server address first." }); openSettings(); return; }
   asking = true;
   const ctl = askCtl = new AbortController();
@@ -471,19 +527,32 @@ async function ask(question) {
   busyChanged();
   let answer = "", spokenTo = 0, failed = false, timedOut = false, quietTimer = 0;
   const started = Date.now();
+  // while it thinks: how long it's been, a word if it's a long one, and a stop if no answer has started in 2 minutes
+  let status = "";
+  const showStatus = t => { status = t; toBubble("status", { text: t }); };
+  const clock = setInterval(() => {
+    if (answer) return;
+    const s = Math.round((Date.now() - started) / 1000);
+    if (Date.now() - started > LIMIT.think) { timedOut = true; log("no answer started within " + LIMIT.think / 1000 + "s"); ctl.abort(); return; }
+    if (s >= 25) toBubble("status", { text: "Still thinking (" + s + "s) - a tricky one. Stop cancels it." });
+    else if (s >= 4 && status) toBubble("status", { text: status + " " + s + "s" });
+  }, 1000);
   // no word from the server for a long while (it sends a "still working" line every ten seconds): give up, and say so
   const stillThere = () => { clearTimeout(quietTimer); quietTimer = setTimeout(() => { timedOut = true; log("no reply from the server for " + LIMIT.quiet / 1000 + "s"); ctl.abort(); }, LIMIT.quiet); };
   try {
     // use the freshest watched frame if we have one (instant); otherwise grab one right now
     // (and, until we know the server can look at pictures, ask it - at the same time, so it costs no extra wait)
-    if (cfg.sendScreenshot) toBubble("status", { text: STATUS.look });
+    if (cfg.sendScreenshot) showStatus(STATUS.look);
     const sees = cfg.sendScreenshot && serverSees !== true ? checkServer() : null;
     let image = (cfg.watch && lastFrame && Date.now() - lastFrameAt < 4000) ? lastFrame : await withTimeout(grabScreen(), LIMIT.shot, null);
     if (cfg.sendScreenshot && !image) toBubble("warn", { text: "Couldn't capture the screen (" + lastShotNote + ") — answering from your words. Tray icon → \"Show what I can see\" to check." });
     if (image && sees) { await withTimeout(sees, LIMIT.check, null); if (serverSees === false) toBubble("warn", { text: OLD_SERVER }); }
     if (ctl.signal.aborted) throw new Error("stopped");
-    toBubble("status", { text: STATUS.think });
-    const body = ai.buildBody({ question, cfg, imageDataUrl: image, now: new Date(), history: memory.list() });
+    showStatus(STATUS.think);
+    // "explain what I copied": only then is the clipboard read (and sent along with this question)
+    let clip = "";
+    if (commands.wantsClipboard(question)) { try { clip = clipboard.readText(); } catch (e) {} if (!clip.trim()) toBubble("warn", { text: "Your clipboard has no text in it - copy something first." }); }
+    const body = ai.buildBody({ question, cfg, imageDataUrl: image, now: new Date(), history: memory.list(), clipboard: clip });
     let res;
     try { res = await fetchFor(cfg.server + "/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }, LIMIT.connect, ctl.signal); }
     catch (e) { if (!ctl.signal.aborted) timedOut = true; throw e; }
@@ -503,7 +572,7 @@ async function ask(question) {
       stillThere();
       for (const part of reader.push(dec.decode(value, { stream: true }))) {
         if (part.error) { failed = true; stopVoiceOnly(); toBubble("answer", { done: true, text: part.error }); return; }
-        if (part.status) toBubble("status", { text: STATUS[part.status] || STATUS.tool });
+        if (part.status) showStatus(STATUS[part.status] || STATUS.tool);
         if (part.text) {
           answer += part.text; toBubble("answer", { text: ai.cleanForShow(answer) });
           // read the first sentence out as soon as it's written (the rest follows when the answer's done)
@@ -518,17 +587,19 @@ async function ask(question) {
     reader.end().forEach(p => { if (p.text) answer += p.text; });
     const shown = ai.cleanForShow(answer) || "(no answer)";
     toBubble("answer", { done: true, text: shown, parts: ai.linkParts(shown), copy: !!answer });     // links become buttons to click
+    lastSpoken = ai.cleanForSpeech(answer);
     if (cfg.voice && answer && !ctl.signal.aborted) say(ai.cleanForSpeech(answer.slice(spokenTo)));
   } catch (e) {
     if (timedOut) {
       failed = !answer; stopVoiceOnly();
       log("gave up waiting after " + Math.round((Date.now() - started) / 1000) + "s");
-      toBubble("answer", { done: true, text: (answer ? ai.cleanForShow(answer) + " …\n\n" : "") + "That took too long, so I stopped waiting. Ask again - it usually works the second time.", copy: !!answer });
+      const faster = cfg.thinking !== "quick" ? "set Thinking to Quick (tray → Thinking)" : "say \"use Sonnet\" for a faster model";
+      toBubble("answer", { done: true, text: (answer ? ai.cleanForShow(answer) + " …\n\n" : "") + "That took too long, so I stopped waiting. Ask again - it usually works the second time. For quicker answers, " + faster + ".", copy: !!answer });
     }
     else if (ctl.signal.aborted) toBubble("answer", { done: true, text: answer ? ai.cleanForShow(answer) + " …" : "Stopped.", copy: !!answer });
     else { failed = true; stopVoiceOnly(); log("couldn't reach the server: " + (e && e.message || e)); toBubble("answer", { done: true, text: "Couldn't reach your Web AI server. Check your internet, and the address in Settings." }); }
   } finally {
-    clearTimeout(quietTimer);
+    clearTimeout(quietTimer); clearInterval(clock);
     asking = false;
     if (askCtl === ctl) askCtl = null;
     // remember it for follow-ups (a stopped answer too - "go on" then works)
@@ -668,6 +739,7 @@ ipcMain.on("hide-bubble", () => { if (overlay) overlay.hide(); });
 ipcMain.on("start-voice", () => startVoiceAsk());
 ipcMain.on("stop-talking", () => stopTalking());
 ipcMain.on("new-chat", () => newChat(false));
+ipcMain.on("read-again", () => { if (lastSpoken) { stopVoiceOnly(); say(lastSpoken); } });
 ipcMain.on("copy-text", (e, t) => { try { clipboard.writeText(String(t || "").slice(0, 20000)); } catch (x) {} });
 ipcMain.on("toggle-voice", () => setVoice(!cfg.voice));
 ipcMain.on("audio-state", (e, on) => { playing = !!on; busyChanged(); });
@@ -675,7 +747,9 @@ ipcMain.on("audio-state", (e, on) => { playing = !!on; busyChanged(); });
 /* ---------------------------------------------------------------- hotkey & autostart */
 function applyHotkey() {
   try { globalShortcut.unregisterAll(); } catch (e) {}
-  if (cfg.hotkey) { try { globalShortcut.register(cfg.hotkey, () => startVoiceAsk()); } catch (e) {} }
+  if (cfg.hotkey) { try { if (!globalShortcut.register(cfg.hotkey, () => startVoiceAsk())) log("hotkey " + cfg.hotkey + " is taken by another app"); } catch (e) {} }
+  // the typing hotkey: the bubble with its box ready to type in
+  if (cfg.typeHotkey && cfg.typeHotkey !== cfg.hotkey) { try { if (!globalShortcut.register(cfg.typeHotkey, () => showBubble(true))) log("typing hotkey " + cfg.typeHotkey + " is taken by another app"); } catch (e) {} }
 }
 function applyAutostart() {
   try {
@@ -715,4 +789,4 @@ else {
 }
 
 // for test/test-app.js: drive the real app logic with a pretend Electron, server and clock limits
-if (process.env.JARVIS_TEST) module.exports = { LIMIT, ask, gotQuestion, state: () => ({ asking, speaking, playing, recording }) };
+if (process.env.JARVIS_TEST) module.exports = { LIMIT, ask, gotQuestion, state: () => ({ asking, speaking, playing, recording, timers: timers.length }) };
